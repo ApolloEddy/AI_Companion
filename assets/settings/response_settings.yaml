@@ -1,0 +1,43 @@
+# 回复格式配置
+# 控制消息分条和发送时间
+
+# 消息分割配置
+splitting:
+  # 分隔符（LLM使用此符号分隔多条消息）
+  separator: "|||"
+  # 最大分条数
+  max_parts: 5
+  # 单条消息最大长度（超过则强制分割）
+  max_single_length: 100
+
+# 时间控制
+timing:
+  # 首条消息延迟
+  first_delay:
+    # 基础延迟（秒）
+    base: 0.5
+    # 模拟打字速度（字/分钟）
+    typing_speed: 80
+    # 唤醒度影响系数（唤醒度越高延迟越短）
+    arousal_factor: 0.3
+    # 最小延迟（秒）
+    min: 0.3
+    # 最大延迟（秒）
+    max: 3.0
+  
+  # 分条间隔
+  interval:
+    # 基础间隔（秒）
+    base: 0.8
+    # 随机浮动范围（秒）
+    random_min: 0.2
+    random_max: 0.8
+    # 每字额外延迟（秒）
+    per_char: 0.02
+
+# 情绪对分条的影响
+emotion_effects:
+  # 高唤醒度阈值（高于此值倾向分条）
+  high_arousal_threshold: 0.6
+  # 分条概率加成
+  split_probability_bonus: 0.3

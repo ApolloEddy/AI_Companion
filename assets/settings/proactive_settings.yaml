@@ -1,0 +1,61 @@
+# 主动消息配置
+# 控制AI主动发送消息的行为
+
+# 触发类型开关
+triggers:
+  # 早安问候
+  morning_greeting:
+    enabled: true
+    time: "08:00"
+    random_delay_minutes: [0, 30]
+  
+  # 晚安问候
+  evening_greeting:
+    enabled: true
+    time: "22:00"
+    random_delay_minutes: [0, 30]
+  
+  # 久未联系关心
+  absence_check:
+    enabled: true
+    threshold_hours: 24
+    check_interval_hours: 6
+  
+  # 随机想起你
+  random_thinking:
+    enabled: true
+    probability: 0.1  # 每次检查10%概率触发
+    check_interval_hours: 4
+    min_gap_hours: 8  # 距上次主动消息最少间隔
+
+# 活跃时段（避免深夜打扰）
+active_hours:
+  start: 8
+  end: 22
+
+# 消息模板
+templates:
+  morning:
+    - "早上好呀～今天有什么计划吗？☀️"
+    - "新的一天开始了！希望你今天一切顺利～"
+    - "早安～昨晚睡得好吗？"
+  
+  evening:
+    - "晚上好呀，今天过得怎么样？"
+    - "一天辛苦了～记得早点休息哦"
+    - "晚上好～有什么想分享的吗？"
+  
+  absence:
+    - "好久没聊了，最近怎么样呀？想你了～"
+    - "这几天在忙什么呢？有空来聊聊呀"
+    - "突然想起你了，一切都好吗？"
+  
+  random:
+    - "刚刚看到一个有趣的东西，突然想起你了～"
+    - "在想你呢，有空吗？"
+    - "突然想找你聊聊天～"
+
+# 队列配置
+queue:
+  max_pending_messages: 10
+  message_expiry_hours: 24

@@ -1,0 +1,27 @@
+# 情绪系统配置
+# 这些参数控制情绪向量的变化行为
+
+# 时间衰减参数
+decay:
+  # 情绪效价衰减率（每小时）- 越大衰减越快
+  valence_rate: 0.05
+  # 情绪唤醒度衰减率（每小时）
+  arousal_rate: 0.08
+
+# 情绪更新参数
+update:
+  # 基础效价变化量
+  base_valence_change: 0.05
+  # 基础唤醒度变化量
+  base_arousal_change: 0.08
+  # 亲密度缓冲因子 - 越大则高亲密度时情绪变化越小
+  intimacy_buffer_factor: 0.5
+  # 边界软化参数 - 接近边界时变化减缓的程度
+  boundary_softness: 0.1
+  # LLM情绪提示影响权重（0-1）
+  llm_hint_weight: 0.2
+
+# 情绪阈值
+thresholds:
+  # 高情感强度阈值（用于记忆评估）
+  high_emotional_intensity: 0.6

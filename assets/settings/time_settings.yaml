@@ -1,0 +1,45 @@
+# 时间感知配置
+# 这些参数控制时间间隔的判定和问候行为
+
+# 时间间隔阈值（分钟）
+thresholds:
+  immediate: 2        # 立即回复
+  short: 30           # 短暂间隔
+  medium: 120         # 中等间隔（2小时）
+  long: 480           # 较长间隔（8小时）
+  day: 1440           # 一天
+  week: 10080         # 一周
+  month: 43200        # 一个月（30天）
+
+# 问候行为配置
+greeting:
+  # 不同时间间隔的问候强度
+  intensity:
+    immediate: 0.0
+    recent: 0.1
+    short_gap: 0.3
+    medium_gap: 0.3
+    long_gap: 0.5
+    day_gap: 0.7
+    week_gap: 1.0
+    long_absence: 1.0
+  
+  # 需要确认缺席的间隔类型
+  acknowledge_absence:
+    - long_gap
+    - day_gap
+    - week_gap
+    - long_absence
+  
+  # 久别重逢的心情加成
+  reunion_mood_bonus:
+    day_gap: 0.1
+    week_gap: 0.2
+    long_absence: 0.2
+
+# 亲密度时间衰减
+intimacy:
+  # 每次互动基础增长
+  growth_rate: 0.01
+  # 每天衰减率
+  decay_rate: 0.005

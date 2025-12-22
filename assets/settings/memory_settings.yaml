@@ -1,0 +1,31 @@
+
+# 记忆存储与管理配置
+storage:
+  # 记忆重要性阈值（0.0-1.0）
+  # 只有超过此阈值的信息才会被存入长期记忆
+  importance_threshold: 0.6
+  
+  # 每个用户最大记忆条数限制
+  max_memories_per_user: 100
+  
+  # 记忆衰减周期（天）
+  decay_days: 30
+
+# 重要性评估配置
+importance:
+  # 基础分数
+  base_score: 0.3
+  
+  # 高情感价值阈值
+  emotional_threshold: 0.6
+  
+  # 偏好关键词列表
+  preference_keywords:
+    - "喜欢"
+    - "讨厌"
+    - "最爱"
+    - "不喜欢"
+    - "偏好"
+    - "习惯"
+    - "希望"
+    - "想要"

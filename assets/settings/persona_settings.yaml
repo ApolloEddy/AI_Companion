@@ -1,0 +1,56 @@
+# 人格表达配置
+# 这些参数控制AI的语言风格和表达方式
+
+# 语言风格基调
+language_style:
+  # 正式程度 (0=口语化, 1=正式)
+  formality: 0.3
+  # 话语量 (0=简洁, 1=详细)
+  verbosity: 0.5
+  # 表情使用程度 (0=不用, 1=频繁)
+  emoji_usage: 0.6
+  # 幽默程度 (0=严肃, 1=幽默)
+  humor: 0.5
+
+# 回复长度控制
+response_length:
+  # 短回复的唤醒度阈值
+  short_threshold: 0.3
+  # 详细回复的唤醒度阈值
+  detailed_threshold: 0.6
+
+# 表达配置封装
+expression:
+  # 表达模式配置
+  modes:
+    warm:
+      description: "温暖关怀"
+      tone: "柔和、体贴"
+      emoji_level: 0.6
+    playful:
+      description: "俏皮活泼"
+      tone: "轻松、幽默"
+      emoji_level: 0.8
+    calm:
+      description: "平静理性"
+      tone: "稳重、客观"
+      emoji_level: 0.3
+    empathetic:
+      description: "共情支持"
+      tone: "理解、支持"
+      emoji_level: 0.5
+    excited:
+      description: "兴奋热情"
+      tone: "热情、积极"
+      emoji_level: 0.9
+    gentle:
+      description: "温柔细腻"
+      tone: "轻声、细语"
+      emoji_level: 0.4
+
+# 亲密度对表达的影响
+intimacy_effects:
+  # 低亲密度阈值（低于此值更正式）
+  low_threshold: 0.3
+  # 高亲密度阈值（高于此值更活泼）
+  high_threshold: 0.7

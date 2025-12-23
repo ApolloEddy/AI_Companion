@@ -1,0 +1,14 @@
+workflows:
+  android-alpha:
+    name: Android Alpha Release APK
+    environment:
+      flutter: stable
+    scripts:
+      - name: Get Flutter packages
+        script: flutter packages get
+      - name: Clean build  # 新加这步
+        script: flutter clean
+      - name: Build release APK (split ABI)
+        script: flutter build apk --release --split-per-abi
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk

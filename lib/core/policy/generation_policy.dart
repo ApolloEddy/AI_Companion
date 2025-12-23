@@ -84,6 +84,8 @@ class GenerationPolicy {
   /// 根据对话上下文获取参数
   /// 
   /// 策略逻辑：
+  /// - 【关键】极端负面情绪 → 强制极短回复 (max_tokens=20)
+  /// - 【关键】极高唤醒度 → 高 temperature 模拟快速/混乱表达
   /// - 高唤醒度 → 降低 temperature (回复更聚焦)
   /// - 低亲密度 → 降低 max_tokens (回复更简短)
   /// - 主动消息 → 使用较低 temperature (更稳定)
@@ -91,24 +93,48 @@ class GenerationPolicy {
     double temperature = _defaultTemperature;
     double topP = _defaultTopP;
     int maxTokens = _defaultMaxTokens;
+    double presencePenalty = 0.0;
 
-    // 根据唤醒度调整 temperature
-    // 高唤醒度时回复更聚焦，降低随机性
-    if (context.emotionArousal > 0.7) {
+    // ========== 【关键】极端情绪时的强制参数 ==========
+    
+    // 极端负面情绪 (愤怒/冷漠): 强制极短回复
+    // 物理约束 AI 只能回复 "哦。" "嗯。" "随便。" 等
+    if (context.emotionValence < -0.6) {
+      maxTokens = 20;
+      temperature = 0.6;  // 更确定性的短回复
+      presencePenalty = 0.3;  // 避免重复
+    }
+    // 负面情绪: 较短回复
+    else if (context.emotionValence < -0.3) {
+      maxTokens = (maxTokens * 0.5).round().clamp(50, 256);
+    }
+    
+    // 极高唤醒度 (兴奋/激动): 高随机性模拟快速/混乱表达
+    if (context.emotionArousal > 0.8) {
+      temperature = 1.1;  // 更随机的回复
+      maxTokens = (maxTokens * 1.3).round().clamp(256, 2048);
+    }
+    // 高唤醒度: 稍微聚焦
+    else if (context.emotionArousal > 0.7) {
       temperature = (temperature - 0.1).clamp(0.5, 1.0);
-    } else if (context.emotionArousal < 0.3) {
+    } 
+    // 低唤醒度: 稍微放松
+    else if (context.emotionArousal < 0.3) {
       temperature = (temperature + 0.05).clamp(0.5, 1.0);
     }
 
-    // 根据亲密度调整 max_tokens
-    // 低亲密度时回复更简短
-    if (context.intimacy < SettingsLoader.intimacyLowThreshold) {
-      maxTokens = (maxTokens * 0.7).round();
-    } else if (context.intimacy > SettingsLoader.intimacyHighThreshold) {
-      maxTokens = (maxTokens * 1.2).round().clamp(512, 2048);
+    // ========== 亲密度调整 ==========
+    
+    // 低亲密度时回复更简短（但不覆盖极端情绪的设置）
+    if (context.emotionValence >= -0.6) {
+      if (context.intimacy < SettingsLoader.intimacyLowThreshold) {
+        maxTokens = (maxTokens * 0.7).round();
+      } else if (context.intimacy > SettingsLoader.intimacyHighThreshold) {
+        maxTokens = (maxTokens * 1.2).round().clamp(512, 2048);
+      }
     }
 
-    // 主动消息使用更稳定的参数
+    // ========== 主动消息使用更稳定的参数 ==========
     if (context.isProactiveMessage) {
       temperature = 0.7;
       maxTokens = 256;
@@ -118,6 +144,7 @@ class GenerationPolicy {
       temperature: temperature,
       topP: topP,
       maxTokens: maxTokens,
+      presencePenalty: presencePenalty,
     );
   }
 

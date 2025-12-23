@@ -3,10 +3,11 @@
 // 设计原理：
 // - 记录每次发送给 LLM 的完整 Prompt
 // - 用于调试验证，解决"黑盒"问题
-// - 包含时间戳、估算 token 数、各组件内容
+// - 包含时间戳、估算 token 数、各组件内容、生成参数
 
 import 'dart:convert';
 import '../service/llm_service.dart';
+import '../policy/generation_policy.dart';
 
 /// Prompt 快照 - 用于调试和验证
 class PromptSnapshot {
@@ -27,6 +28,9 @@ class PromptSnapshot {
   
   /// 各组件的内容 (用于调试)
   final Map<String, String> components;
+  
+  /// 【新增】当前使用的生成参数 (用于验证策略是否生效)
+  final GenerationParams? generationParams;
 
   PromptSnapshot({
     required this.fullPrompt,
@@ -35,6 +39,7 @@ class PromptSnapshot {
     required this.timestamp,
     required this.estimatedTokens,
     required this.components,
+    this.generationParams,
   });
 
   /// 计算估算的 token 数
@@ -59,6 +64,7 @@ class PromptSnapshot {
       'userMessage': userMessage,
       'historyCount': historyMessages.length,
       'components': components,
+      'generationParams': generationParams?.toApiParams(),
       'fullPrompt': fullPrompt,
     });
   }
@@ -71,6 +77,7 @@ class PromptSnapshot {
       'userMessage': userMessage,
       'historyMessages': historyMessages,
       'components': components,
+      'generationParams': generationParams?.toApiParams(),
       'fullPrompt': fullPrompt,
     };
   }
@@ -82,6 +89,12 @@ class PromptSnapshot {
     print('Estimated Tokens: $estimatedTokens');
     print('User Message: $userMessage');
     print('History Count: ${historyMessages.length}');
+    if (generationParams != null) {
+      print('--- Generation Params ---');
+      print('temperature: ${generationParams!.temperature}');
+      print('maxTokens: ${generationParams!.maxTokens}');
+      print('topP: ${generationParams!.topP}');
+    }
     print('--- Components ---');
     components.forEach((key, value) {
       print('$key: ${value.length > 100 ? '${value.substring(0, 100)}...' : value}');
@@ -95,8 +108,11 @@ class PromptSnapshot {
 
   /// 输出简洁的日志信息
   String toLogString() {
+    final paramsInfo = generationParams != null 
+        ? ', temp=${generationParams!.temperature}, max=${generationParams!.maxTokens}'
+        : '';
     return '[PromptSnapshot] tokens=$estimatedTokens, '
-           'history=${historyMessages.length}, '
+           'history=${historyMessages.length}$paramsInfo, '
            'user="${userMessage.length > 30 ? '${userMessage.substring(0, 30)}...' : userMessage}"';
   }
 
@@ -114,3 +130,4 @@ class PromptAssembleResult {
     required this.components,
   });
 }
+

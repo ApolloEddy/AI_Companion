@@ -389,6 +389,7 @@ class ConversationEngine {
         text,
       ),
       components: assembleResult.components,
+      generationParams: params,  // 记录生成参数用于调试
     );
     
     print(lastSnapshot!.toLogString());

@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
-import 'config.dart';
+import '../config.dart';
+import '../policy/generation_policy.dart';
 
 /// LLM 响应结果
 class LLMResponse {
@@ -18,16 +19,36 @@ class LLMResponse {
   });
 }
 
-/// LLM 服务 - 与大模型 API 通信
+/// LLM 服务 - 纯 API 适配层
+/// 
+/// 设计原理：
+/// - 【瘦身后】只处理 API 通信，不含业务逻辑
+/// - 所有生成参数由调用方传入 (GenerationParams)
+/// - 支持动态切换模型
 class LLMService {
   final String apiKey;
+  String _model;  // 当前使用的模型
   
   static const Duration timeout = Duration(seconds: 30);
   
-  LLMService(this.apiKey);
+  LLMService(this.apiKey, {String? model}) 
+      : _model = model ?? AppConfig.defaultModel;
+
+  /// 获取当前模型
+  String get currentModel => _model;
+
+  /// 切换模型
+  void setModel(String modelId) {
+    _model = modelId;
+  }
 
   /// 生成响应 (返回详细结果包含 token 数)
-  Future<LLMResponse> generateWithTokens(List<Map<String, String>> messages) async {
+  /// 
+  /// [params] 由 GenerationPolicy 提供，禁止硬编码
+  Future<LLMResponse> generateWithTokens(
+    List<Map<String, String>> messages, {
+    required GenerationParams params,
+  }) async {
     if (apiKey.isEmpty) {
       return LLMResponse(error: 'API Key is empty');
     }
@@ -40,11 +61,10 @@ class LLMService {
           'Authorization': 'Bearer $apiKey',
         },
         body: jsonEncode({
-          'model': AppConfig.model,
+          'model': _model,  // 使用动态模型
           'messages': messages,
-          'temperature': 0.85, 
-          'top_p': 0.9,
-          'max_tokens': 1024,
+          // 使用传入的参数，不再硬编码
+          ...params.toApiParams(),
         }),
       ).timeout(timeout, onTimeout: () {
         throw TimeoutException('Request timed out');
@@ -92,8 +112,16 @@ class LLMService {
   }
 
   /// 简化版生成 (向后兼容)
+  /// 
+  /// 注意：此方法使用默认参数，推荐使用 generateWithTokens 并传入 GenerationParams
   Future<String?> generate(List<Map<String, String>> messages) async {
-    final result = await generateWithTokens(messages);
+    // 使用默认参数保持向后兼容
+    const defaultParams = GenerationParams(
+      temperature: 0.85,
+      topP: 0.9,
+      maxTokens: 1024,
+    );
+    final result = await generateWithTokens(messages, params: defaultParams);
     return result.content;
   }
 

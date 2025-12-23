@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
-import '../core/models.dart';
-import '../core/bubble_color_provider.dart';
+import '../core/model/chat_message.dart';
+import '../core/provider/bubble_color_provider.dart';
 
 class ChatBubble extends StatefulWidget {
   final ChatMessage message;
@@ -17,7 +17,7 @@ class ChatBubble extends StatefulWidget {
 
 class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
+  late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
 
   @override
@@ -28,8 +28,12 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
       vsync: this,
     );
     
-    _scaleAnimation = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+    // 从下往上滑入动画
+    _slideAnimation = Tween<Offset>(
+      begin: const Offset(0, 0.3),  // 从下方 30% 位置开始
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
     
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -50,12 +54,14 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
 
   void _copyToClipboard() {
     Clipboard.setData(ClipboardData(text: widget.message.content));
+    // SnackBar 移到顶部显示，缩短时间
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('已复制到剪贴板'),
-        duration: const Duration(seconds: 1),
+        duration: const Duration(milliseconds: 800),  // 缩短为 800ms
         behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
+        margin: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 16),
+        // 使用 top 定位需要在 Scaffold 外层处理，这里用 floating 配合 margin
       ),
     );
   }
@@ -83,9 +89,8 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
     
     return FadeTransition(
       opacity: _fadeAnimation,
-      child: ScaleTransition(
-        scale: _scaleAnimation,
-        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: SlideTransition(
+        position: _slideAnimation,
         child: Align(
           alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
           child: Row(

@@ -1,201 +1,131 @@
 # AI Companion 🤖💬
 
-基于 **Flutter** 的 AI 陪伴应用，支持 **Windows** 和 **Android** 平台。
+一款基于 Flutter 构建的智能 AI 陪伴聊天应用，使用阿里云通义千问（Qwen）系列模型提供对话能力。
 
-## ✨ 核心功能
+## ✨ 特性
 
-### 🧠 智能对话系统
-- 接入阿里云 **Qwen 大模型** (qwen-max)
-- 支持 30 秒请求超时，自动处理网络异常
-- Token 用量实时统计
+- **智能对话** - 基于 Qwen 大语言模型的自然对话能力
+- **情绪系统** - Valence/Arousal 二维情绪模型，实时衰减和交互影响
+- **记忆管理** - 智能记忆筛选和上下文管理
+- **主动关怀** - 定时问候、久未联系关心等主动消息功能
+- **模型选择** - 支持 5 种 Qwen 模型，按需切换
+- **主题切换** - 支持日间/夜间/跟随系统主题
+- **气泡自定义** - 可自定义聊天气泡颜色
 
-### 💭 动态情绪系统 (`PersonaService`)
-AI 角色拥有完整的情绪模型：
-- **情绪向量**：效价 (valence) + 唤醒度 (arousal)
-- **情绪象限**：平静/开心/兴奋/难过/烦躁/紧张
-- **时间衰减**：情绪随时间向基准值回归
-- **互动响应**：用户对话影响情绪波动
+## 📱 支持平台
 
-### 🕐 时间感知 (`TimeAwareness`)
-- 根据时间段调整问候语（早/中/晚/深夜）
-- 感知对话间隔，久别重逢时表达想念
-- 深夜自动关心用户休息
+- Windows ✅
+- Android ✅  
+- iOS (需自行配置签名)
 
-### 📝 记忆系统 (`MemoryService`)
-- 自动记录重要对话内容
-- 最近 100 条记忆持久化存储
-- 上下文相关记忆召回
+## 🚀 快速开始
 
-### 💬 消息分割 (`ResponseFormatter`)
-模拟微信聊天节奏：
-- 自动将长回复分割为多个气泡
-- 支持 `|||` 分隔符和自然换行
-- 根据唤醒度动态调整分割策略
+### 1. 环境准备
 
-### � 聊天历史 (`ChatHistoryService`)
-- 持久化存储所有聊天记录
-- 启动时加载最近 50 条
-- 向上滚动动态加载更多历史
-- 最大存储 1000 条
+```bash
+# 确保已安装 Flutter SDK
+flutter doctor
 
----
+# 克隆项目
+git clone <repo-url>
+cd AI_Companion
+```
+
+### 2. 配置 API Key
+
+创建 `lib/core/secrets.dart` 文件：
+
+```dart
+class Secrets {
+  static const String dashScopeApiKey = 'sk-your-api-key-here';
+}
+```
+
+或在应用设置页面中输入 API Key。
+
+### 3. 运行应用
+
+```bash
+# Windows
+flutter run -d windows
+
+# Android
+flutter run -d android
+```
 
 ## 📁 项目结构
 
 ```
 lib/
-├── main.dart                      # 应用入口，Provider 配置
-├── core/                          # 核心业务逻辑
-│   ├── app_engine.dart                # 主控制器 (ChangeNotifier)
-│   ├── llm_service.dart               # LLM API 通信 + Token 统计
-│   ├── prompt_builder.dart            # 系统提示词构建
-│   ├── persona_service.dart           # 情绪/亲密度状态管理
-│   ├── memory_service.dart            # 记忆存储
-│   ├── chat_history_service.dart      # 聊天历史持久化
-│   ├── time_awareness.dart            # 时间感知模块
-│   ├── expression_selector.dart       # 表达模式选择
-│   ├── response_formatter.dart        # 消息分割格式化
-│   ├── settings_loader.dart           # YAML 配置加载器
-│   ├── theme_provider.dart            # 主题管理
-│   ├── bubble_color_provider.dart     # 气泡颜色管理
-│   ├── config.dart                    # 常量配置
-│   ├── models.dart                    # 数据模型 (ChatMessage)
-│   └── secrets.dart                   # API Key (gitignore)
-│
-├── ui/                            # 用户界面
-│   ├── main_screen.dart               # 主聊天界面
-│   ├── chat_bubble.dart               # 消息气泡组件
-│   ├── app_drawer.dart                # 侧边栏 (人设/颜色/状态)
-│   └── settings_screen.dart           # 设置页面
-│
-assets/settings/                   # YAML 配置文件
-├── persona_settings.yaml          # 人格表达配置
-├── emotion_settings.yaml          # 情绪系统参数
-├── time_settings.yaml             # 时间感知阈值
-└── response_settings.yaml         # 消息分割配置
+├── main.dart                 # 应用入口
+├── core/                     # 核心业务逻辑
+│   ├── app_engine.dart       # UI 适配层
+│   ├── config.dart           # 应用配置（含模型列表）
+│   ├── settings_loader.dart  # YAML 配置加载
+│   ├── engine/               # 核心引擎
+│   │   ├── conversation_engine.dart  # 对话调度器
+│   │   ├── emotion_engine.dart       # 情绪计算
+│   │   └── memory_manager.dart       # 记忆管理
+│   ├── model/                # 数据模型
+│   │   └── chat_message.dart
+│   ├── policy/               # 策略层
+│   │   ├── generation_policy.dart    # LLM 参数控制
+│   │   └── persona_policy.dart       # 人格约束
+│   ├── prompt/               # Prompt 管理
+│   ├── provider/             # 状态管理
+│   │   ├── theme_provider.dart
+│   │   └── bubble_color_provider.dart
+│   ├── service/              # 服务层
+│   │   ├── llm_service.dart          # LLM API 调用
+│   │   ├── chat_history_service.dart
+│   │   ├── persona_service.dart
+│   │   └── memory_service.dart
+│   └── util/                 # 工具类
+│       ├── time_awareness.dart
+│       ├── expression_selector.dart
+│       └── response_formatter.dart
+├── ui/                       # 界面组件
+│   ├── main_screen.dart
+│   ├── chat_bubble.dart
+│   ├── app_drawer.dart
+│   └── settings_screen.dart
+└── assets/settings/          # YAML 配置文件
+    ├── emotion_settings.yaml
+    ├── proactive_settings.yaml
+    └── ...
 ```
 
----
+## ⚙️ 可用模型
 
-## 🚀 快速开始
+| 模型 | API ID | 说明 |
+|------|--------|------|
+| Qwen Turbo | `qwen-turbo` | 速度快，免费额度充足 |
+| Qwen Plus | `qwen-plus` | 平衡性能，有免费额度 |
+| Qwen Max | `qwen-max` | 最强性能，少量免费额度 |
+| Qwen3 8B | `qwen3-8b` | 开源模型，性能均衡 |
+| QwQ 32B | `qwq-32b-preview` | 推理增强模型 |
 
-### 环境要求
-- Flutter SDK >= 3.10
-- Dart SDK >= 3.0
+在设置页面可随时切换模型。
 
-### 安装步骤
+## 🛠️ 开发说明
 
-```bash
-# 1. 克隆项目
-git clone https://github.com/your-username/AI_Companion.git
-cd AI_Companion
-
-# 2. 配置 API Key
-cp lib/core/secrets.dart.example lib/core/secrets.dart
-# 编辑 secrets.dart，填入你的 DashScope API Key
-
-# 3. 安装依赖
-flutter pub get
-
-# 4. 运行
-flutter run -d windows   # Windows
-flutter run -d android   # Android
-```
-
----
-
-## 🎨 UI 功能
-
-### 侧边栏 (左滑唤出)
-| 功能 | 描述 |
-|------|------|
-| **人设配置** | 可编辑 AI 的名字、性别、年龄、性格、兴趣 |
-| **气泡颜色** | 12 种预设颜色，分别设置用户/AI 气泡 |
-| **实时状态** | 显示情绪象限、亲密度、互动次数、Token 用量 |
-| **主题切换** | 日间/夜间/跟随系统 |
-| **清空记录** | 一键清空聊天历史 |
-
-### 交互动效
-| 特性 | 描述 |
-|------|------|
-| **气泡动画** | 新消息弹入时有缩放+淡入动画 |
-| **打字指示器** | AI 思考时显示三点波浪动画 |
-| **文字选择** | 可选中消息文字，长按复制 |
-| **发送按钮动画** | 发送中时按钮有缩放效果 |
-| **SnackBar 浮动** | 提示消息不遮挡输入框 |
-
-### 聊天界面
-- 向上滚动自动加载历史消息
-- 长消息自动分条显示
-- 发送时自动滚动到底部
-
----
-
-## ⚙️ YAML 配置说明
-
-修改 `assets/settings/` 下的配置文件可调整 AI 行为：
-
-### `emotion_settings.yaml`
-```yaml
-decay:
-  valence_rate: 0.05   # 情绪效价每小时衰减率
-  arousal_rate: 0.08   # 唤醒度每小时衰减率
-
-update:
-  base_valence_change: 0.05  # 互动时效价变化量
-  base_arousal_change: 0.08  # 互动时唤醒度变化量
-```
-
-### `time_settings.yaml`
-```yaml
-thresholds:           # 时间间隔阈值（分钟）
-  immediate: 2
-  short: 30
-  medium: 120
-  long: 480
-  day: 1440
-
-greeting:
-  acknowledge_absence:  # 需要表达想念的间隔类型
-    - long_gap
-    - day_gap
-    - week_gap
-```
-
-### `response_settings.yaml`
-```yaml
-splitting:
-  separator: "|||"       # 消息分隔符
-  max_parts: 5           # 最大分条数
-  max_single_length: 100 # 单条最大长度
-```
-
----
-
-## 🔐 安全说明
-
-| 项目 | 处理方式 |
-|------|----------|
-| API Key | 存储在 `secrets.dart`，已添加到 `.gitignore` |
-| 本地数据 | 使用 `SharedPreferences` 存储 |
-| 网络通信 | HTTPS + Bearer Token 认证 |
-
----
-
-## �️ 构建发布
+### 构建 Release
 
 ```bash
 # Windows
-flutter build windows
+flutter build windows --release
 
 # Android APK
-flutter build apk
-
-# Android App Bundle
-flutter build appbundle
+flutter build apk --release
 ```
 
----
+### 配置文件
+
+所有行为参数均可通过 `assets/settings/` 下的 YAML 文件调整：
+
+- `emotion_settings.yaml` - 情绪衰减和变化参数
+- `proactive_settings.yaml` - 主动消息触发条件
+- `response_settings.yaml` - 回复格式和延迟
 
 ## 📄 License
 

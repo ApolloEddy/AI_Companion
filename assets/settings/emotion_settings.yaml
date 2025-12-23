@@ -10,14 +10,14 @@ decay:
 
 # 情绪更新参数
 update:
-  # 基础效价变化量
-  base_valence_change: 0.05
+  # 基础效价变化量（调低使情绪更稳定）
+  base_valence_change: 0.015
   # 基础唤醒度变化量
-  base_arousal_change: 0.08
+  base_arousal_change: 0.02
   # 亲密度缓冲因子 - 越大则高亲密度时情绪变化越小
-  intimacy_buffer_factor: 0.5
+  intimacy_buffer_factor: 0.7
   # 边界软化参数 - 接近边界时变化减缓的程度
-  boundary_softness: 0.1
+  boundary_softness: 0.15
   # LLM情绪提示影响权重（0-1）
   llm_hint_weight: 0.2
 

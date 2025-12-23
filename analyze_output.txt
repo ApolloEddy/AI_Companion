@@ -1,0 +1,47 @@
+﻿Analyzing AI_Companion...                                       
+
+warning - Unused import: 'package:shared_preferences/shared_preferences.dart' - lib\core\engine\conversation_engine.dart:14:8 - unused_import
+   info - Don't invoke 'print' in production code - lib\core\engine\conversation_engine.dart:92:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\engine\conversation_engine.dart:103:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\engine\conversation_engine.dart:129:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\engine\conversation_engine.dart:134:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\engine\conversation_engine.dart:155:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\engine\conversation_engine.dart:167:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\engine\conversation_engine.dart:283:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\engine\conversation_engine.dart:394:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\engine\emotion_engine.dart:148:5 - avoid_print
+   info - Dangling library doc comment - lib\core\engine\proactive_settings.dart:1:1 - dangling_library_doc_comments
+   info - Don't invoke 'print' in production code - lib\core\engine\proactive_settings.dart:136:7 - avoid_print
+   info - Dangling library doc comment - lib\core\policy\generation_policy.dart:1:1 - dangling_library_doc_comments
+   info - Dangling library doc comment - lib\core\policy\persona_policy.dart:1:1 - dangling_library_doc_comments
+   info - The constant name 'SYSTEM_TEMPLATE' isn't a lowerCamelCase identifier - lib\core\prompt\prompt_builder.dart:9:23 - constant_identifier_names
+   info - Don't invoke 'print' in production code - lib\core\prompt\prompt_snapshot.dart:80:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\prompt\prompt_snapshot.dart:81:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\prompt\prompt_snapshot.dart:82:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\prompt\prompt_snapshot.dart:83:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\prompt\prompt_snapshot.dart:84:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\prompt\prompt_snapshot.dart:85:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\prompt\prompt_snapshot.dart:87:7 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\prompt\prompt_snapshot.dart:89:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\prompt\prompt_snapshot.dart:90:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\prompt\prompt_snapshot.dart:93:5 - avoid_print
+   info - Don't invoke 'print' in production code - lib\core\service\chat_history_service.dart:97:7 - avoid_print
+   info - Statements in an if should be enclosed in a block - lib\core\service\persona_service.dart:130:30 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\core\service\persona_service.dart:131:23 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\core\service\persona_service.dart:132:35 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\core\service\persona_service.dart:133:24 - curly_braces_in_flow_control_structures
+   info - Statements in an if should be enclosed in a block - lib\core\service\persona_service.dart:134:23 - curly_braces_in_flow_control_structures
+   info - Don't invoke 'print' in production code - lib\core\settings_loader.dart:30:7 - avoid_print
+warning - Unused import: '../core/engine/conversation_engine.dart' - lib\ui\app_drawer.dart:6:8 - unused_import
+warning - Unused import: '../core/model/chat_message.dart' - lib\ui\app_drawer.dart:7:8 - unused_import
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\ui\app_drawer.dart:139:23 - deprecated_member_use
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\ui\app_drawer.dart:237:13 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\ui\app_drawer.dart:238:13 - deprecated_member_use
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\ui\app_drawer.dart:244:13 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\ui\app_drawer.dart:245:13 - deprecated_member_use
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\ui\app_drawer.dart:251:13 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\ui\app_drawer.dart:252:13 - deprecated_member_use
+warning - The declaration '_buildTypingIndicator' isn't referenced - lib\ui\main_screen.dart:241:10 - unused_element
+   info - 'groupValue' is deprecated and shouldn't be used. Use a RadioGroup ancestor to manage group value instead. This feature was deprecated after v3.32.0-0.0.pre - lib\ui\settings_screen.dart:58:13 - deprecated_member_use
+   info - 'onChanged' is deprecated and shouldn't be used. Use RadioGroup to handle value change instead. This feature was deprecated after v3.32.0-0.0.pre - lib\ui\settings_screen.dart:59:13 - deprecated_member_use
+

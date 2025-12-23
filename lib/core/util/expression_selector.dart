@@ -1,4 +1,4 @@
-import 'settings_loader.dart';
+import '../settings_loader.dart';
 
 /// 表达选择器 - 使用动态 YAML 配置
 class ExpressionSelector {

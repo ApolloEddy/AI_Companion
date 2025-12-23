@@ -1,7 +1,7 @@
-import 'settings_loader.dart';
-import 'time_awareness.dart';
-import 'expression_selector.dart';
-import 'response_formatter.dart';
+import '../settings_loader.dart';
+import '../util/time_awareness.dart';
+import '../util/expression_selector.dart';
+import '../util/response_formatter.dart';
 
 /// Prompt构建器 - 使用动态 YAML 配置
 class PromptBuilder {

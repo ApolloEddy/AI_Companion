@@ -1,4 +1,4 @@
-import 'settings_loader.dart';
+import '../settings_loader.dart';
 
 /// 时间感知模块 - 使用动态 YAML 配置
 class TimeAwareness {

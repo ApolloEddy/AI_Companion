@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_engine.dart';
-import '../core/theme_provider.dart';
-import '../core/bubble_color_provider.dart';
+import '../core/provider/theme_provider.dart';
+import '../core/provider/bubble_color_provider.dart';
 
 class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
@@ -55,8 +55,13 @@ class _AppDrawerState extends State<AppDrawer> {
       'interests': _interestsController.text.trim(),
     });
     setState(() => _isEditing = false);
+    // SnackBar 顶部显示，缩短时间
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('人设已保存')),
+      const SnackBar(
+        content: Text('人设已保存'),
+        duration: Duration(milliseconds: 800),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -248,6 +253,9 @@ class _AppDrawerState extends State<AppDrawer> {
           
           const Divider(),
           
+          // ========== 待发送消息队列 ==========
+          _buildPendingMessagesSection(engine),
+          
           ListTile(
             leading: const Icon(Icons.delete_outline),
             title: const Text('清空聊天记录'),
@@ -308,5 +316,96 @@ class _AppDrawerState extends State<AppDrawer> {
       title: Text(label, style: const TextStyle(fontSize: 14)),
       trailing: Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
     );
+  }
+
+  /// 待发送消息队列 (主动消息)
+  Widget _buildPendingMessagesSection(AppEngine engine) {
+    // 获取待发送消息列表
+    final pendingMessages = engine.pendingMessages;
+    
+    if (pendingMessages.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    return ExpansionTile(
+      leading: const Icon(Icons.schedule_send),
+      title: Row(
+        children: [
+          const Text('待发送消息'),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.orange,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              '${pendingMessages.length}',
+              style: const TextStyle(color: Colors.white, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+      initiallyExpanded: false,  // 默认收起
+      children: [
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: pendingMessages.length,
+          itemBuilder: (context, index) {
+            final msg = pendingMessages[index];
+            return ListTile(
+              dense: true,
+              leading: Icon(
+                Icons.access_time,
+                size: 18,
+                color: Colors.grey.shade600,
+              ),
+              title: Text(
+                msg.content.length > 30 
+                    ? '${msg.content.substring(0, 30)}...' 
+                    : msg.content,
+                style: const TextStyle(fontSize: 13),
+              ),
+              subtitle: Text(
+                _formatScheduleTime(msg.time),
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.send, size: 18),
+                onPressed: () {
+                  // 立即发送该消息
+                  engine.sendPendingMessageNow(index);
+                },
+                tooltip: '立即发送',
+              ),
+            );
+          },
+        ),
+        if (pendingMessages.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: TextButton(
+              onPressed: () => engine.clearPendingMessages(),
+              child: const Text('清空所有', style: TextStyle(color: Colors.red)),
+            ),
+          ),
+      ],
+    );
+  }
+
+  String _formatScheduleTime(DateTime time) {
+    final now = DateTime.now();
+    final diff = time.difference(now);
+    
+    if (diff.isNegative) {
+      return '待发送';
+    } else if (diff.inMinutes < 60) {
+      return '${diff.inMinutes} 分钟后';
+    } else if (diff.inHours < 24) {
+      return '${diff.inHours} 小时后';
+    } else {
+      return '${time.month}/${time.day} ${time.hour}:${time.minute.toString().padLeft(2, '0')}';
+    }
   }
 }

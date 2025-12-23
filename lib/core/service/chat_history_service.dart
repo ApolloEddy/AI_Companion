@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'models.dart';
-import 'config.dart';
+import '../model/chat_message.dart';
+import '../config.dart';
 
 /// 聊天历史服务 - 管理消息持久化和分页加载
 class ChatHistoryService {

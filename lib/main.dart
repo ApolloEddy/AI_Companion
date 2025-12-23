@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/app_engine.dart';
-import 'core/theme_provider.dart';
-import 'core/bubble_color_provider.dart';
+import 'core/provider/theme_provider.dart';
+import 'core/provider/bubble_color_provider.dart';
 import 'ui/main_screen.dart';
 
 void main() {

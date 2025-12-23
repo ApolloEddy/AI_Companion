@@ -1,5 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'config.dart';
+import '../config.dart';
 
 class MemoryService {
   final SharedPreferences prefs;

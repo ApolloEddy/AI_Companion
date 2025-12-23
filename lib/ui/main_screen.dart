@@ -12,28 +12,15 @@ class MainScreen extends StatefulWidget {
   State<MainScreen> createState() => _MainScreenState();
 }
 
-class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
+class _MainScreenState extends State<MainScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _shouldScrollToBottom = true;
-  
-  // 打字指示器动画
-  late AnimationController _typingController;
-  late Animation<double> _typingAnimation;
 
   @override
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    
-    _typingController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    )..repeat(reverse: true);
-    
-    _typingAnimation = Tween<double>(begin: 0.3, end: 1.0).animate(
-      CurvedAnimation(parent: _typingController, curve: Curves.easeInOut),
-    );
   }
 
   @override
@@ -41,7 +28,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _controller.dispose();
-    _typingController.dispose();
     super.dispose();
   }
 
@@ -70,13 +56,20 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     }
   }
 
-  void _scrollToBottom() {
-    if (_scrollController.hasClients && _shouldScrollToBottom) {
-      _scrollController.animateTo(
-        _scrollController.position.maxScrollExtent + 100,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOut,
-      );
+  void _scrollToBottom({bool force = false}) {
+    if (_scrollController.hasClients && (force || _shouldScrollToBottom)) {
+      // 强制更新 shouldScrollToBottom 状态
+      if (force) _shouldScrollToBottom = true;
+      
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (_scrollController.hasClients) {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent + 100,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        }
+      });
     }
   }
 
@@ -85,7 +78,8 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     final engine = context.watch<AppEngine>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
-    if (engine.messages.isNotEmpty && _shouldScrollToBottom && !engine.isLoading) {
+    // 消息更新时自动滚动到底部
+    if (engine.messages.isNotEmpty && _shouldScrollToBottom) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     }
 
@@ -122,8 +116,7 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                 controller: _scrollController,
                 padding: const EdgeInsets.all(16),
                 itemCount: engine.messages.length + 
-                    (engine.hasMoreHistory ? 1 : 0) + 
-                    (engine.isLoading ? 1 : 0),
+                    (engine.hasMoreHistory ? 1 : 0),
                 itemBuilder: (context, index) {
                   // 顶部加载历史指示器
                   if (engine.hasMoreHistory && index == 0) {
@@ -131,11 +124,6 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                   }
                   
                   final msgIndex = engine.hasMoreHistory ? index - 1 : index;
-                  
-                  // 底部打字指示器
-                  if (engine.isLoading && msgIndex == engine.messages.length) {
-                    return _buildTypingIndicator(isDark);
-                  }
                   
                   if (msgIndex < engine.messages.length) {
                     return ChatBubble(
@@ -195,17 +183,14 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  AnimatedScale(
-                    scale: engine.isLoading ? 0.8 : 1.0,
-                    duration: const Duration(milliseconds: 150),
-                    child: IconButton(
-                      icon: Icon(
-                        engine.isLoading ? Icons.hourglass_empty : Icons.send_rounded, 
-                        color: const Color(0xFF07C160), 
-                        size: 32
-                      ),
-                      onPressed: engine.isLoading ? null : () => _send(context),
+                  // 始终可用的发送按钮，支持连续发送多条消息
+                  IconButton(
+                    icon: const Icon(
+                      Icons.send_rounded, 
+                      color: Color(0xFF07C160), 
+                      size: 32
                     ),
+                    onPressed: () => _send(context),
                   ),
                 ],
               ),
@@ -239,72 +224,18 @@ class _MainScreenState extends State<MainScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildTypingIndicator(bool isDark) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CircleAvatar(
-            backgroundColor: isDark ? const Color(0xFF3D3D3D) : Colors.white,
-            child: Text('AI', style: TextStyle(color: isDark ? Colors.white70 : Colors.green)),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            margin: const EdgeInsets.symmetric(vertical: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF2D2D2D) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: isDark ? Colors.black26 : Colors.black12,
-                  blurRadius: 2,
-                  offset: const Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: List.generate(3, (i) => 
-                AnimatedBuilder(
-                  animation: _typingAnimation,
-                  builder: (context, child) {
-                    return Container(
-                      margin: EdgeInsets.only(left: i == 0 ? 0 : 4),
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Color.lerp(
-                          Colors.grey.shade400,
-                          const Color(0xFF07C160),
-                          _typingAnimation.value * (1 - i * 0.2),
-                        ),
-                        shape: BoxShape.circle,
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _send(BuildContext context) {
     final text = _controller.text;
     if (text.trim().isEmpty) return;
     
-    _shouldScrollToBottom = true;
+    // 发送消息时强制滚动到底部
+    _scrollToBottom(force: true);
     context.read<AppEngine>().sendMessage(text);
     _controller.clear();
     
-    // 让键盘保持打开，方便连续输入
-    FocusScope.of(context).unfocus();
-    Future.delayed(const Duration(milliseconds: 100), () {
-      if (mounted) FocusScope.of(context).requestFocus(FocusNode());
+    // 发送后再次滚动确保看到最新消息
+    Future.delayed(const Duration(milliseconds: 200), () {
+      if (mounted) _scrollToBottom(force: true);
     });
   }
 }

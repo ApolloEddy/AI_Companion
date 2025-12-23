@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'config.dart';
+import '../config.dart';
 
 /// 气泡颜色管理器
 class BubbleColorProvider extends ChangeNotifier {

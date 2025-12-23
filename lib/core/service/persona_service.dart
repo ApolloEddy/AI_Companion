@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'config.dart';
-import 'settings_loader.dart';
+import '../config.dart';
+import '../settings_loader.dart';
 
 /// 人格状态服务 - 使用动态 YAML 配置
 class PersonaService {
@@ -127,11 +127,17 @@ class PersonaService {
     double a = (em['arousal'] ?? 0.5).toDouble();
     
     String quadrant = '平静';
-    if (v > 0.3 && a >= 0.5) quadrant = '兴奋';
-    else if (v > 0.3) quadrant = '开心';
-    else if (v < -0.3 && a < 0.5) quadrant = '难过';
-    else if (v < -0.3) quadrant = '烦躁';
-    else if (a > 0.6) quadrant = '紧张';
+    if (v > 0.3 && a >= 0.5) {
+      quadrant = '兴奋';
+    } else if (v > 0.3) {
+      quadrant = '开心';
+    } else if (v < -0.3 && a < 0.5) {
+      quadrant = '难过';
+    } else if (v < -0.3) {
+      quadrant = '烦躁';
+    } else if (a > 0.6) {
+      quadrant = '紧张';
+    }
     
     final intensity = (v.abs() > SettingsLoader.highEmotionalIntensity || 
                        a.abs() > 0.7) ? '强烈' : '平和';

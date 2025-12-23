@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'settings_loader.dart';
+import '../settings_loader.dart';
 
 /// 回复格式化器 - 使用动态 YAML 配置
 class ResponseFormatter {

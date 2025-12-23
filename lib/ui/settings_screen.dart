@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_engine.dart';
 import '../core/config.dart';
+import '../core/service/chat_export_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -13,11 +14,11 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _apiKeyController = TextEditingController();
   String _selectedModel = AppConfig.defaultModel;
+  bool _isExporting = false;
 
   @override
   void initState() {
     super.initState();
-    // 延迟加载当前模型
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final engine = context.read<AppEngine>();
       if (engine.isInitialized) {
@@ -26,6 +27,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
       }
     });
+  }
+
+  Future<void> _exportChat(String format) async {
+    final engine = context.read<AppEngine>();
+    if (engine.messages.isEmpty) {
+      _showSnackBar('没有聊天记录可导出');
+      return;
+    }
+
+    setState(() => _isExporting = true);
+    
+    try {
+      String path;
+      final aiName = engine.personaConfig['name'] ?? 'AI';
+      
+      switch (format) {
+        case 'json':
+          path = await ChatExportService.exportAsJson(engine.messages);
+          break;
+        case 'txt':
+          path = await ChatExportService.exportAsTxt(engine.messages, aiName);
+          break;
+        case 'csv':
+          path = await ChatExportService.exportAsCsv(engine.messages);
+          break;
+        default:
+          throw Exception('未知格式');
+      }
+      
+      _showSnackBar('已导出到: $path');
+    } catch (e) {
+      _showSnackBar('导出失败: $e');
+    } finally {
+      setState(() => _isExporting = false);
+    }
+  }
+
+  void _showClearHistoryDialog() {
+    final engine = context.read<AppEngine>();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('确认清空？'),
+        content: const Text('所有聊天记录将被删除，此操作不可恢复'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              engine.clearChatHistory();
+              Navigator.pop(ctx);
+              _showSnackBar('聊天记录已清空');
+            },
+            child: const Text('确认删除', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -60,13 +131,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (value != null) {
                 setState(() => _selectedModel = value);
                 engine.updateModel(value);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('已切换到 ${model.name}'),
-                    duration: const Duration(milliseconds: 800),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                _showSnackBar('已切换到 ${model.name}');
               }
             },
             title: Row(
@@ -90,6 +155,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
             subtitle: Text(model.desc, style: const TextStyle(fontSize: 12)),
             dense: true,
           )),
+          
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 16),
+          
+          // ========== 聊天记录管理 ==========
+          const Text(
+            '聊天记录',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '导出或清空聊天记录',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 16),
+          
+          // 导出按钮
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isExporting ? null : () => _exportChat('json'),
+                  icon: const Icon(Icons.code, size: 18),
+                  label: const Text('JSON'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isExporting ? null : () => _exportChat('txt'),
+                  icon: const Icon(Icons.text_snippet, size: 18),
+                  label: const Text('TXT'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _isExporting ? null : () => _exportChat('csv'),
+                  icon: const Icon(Icons.table_chart, size: 18),
+                  label: const Text('CSV'),
+                ),
+              ),
+            ],
+          ),
+          
+          if (_isExporting)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: LinearProgressIndicator(),
+            ),
+          
+          const SizedBox(height: 16),
+          
+          // 清空记录按钮
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _showClearHistoryDialog,
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              label: const Text('清空聊天记录', style: TextStyle(color: Colors.red)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.red),
+              ),
+            ),
+          ),
           
           const SizedBox(height: 24),
           const Divider(),
@@ -127,13 +258,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final key = _apiKeyController.text.trim();
                 if (key.isNotEmpty) {
                   engine.updateApiKey(key);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('API Key 已保存'),
-                      duration: Duration(milliseconds: 800),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
+                  _showSnackBar('API Key 已保存');
                 }
               },
               child: const Text('保存 API Key'),
@@ -157,3 +282,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
+

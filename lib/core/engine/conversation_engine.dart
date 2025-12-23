@@ -355,6 +355,7 @@ class ConversationEngine {
     // 7. 组装 Prompt
     final assembleResult = PromptAssembler.assemble(
       personaHeader: personaPolicy.formatForSystemPrompt(),
+      currentTime: _formatCurrentTime(),
       currentState: currentState,
       memories: memories,
       expressionGuide: expressionGuide,
@@ -459,6 +460,21 @@ class ConversationEngine {
       'lastProactiveMessage': _lastProactiveMessage?.toIso8601String(),
       'lastSnapshot': lastSnapshot?.toMap(),
     };
+  }
+  
+  /// 格式化当前时间（供 AI 感知）
+  String _formatCurrentTime() {
+    final now = DateTime.now();
+    final weekdays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    final weekday = weekdays[now.weekday - 1];
+    
+    final year = now.year;
+    final month = now.month;
+    final day = now.day;
+    final hour = now.hour.toString().padLeft(2, '0');
+    final minute = now.minute.toString().padLeft(2, '0');
+    
+    return '${year}年${month}月${day}日 $weekday $hour:$minute';
   }
 }
 

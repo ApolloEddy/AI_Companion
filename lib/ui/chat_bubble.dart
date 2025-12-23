@@ -28,9 +28,8 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
       vsync: this,
     );
     
-    // 从下往上滑入动画
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),  // 从下方 30% 位置开始
+      begin: const Offset(0, 0.3),
       end: Offset.zero,
     ).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
@@ -40,7 +39,6 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
     
-    // 延迟启动动画，产生错落效果
     Future.delayed(Duration(milliseconds: 50 * (widget.index % 5)), () {
       if (mounted) _controller.forward();
     });
@@ -54,16 +52,31 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
 
   void _copyToClipboard() {
     Clipboard.setData(ClipboardData(text: widget.message.content));
-    // SnackBar 移到顶部显示，缩短时间
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('已复制到剪贴板'),
-        duration: const Duration(milliseconds: 800),  // 缩短为 800ms
+        duration: const Duration(milliseconds: 800),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 16),
-        // 使用 top 定位需要在 Scaffold 外层处理，这里用 floating 配合 margin
       ),
     );
+  }
+
+  /// 格式化消息时间
+  String _formatMessageTime(DateTime time) {
+    final now = DateTime.now();
+    final isToday = time.year == now.year && 
+                    time.month == now.month && 
+                    time.day == now.day;
+    
+    final hour = time.hour.toString().padLeft(2, '0');
+    final minute = time.minute.toString().padLeft(2, '0');
+    
+    if (isToday) {
+      return '$hour:$minute';
+    } else {
+      return '${time.month}/${time.day} $hour:$minute';
+    }
   }
 
   @override
@@ -91,61 +104,82 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
       opacity: _fadeAnimation,
       child: SlideTransition(
         position: _slideAnimation,
-        child: Align(
-          alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!isUser) ...[
-                CircleAvatar(
-                  backgroundColor: isDark ? const Color(0xFF3D3D3D) : Colors.white,
-                  child: Text('AI', style: TextStyle(color: isDark ? Colors.white70 : Colors.green)),
-                ),
-                const SizedBox(width: 8),
-              ],
-              
-              GestureDetector(
-                onLongPress: _copyToClipboard,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  padding: const EdgeInsets.all(12),
-                  constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                  decoration: BoxDecoration(
-                    color: bubbleColor,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isDark ? Colors.black26 : Colors.black12, 
-                        blurRadius: 2, 
-                        offset: const Offset(0, 1)
-                      )
-                    ],
-                  ),
-                  child: isUser 
-                    ? SelectableText(
-                        widget.message.content, 
-                        style: TextStyle(color: textColor, fontSize: 16),
-                      )
-                    : MarkdownBody(
-                        data: widget.message.content,
-                        selectable: true,
-                        styleSheet: MarkdownStyleSheet(
-                          p: TextStyle(fontSize: 16, height: 1.5, color: textColor),
-                        ),
-                      ),
+        child: Column(
+          crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            // 时间戳显示（在气泡上方）
+            Padding(
+              padding: EdgeInsets.only(
+                left: isUser ? 0 : 48,  // AI 头像宽度 + 间距
+                right: isUser ? 48 : 0,  // 用户头像宽度 + 间距
+                top: 8,
+                bottom: 2,
+              ),
+              child: Text(
+                _formatMessageTime(widget.message.time),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade500,
                 ),
               ),
-              
-              if (isUser) ...[
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: isDark ? const Color(0xFF3D3D3D) : const Color(0xFFE0E0E0),
-                  child: Icon(Icons.person, color: isDark ? Colors.white70 : Colors.grey),
-                ),
-              ],
-            ],
-          ),
+            ),
+            Align(
+              alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!isUser) ...[
+                    CircleAvatar(
+                      backgroundColor: isDark ? const Color(0xFF3D3D3D) : Colors.white,
+                      child: Text('AI', style: TextStyle(color: isDark ? Colors.white70 : Colors.green)),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  
+                  GestureDetector(
+                    onLongPress: _copyToClipboard,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      padding: const EdgeInsets.all(12),
+                      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                      decoration: BoxDecoration(
+                        color: bubbleColor,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isDark ? Colors.black26 : Colors.black12, 
+                            blurRadius: 2, 
+                            offset: const Offset(0, 1)
+                          )
+                        ],
+                      ),
+                      child: isUser 
+                        ? SelectableText(
+                            widget.message.content, 
+                            style: TextStyle(color: textColor, fontSize: 16),
+                          )
+                        : MarkdownBody(
+                            data: widget.message.content,
+                            selectable: true,
+                            styleSheet: MarkdownStyleSheet(
+                              p: TextStyle(fontSize: 16, height: 1.5, color: textColor),
+                            ),
+                          ),
+                    ),
+                  ),
+                  
+                  if (isUser) ...[
+                    const SizedBox(width: 8),
+                    CircleAvatar(
+                      backgroundColor: isDark ? const Color(0xFF3D3D3D) : const Color(0xFFE0E0E0),
+                      child: Icon(Icons.person, color: isDark ? Colors.white70 : Colors.grey),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -164,3 +198,4 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
     return backgroundColor.computeLuminance() > 0.5 ? Colors.black : Colors.white;
   }
 }
+

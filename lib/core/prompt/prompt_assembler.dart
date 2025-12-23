@@ -13,6 +13,9 @@ class PromptAssembler {
   /// System Prompt 模板
   static const String _systemTemplate = '''{persona_header}
 
+【当前时间】
+{current_time}
+
 【当前状态】
 {current_state}
 
@@ -32,6 +35,7 @@ class PromptAssembler {
   /// 此方法仅做字符串拼接，不访问任何外部服务或配置
   static PromptAssembleResult assemble({
     required String personaHeader,     // 来自 PersonaPolicy.formatForSystemPrompt()
+    required String currentTime,       // 来自 _formatCurrentTime()
     required String currentState,      // 来自 ConversationEngine 组合
     required String memories,          // 来自 MemoryManager
     required String expressionGuide,   // 来自 ExpressionSelector
@@ -40,6 +44,7 @@ class PromptAssembler {
   }) {
     final systemPrompt = _systemTemplate
         .replaceAll('{persona_header}', personaHeader)
+        .replaceAll('{current_time}', currentTime)
         .replaceAll('{current_state}', currentState)
         .replaceAll('{memories}', memories.isNotEmpty ? memories : '（暂无记忆）')
         .replaceAll('{expression_guide}', expressionGuide)
@@ -50,6 +55,7 @@ class PromptAssembler {
       systemPrompt: systemPrompt,
       components: {
         'personaHeader': personaHeader,
+        'currentTime': currentTime,
         'currentState': currentState,
         'memories': memories,
         'expressionGuide': expressionGuide,

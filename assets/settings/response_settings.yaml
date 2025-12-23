@@ -15,25 +15,25 @@ timing:
   # 首条消息延迟
   first_delay:
     # 基础延迟（秒）
-    base: 0.5
+    base: 0.6
     # 模拟打字速度（字/分钟）
     typing_speed: 80
     # 唤醒度影响系数（唤醒度越高延迟越短）
     arousal_factor: 0.3
     # 最小延迟（秒）
-    min: 0.3
+    min: 0.4
     # 最大延迟（秒）
-    max: 3.0
+    max: 2.5
   
-  # 分条间隔
+  # 分条间隔（增加随机性）
   interval:
     # 基础间隔（秒）
-    base: 0.8
-    # 随机浮动范围（秒）
-    random_min: 0.2
-    random_max: 0.8
+    base: 0.6
+    # 随机浮动范围（秒）- 加大范围增加随机感
+    random_min: 0.3
+    random_max: 1.5
     # 每字额外延迟（秒）
-    per_char: 0.02
+    per_char: 0.015
 
 # 情绪对分条的影响
 emotion_effects:
@@ -41,3 +41,4 @@ emotion_effects:
   high_arousal_threshold: 0.6
   # 分条概率加成
   split_probability_bonus: 0.3
+

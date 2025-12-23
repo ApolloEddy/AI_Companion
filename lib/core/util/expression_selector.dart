@@ -30,13 +30,14 @@ class ExpressionSelector {
     final modeConfig = SettingsLoader.getExpressionMode(mode);
     final lengthMode = calculateResponseLength(arousal, intimacy);
     
+    // 更自然的长度指引 - 避免固定数字
     final lengthGuide = {
-      'short': '简洁回复，1-2句话，像微信聊天一样',
-      'medium': '适中长度，可以分2-3段发送',
-      'detailed': '可以详细一些，分多个气泡发送',
+      'short': '言简意赅，一两句话就够了，有时甚至一个词',
+      'medium': '自然表达，该说多少说多少，不用刻意控制',
+      'detailed': '可以多聊几句，但别写作文',
     };
     
-    // 安全地获取 emoji_level，处理可能的类型问题
+    // 安全地获取 emoji_level
     double emojiLevel = 0.5;
     final rawEmojiLevel = modeConfig['emoji_level'];
     if (rawEmojiLevel is double) {
@@ -47,13 +48,13 @@ class ExpressionSelector {
     
     String emojiGuide;
     if (emojiLevel < 0.3) {
-      emojiGuide = '几乎不用表情';
+      emojiGuide = '基本不用表情';
     } else if (emojiLevel < 0.5) {
-      emojiGuide = '偶尔使用表情点缀';
+      emojiGuide = '偶尔用一个表情点缀就好';
     } else if (emojiLevel < 0.7) {
-      emojiGuide = '可以使用表情增加活力，但不要过多';
+      emojiGuide = '可以用表情，但别每句都加';
     } else {
-      emojiGuide = '可以较多使用表情，保持活泼';
+      emojiGuide = '可以活泼点用表情';
     }
     
     // 正式程度受亲密度影响
@@ -66,21 +67,27 @@ class ExpressionSelector {
     
     String formalityGuide;
     if (formality < 0.3) {
-      formalityGuide = '非常口语化，像朋友聊天';
+      formalityGuide = '完全口语化，像和好朋友聊天';
     } else if (formality < 0.6) {
-      formalityGuide = '自然口语，但保持得体';
+      formalityGuide = '自然聊天，不用太正式';
     } else {
-      formalityGuide = '稍正式一些，保持礼貌';
+      formalityGuide = '稍微客气一点';
     }
     
     final description = modeConfig['description']?.toString() ?? '温暖关怀';
     final tone = modeConfig['tone']?.toString() ?? '柔和、体贴';
     
     return '''
-表达模式：$description
-语气基调：$tone
-回复长度：${lengthGuide[lengthMode]}
-表情使用：$emojiGuide
-语言风格：$formalityGuide''';
+当前状态：$description
+语气：$tone
+长度：${lengthGuide[lengthMode]}
+表情：$emojiGuide
+风格：$formalityGuide
+
+【自然表达要点】
+- 回复长度不固定，根据内容自然决定
+- 不要每次都是"感叹+评论+问题"的套路
+- 有时只需要简单回应，不必深入展开''';
   }
 }
+

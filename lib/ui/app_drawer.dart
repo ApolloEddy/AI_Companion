@@ -255,31 +255,6 @@ class _AppDrawerState extends State<AppDrawer> {
           
           // ========== 待发送消息队列 ==========
           _buildPendingMessagesSection(engine),
-          
-          ListTile(
-            leading: const Icon(Icons.delete_outline),
-            title: const Text('清空聊天记录'),
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('确认清空？'),
-                  content: const Text('所有聊天记录将被删除'),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-                    TextButton(
-                      onPressed: () {
-                        engine.clearChatHistory();
-                        Navigator.pop(ctx);
-                        Navigator.pop(context);
-                      },
-                      child: const Text('确认', style: TextStyle(color: Colors.red)),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
         ],
       ),
     );

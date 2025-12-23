@@ -77,6 +77,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final engine = context.watch<AppEngine>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final aiName = engine.personaConfig['name'] ?? 'April';
     
     // 消息更新时自动滚动到底部
     if (engine.messages.isNotEmpty && _shouldScrollToBottom) {
@@ -93,7 +94,23 @@ class _MainScreenState extends State<MainScreen> {
             onPressed: () => Scaffold.of(context).openDrawer(),
           ),
         ),
-        title: Text(engine.personaConfig['name'] ?? '小悠'),
+        title: engine.isLoading 
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(aiName),
+                const SizedBox(width: 8),
+                Text(
+                  '正在输入...',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+              ],
+            )
+          : Text(aiName),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings),

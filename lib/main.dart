@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/app_engine.dart';
@@ -12,8 +13,18 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
+  /// 获取平台特定的字体族
+  String? _getFontFamily() {
+    if (Platform.isWindows) {
+      return 'Microsoft YaHei';  // Windows 使用微软雅黑
+    }
+    return null;  // Android/iOS 使用系统默认字体
+  }
+
   @override
   Widget build(BuildContext context) {
+    final fontFamily = _getFontFamily();
+    
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AppEngine()..init()),
@@ -34,6 +45,7 @@ class MyApp extends StatelessWidget {
                 brightness: Brightness.light,
               ),
               useMaterial3: true,
+              fontFamily: fontFamily,
               scaffoldBackgroundColor: const Color(0xFFF5F5F5),
               appBarTheme: const AppBarTheme(
                 backgroundColor: Color(0xFFEDEDED),
@@ -49,6 +61,7 @@ class MyApp extends StatelessWidget {
                 brightness: Brightness.dark,
               ),
               useMaterial3: true,
+              fontFamily: fontFamily,
               scaffoldBackgroundColor: const Color(0xFF1E1E1E),
               appBarTheme: const AppBarTheme(
                 backgroundColor: Color(0xFF2D2D2D),
@@ -64,3 +77,4 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+

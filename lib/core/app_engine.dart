@@ -265,6 +265,10 @@ class AppEngine extends ChangeNotifier {
 
   /// 异步处理消息响应
   Future<void> _processMessageAsync(String text) async {
+    // 显示"正在输入..."状态
+    isLoading = true;
+    notifyListeners();
+    
     try {
       // 更新 PersonaService 状态（保持向后兼容）
       await persona.updateInteraction(text);
@@ -303,6 +307,10 @@ class AppEngine extends ChangeNotifier {
       );
       messages.add(errorMsg);
       await chatHistory.addMessage(errorMsg);
+      notifyListeners();
+    } finally {
+      // 恢复正常状态
+      isLoading = false;
       notifyListeners();
     }
   }

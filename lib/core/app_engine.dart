@@ -25,6 +25,7 @@ import 'engine/conversation_engine.dart';
 import 'service/memory_service.dart';
 import 'service/persona_service.dart';
 import 'service/profile_service.dart';
+import 'service/startup_greeting_service.dart';
 
 class AppEngine extends ChangeNotifier {
   List<ChatMessage> messages = [];
@@ -55,6 +56,9 @@ class AppEngine extends ChangeNotifier {
   
   // 认知引擎：用户画像服务
   late ProfileService _profileService;
+  
+  // 启动问候服务
+  StartupGreetingService? _startupGreetingService;
   
   bool isInitialized = false;
 
@@ -125,6 +129,9 @@ class AppEngine extends ChangeNotifier {
     isInitialized = true;
     notifyListeners();
     
+    // 启动问候服务（应用打开时判断是否需要问候）
+    _initStartupGreeting();
+    
     if (messages.isEmpty) {
       final name = personaConfig['name'] ?? '小悠';
       final welcomeMsg = ChatMessage(
@@ -135,6 +142,22 @@ class AppEngine extends ChangeNotifier {
       messages.add(welcomeMsg);
       await chatHistory.addMessage(welcomeMsg);
     }
+  }
+
+  /// 初始化启动问候服务
+  void _initStartupGreeting() {
+    final name = personaConfig['name'] ?? '小悠';
+    _startupGreetingService = StartupGreetingService(prefs, personaName: name);
+    
+    // 设置问候消息回调
+    _startupGreetingService!.onGreetingMessage = (message) {
+      messages.add(message);
+      chatHistory.addMessage(message);
+      notifyListeners();
+    };
+    
+    // 检查并调度问候
+    _startupGreetingService!.checkAndScheduleGreeting();
   }
 
   /// 处理主动消息回调

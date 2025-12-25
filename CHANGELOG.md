@@ -42,12 +42,17 @@
 
 ### 🐛 修复
 
-#### Android 后台通知失效
-- **问题**: Flutter Timer 在 Android 后台被系统暂停，导致主动消息失效
-- **解决**: 使用 Android WorkManager 实现真正的后台任务调度
-- 新增 `BackgroundService` 和 `LocalNotificationService`
-- 添加 `workmanager`、`flutter_local_notifications`、`timezone` 依赖
-- 更新 AndroidManifest.xml 添加通知权限
+#### 主动消息机制优化
+- **问题**: 原 Flutter Timer 在 Android 后台被系统暂停，导致主动消息失效
+- **解决**: 改为应用启动时判断是否需要问候
+  - 早安问候 (6:00-10:00)
+  - 晚安问候 (20:00-23:00)
+  - 久未联系问候 (>24小时)
+  - 随机想起 (10%概率)
+- 随机延迟 2-30 秒后发送，自然不突兀
+- 新增 `StartupGreetingService` 轻量级服务
+
+### ✨ 改进
 
 #### ConversationEngine 集成
 - 集成禁止模式检查，自动清理违规输出

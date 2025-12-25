@@ -42,15 +42,6 @@ dependencies:
   provider: ^6.1.1
   yaml: ^3.1.2
   path_provider: ^2.1.5
-  
-  # 后台任务调度（Android WorkManager）
-  workmanager: ^0.5.2
-  
-  # 本地通知
-  flutter_local_notifications: ^18.0.1
-  
-  # 时区支持（通知需要）
-  timezone: ^0.10.0
 
 dev_dependencies:
   flutter_test:

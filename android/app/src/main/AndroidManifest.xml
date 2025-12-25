@@ -2,6 +2,14 @@
     <!-- 网络访问权限 -->
     <uses-permission android:name="android.permission.INTERNET"/>
     
+    <!-- 通知权限 (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    
+    <!-- 后台任务权限 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    
     <application
         android:label="AI Companion"
         android:name="${applicationName}"

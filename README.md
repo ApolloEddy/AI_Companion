@@ -10,7 +10,14 @@
 - **策略驱动生成** - 情绪状态动态调整 LLM 参数（极端负面→极短回复，高兴奋→随机表达）
 - **记忆管理** - 智能记忆筛选和上下文管理
 - **主动关怀** - 定时问候、久未联系关心等主动消息功能
+- **后台通知** - 基于 Android WorkManager 的后台定时通知（支持应用关闭后发送）
 - **AI 时间感知** - 自动注入当前精确时间到对话上下文
+
+### 认知引擎（新增）
+- **用户画像学习** - 从对话中自动提取用户身份、背景和偏好
+- **禁止模式检查** - 硬编码规则杜绝重复提问、说教等恼人回复
+- **异步反思引擎** - 对话静默后后台分析，持续学习用户信息
+- **反馈信号分析** - 从用户行为推断隐含满意度
 
 ### 聊天体验
 - **消息时间戳** - 每条消息显示发送时间
@@ -75,35 +82,50 @@ flutter run -d android
 
 ```
 lib/
-├── main.dart                 # 应用入口（含平台字体配置）
+├── main.dart                 # 应用入口
 ├── core/                     # 核心业务逻辑
 │   ├── app_engine.dart       # UI 适配层
 │   ├── config.dart           # 应用配置（含模型列表）
 │   ├── settings_loader.dart  # YAML 配置加载
+│   │
 │   ├── engine/               # 核心引擎
-│   │   ├── conversation_engine.dart  # 对话调度器（含时间感知）
+│   │   ├── conversation_engine.dart  # 对话调度器
 │   │   ├── emotion_engine.dart       # 情绪计算
-│   │   └── memory_manager.dart       # 记忆管理
+│   │   ├── memory_manager.dart       # 记忆管理
+│   │   ├── perception_processor.dart # 【新】深度感知处理器
+│   │   ├── reflection_processor.dart # 【新】内心反思处理器
+│   │   ├── feedback_analyzer.dart    # 【新】反馈信号分析
+│   │   ├── memory_retriever.dart     # 【新】分层记忆检索
+│   │   └── async_reflection_engine.dart # 【新】异步反思引擎
+│   │
 │   ├── model/                # 数据模型
-│   │   └── chat_message.dart
+│   │   ├── chat_message.dart
+│   │   └── user_profile.dart # 【新】用户画像模型
+│   │
 │   ├── policy/               # 策略层
-│   │   ├── generation_policy.dart    # LLM 参数控制（情绪驱动）
-│   │   └── persona_policy.dart       # 人格约束
+│   │   ├── generation_policy.dart    # LLM 参数控制
+│   │   ├── persona_policy.dart       # 人格约束
+│   │   └── prohibited_patterns.dart  # 【新】禁止模式规则
+│   │
 │   ├── prompt/               # Prompt 管理
 │   │   ├── prompt_assembler.dart     # Prompt 组装
-│   │   └── prompt_snapshot.dart      # 调试快照
-│   ├── provider/             # 状态管理
+│   │   ├── prompt_snapshot.dart      # 调试快照
+│   │   └── stage_prompts.dart        # 【新】阶段 Prompt 模板
+│   │
 │   ├── service/              # 服务层
 │   │   ├── llm_service.dart          # LLM API 调用
+│   │   ├── profile_service.dart      # 【新】用户画像服务
 │   │   ├── chat_history_service.dart
-│   │   ├── chat_export_service.dart  # 导出功能
-│   │   └── ...
+│   │   └── chat_export_service.dart
+│   │
+│   ├── provider/             # 状态管理
 │   └── util/                 # 工具类
+│
 ├── ui/                       # 界面组件
-│   ├── main_screen.dart      # 主屏幕（含输入状态）
-│   ├── chat_bubble.dart      # 聊天气泡（含时间戳）
-│   ├── app_drawer.dart       # 侧边栏
-│   └── settings_screen.dart  # 设置页（含导出）
+│   ├── main_screen.dart
+│   ├── chat_bubble.dart
+│   └── settings_screen.dart
+│
 └── assets/settings/          # YAML 配置文件
 ```
 
@@ -115,6 +137,8 @@ lib/
 | Qwen Plus | `qwen-plus` | 平衡性能，有免费额度 |
 | Qwen Max | `qwen-max` | 最强性能，少量免费额度 |
 | Qwen3 8B | `qwen3-8b` | 开源模型，性能均衡 |
+| Qwen3 Max | `qwen3-max` | Qwen3 最强性能 |
+| Qwen3 Flash | `qwen3-flash` | Qwen3 极速响应 |
 | QwQ 32B | `qwq-32b-preview` | 推理增强模型 |
 
 在设置页面可随时切换模型。

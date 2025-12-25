@@ -24,6 +24,7 @@ import 'engine/conversation_engine.dart';
 // 保留向后兼容
 import 'service/memory_service.dart';
 import 'service/persona_service.dart';
+import 'service/profile_service.dart';
 
 class AppEngine extends ChangeNotifier {
   List<ChatMessage> messages = [];
@@ -51,6 +52,9 @@ class AppEngine extends ChangeNotifier {
   // 向后兼容：保留旧服务引用
   late MemoryService memory;
   late PersonaService persona;
+  
+  // 认知引擎：用户画像服务
+  late ProfileService _profileService;
   
   bool isInitialized = false;
 
@@ -96,12 +100,16 @@ class AppEngine extends ChangeNotifier {
     _personaPolicy = PersonaPolicy(personaConfig);
     _generationPolicy = GenerationPolicy.fromSettings();
     
+    // 初始化用户画像服务（认知引擎核心）
+    _profileService = ProfileService(prefs);
+    
     _conversationEngine = ConversationEngine(
       llmService: llm,
       memoryManager: _memoryManager,
       personaPolicy: _personaPolicy,
       emotionEngine: _emotionEngine,
       generationPolicy: _generationPolicy,
+      profileService: _profileService,  // 启用认知增强
     );
     
     // 设置主动消息回调

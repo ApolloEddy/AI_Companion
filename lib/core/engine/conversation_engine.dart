@@ -25,6 +25,14 @@ import 'emotion_engine.dart';
 import 'memory_manager.dart';
 import 'proactive_settings.dart';
 
+// 认知引擎组件
+import 'perception_processor.dart';
+import 'reflection_processor.dart';
+import 'feedback_analyzer.dart';
+import 'async_reflection_engine.dart';
+import '../service/profile_service.dart';
+import '../policy/prohibited_patterns.dart';
+
 import '../prompt/prompt_assembler.dart';
 import '../prompt/prompt_snapshot.dart';
 
@@ -69,7 +77,16 @@ class ConversationEngine {
     required this.personaPolicy,
     required this.emotionEngine,
     required this.generationPolicy,
+    this.profileService,
   });
+
+  // 认知引擎组件（可选，用于增强模式）
+  ProfileService? profileService;
+  PerceptionProcessor? _perceptionProcessor;
+  ReflectionProcessor? _reflectionProcessor;
+  FeedbackAnalyzer? _feedbackAnalyzer;
+  AsyncReflectionEngine? _asyncReflectionEngine;
+  bool _cognitiveEngineEnabled = false;
 
   // ========== 生命周期管理 ==========
 
@@ -88,6 +105,11 @@ class ConversationEngine {
     _startEmotionDecayTimer();
     _startProactiveMessageTimer();
     
+    // 初始化认知引擎组件（如果有 ProfileService）
+    if (profileService != null) {
+      _initCognitiveEngine();
+    }
+    
     print('[ConversationEngine] started');
   }
 
@@ -98,8 +120,24 @@ class ConversationEngine {
     _proactiveCheckTimer?.cancel();
     _emotionDecayTimer = null;
     _proactiveCheckTimer = null;
+    _asyncReflectionEngine?.stop();
     
     print('[ConversationEngine] stopped');
+  }
+
+  /// 初始化认知引擎组件
+  void _initCognitiveEngine() {
+    _perceptionProcessor = PerceptionProcessor(llmService);
+    _reflectionProcessor = ReflectionProcessor(llmService);
+    _feedbackAnalyzer = FeedbackAnalyzer();
+    _asyncReflectionEngine = AsyncReflectionEngine(
+      llmService: llmService,
+      profileService: profileService!,
+      memoryManager: memoryManager,
+      quietPeriod: const Duration(minutes: 3),
+    );
+    _cognitiveEngineEnabled = true;
+    print('[ConversationEngine] cognitive engine initialized');
   }
 
   /// 更新状态（由外部传入）
@@ -399,9 +437,18 @@ class ConversationEngine {
     
     // 11. 处理响应
     if (response.success && response.content != null) {
+      var responseText = response.content!;
+      
+      // 【认知增强】检查并清理禁止模式
+      final patternCheck = ProhibitedPatterns.check(responseText);
+      if (!patternCheck.isClean) {
+        print('[ConversationEngine] Prohibited patterns detected: $patternCheck');
+        responseText = ProhibitedPatterns.sanitize(responseText);
+      }
+      
       // 格式化响应（包含延迟信息）
       final formattedMessages = ResponseFormatter.formatResponse(
-        response.content!,
+        responseText,
         arousal: emotionEngine.arousal,
       );
       
@@ -420,6 +467,31 @@ class ConversationEngine {
       
       // 添加记忆
       await memoryManager.addMemory('用户：$text');
+      
+      // 【认知增强】记录对话到异步反思引擎（用于后台学习用户信息）
+      if (_cognitiveEngineEnabled && _asyncReflectionEngine != null) {
+        final fullResponse = formattedMessages.map((m) => m['content']).join(' ');
+        _asyncReflectionEngine!.recordFromMessages(
+          text, 
+          fullResponse,
+          emotionValence: emotionEngine.valence,
+        );
+      }
+      
+      // 【认知增强】记录反馈信号
+      if (_cognitiveEngineEnabled && _feedbackAnalyzer != null && currentMessages.isNotEmpty) {
+        final lastAiMessage = currentMessages.lastWhere(
+          (m) => !m.isUser,
+          orElse: () => currentMessages.last,
+        );
+        _feedbackAnalyzer!.inferFromBehavior(
+          userMessage: text,
+          previousAiResponse: lastAiMessage.content,
+          responseDelay: DateTime.now().difference(lastAiMessage.time),
+          userMessageLength: text.length,
+          aiMessageLength: lastAiMessage.content.length,
+        );
+      }
       
       return ConversationResult(
         success: true,

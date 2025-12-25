@@ -4,9 +4,20 @@ import 'package:provider/provider.dart';
 import 'core/app_engine.dart';
 import 'core/provider/theme_provider.dart';
 import 'core/provider/bubble_color_provider.dart';
+import 'core/service/background_service.dart';
 import 'ui/main_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 初始化后台服务（Android 通知和定时任务）
+  await LocalNotificationService.initialize();
+  await BackgroundService.initialize();
+  
+  // 调度每日问候任务
+  await BackgroundService.scheduleMorningGreeting();
+  await BackgroundService.scheduleEveningGreeting();
+  
   runApp(const MyApp());
 }
 

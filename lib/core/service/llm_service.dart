@@ -143,4 +143,62 @@ class LLMService {
     // 中文约 1.5 字符/token，其他约 4 字符/token
     return (chineseCount / 1.5).ceil() + (otherCount / 4).ceil();
   }
+
+  /// 带系统提示的完成调用（用于认知引擎各阶段）
+  /// 
+  /// [model] 可选，覆盖默认模型
+  /// [temperature] 控制随机性
+  /// [maxTokens] 最大输出 token
+  Future<String> completeWithSystem({
+    required String systemPrompt,
+    required String userMessage,
+    String? model,
+    double temperature = 0.85,
+    int maxTokens = 1024,
+  }) async {
+    final messages = [
+      {'role': 'system', 'content': systemPrompt},
+      {'role': 'user', 'content': userMessage},
+    ];
+
+    final params = GenerationParams(
+      temperature: temperature,
+      topP: 0.9,
+      maxTokens: maxTokens,
+    );
+
+    // 临时切换模型（如果指定）
+    final originalModel = _model;
+    if (model != null) {
+      _model = model;
+    }
+
+    try {
+      final result = await generateWithTokens(messages, params: params);
+      return result.content ?? '';
+    } finally {
+      // 恢复原模型
+      if (model != null) {
+        _model = originalModel;
+      }
+    }
+  }
+
+  /// 流式生成（预留接口，未来实现）
+  Stream<String> streamComplete({
+    required String systemPrompt,
+    required String userMessage,
+    String? model,
+    double temperature = 0.85,
+  }) async* {
+    // 当前简化实现：一次性返回
+    // TODO: 实现真正的 SSE 流式调用
+    final result = await completeWithSystem(
+      systemPrompt: systemPrompt,
+      userMessage: userMessage,
+      model: model,
+      temperature: temperature,
+    );
+    yield result;
+  }
 }

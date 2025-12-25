@@ -52,6 +52,18 @@ class AppConfig {
       hasFreeQuota: true,
     ),
     QwenModel(
+      id: 'qwen3-max',
+      name: 'Qwen3 Max',
+      desc: 'Qwen3 最强性能',
+      hasFreeQuota: true,
+    ),
+    QwenModel(
+      id: 'qwen3-flash',
+      name: 'Qwen3 Flash',
+      desc: 'Qwen3 极速响应',
+      hasFreeQuota: true,
+    ),
+    QwenModel(
       id: 'qwq-32b-preview',
       name: 'QwQ 32B',
       desc: '推理增强模型',

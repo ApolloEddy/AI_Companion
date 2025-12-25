@@ -115,6 +115,7 @@ lib/
 │   ├── service/              # 服务层
 │   │   ├── llm_service.dart          # LLM API 调用
 │   │   ├── profile_service.dart      # 【新】用户画像服务
+│   │   ├── startup_greeting_service.dart # 【新】启动问候服务
 │   │   ├── chat_history_service.dart
 │   │   └── chat_export_service.dart
 │   │

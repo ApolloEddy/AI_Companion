@@ -72,7 +72,8 @@
 | 文件 | 路径 |
 |------|------|
 | 用户画像模型 | `lib/core/model/user_profile.dart` |
-| 画像服务 | `lib/core/service/profile_service.dart` |
+|画像服务 | `lib/core/service/profile_service.dart` |
+| 启动问候服务 | `lib/core/service/startup_greeting_service.dart` |
 | 深度感知处理器 | `lib/core/engine/perception_processor.dart` |
 | 内心反思处理器 | `lib/core/engine/reflection_processor.dart` |
 | 禁止模式规则 | `lib/core/policy/prohibited_patterns.dart` |

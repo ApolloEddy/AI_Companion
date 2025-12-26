@@ -47,6 +47,9 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _savePersona(AppEngine engine) {
+    // 【关键修复】在保存并收起编辑器前先取消焦点，防止键盘状态断言错误
+    FocusScope.of(context).unfocus();
+    
     engine.updatePersonaConfig({
       'name': _nameController.text.trim().isEmpty ? '小悠' : _nameController.text.trim(),
       'age': _ageController.text.trim(),

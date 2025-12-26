@@ -7,6 +7,7 @@ class SettingsLoader {
   static Map<String, dynamic>? _emotionSettings;
   static Map<String, dynamic>? _timeSettings;
   static Map<String, dynamic>? _responseSettings;
+  static Map<String, dynamic>? _memorySettings;
   
   static bool _isLoaded = false;
   
@@ -17,6 +18,7 @@ class SettingsLoader {
     _emotionSettings = await _loadYaml('assets/settings/emotion_settings.yaml');
     _timeSettings = await _loadYaml('assets/settings/time_settings.yaml');
     _responseSettings = await _loadYaml('assets/settings/response_settings.yaml');
+    _memorySettings = await _loadYaml('assets/settings/memory_settings.yaml');
     
     _isLoaded = true;
   }
@@ -203,6 +205,38 @@ class SettingsLoader {
   
   static double get splitProbabilityBonus => 
       _getDouble(_responseSettings, ['emotion_effects', 'split_probability_bonus'], 0.3);
+  
+  // ========== Memory Settings ==========
+  
+  /// 记忆重要性阈值 (0.0-1.0)，只有超过此阈值的信息才会被存入长期记忆
+  static double get memoryImportanceThreshold => 
+      _getDouble(_memorySettings, ['storage', 'importance_threshold'], 0.6);
+  
+  /// 每个用户最大记忆条数限制
+  static int get maxMemoriesPerUser => 
+      _getInt(_memorySettings, ['storage', 'max_memories_per_user'], 100);
+  
+  /// 记忆衰减周期（天）
+  static int get memoryDecayDays => 
+      _getInt(_memorySettings, ['storage', 'decay_days'], 30);
+  
+  /// 重要性评估基础分数
+  static double get memoryBaseScore => 
+      _getDouble(_memorySettings, ['importance', 'base_score'], 0.3);
+  
+  /// 高情感价值阈值
+  static double get memoryEmotionalThreshold => 
+      _getDouble(_memorySettings, ['importance', 'emotional_threshold'], 0.6);
+  
+  /// 偏好关键词列表 - 用于提取用户偏好相关信息
+  static List<String> get preferenceKeywords {
+    final keywords = _memorySettings?['importance']?['preference_keywords'];
+    if (keywords is List) {
+      return keywords.map((e) => e.toString()).toList();
+    }
+    // 默认偏好关键词
+    return ['喜欢', '讨厌', '最爱', '不喜欢', '偏好', '习惯', '希望', '想要'];
+  }
   
   // ========== Helper Methods ==========
   

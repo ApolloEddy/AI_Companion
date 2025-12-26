@@ -15,8 +15,12 @@ class PersonaService {
 
   void _load() {
     final str = prefs.getString(AppConfig.personaKey);
-    if (str != null) {
-      state = jsonDecode(str);
+    if (str != null && str.isNotEmpty) {
+      try {
+        state = jsonDecode(str);
+      } catch (e) {
+        state = _defaultState();
+      }
     } else {
       state = _defaultState();
     }

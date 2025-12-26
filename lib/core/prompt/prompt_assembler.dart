@@ -13,6 +13,9 @@ class PromptAssembler {
   /// System Prompt 模板
   static const String _systemTemplate = '''{persona_header}
 
+【核心事实】
+{core_facts}
+
 【当前时间】
 {current_time}
 
@@ -41,9 +44,11 @@ class PromptAssembler {
     required String expressionGuide,   // 来自 ExpressionSelector
     required String responseFormat,    // 来自 ResponseFormatter
     required String behaviorRules,     // 来自 PersonaPolicy.getBehaviorConstraints()
+    String coreFacts = '',             // 来自 FactStore.formatForSystemPrompt()
   }) {
     final systemPrompt = _systemTemplate
         .replaceAll('{persona_header}', personaHeader)
+        .replaceAll('{core_facts}', coreFacts.isNotEmpty ? coreFacts : '（暂无已知信息）')
         .replaceAll('{current_time}', currentTime)
         .replaceAll('{current_state}', currentState)
         .replaceAll('{memories}', memories.isNotEmpty ? memories : '（暂无记忆）')
@@ -55,6 +60,7 @@ class PromptAssembler {
       systemPrompt: systemPrompt,
       components: {
         'personaHeader': personaHeader,
+        'coreFacts': coreFacts,
         'currentTime': currentTime,
         'currentState': currentState,
         'memories': memories,

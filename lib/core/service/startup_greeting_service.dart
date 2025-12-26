@@ -27,6 +27,7 @@ class StartupGreetingService {
   static const String _lastInteractionKey = 'last_interaction_time';
   
   final SharedPreferences _prefs;
+  // ignore: unused_field - 保留用于未来个性化问候
   final String _personaName;
   
   /// 问候消息回调
@@ -35,8 +36,27 @@ class StartupGreetingService {
   StartupGreetingService(this._prefs, {String personaName = '小悠'}) 
       : _personaName = personaName;
   
+  /// 问候回调：生成虚拟时间戳消息时调用
+  void Function(ChatMessage message)? onMissedGreetingMessage;
+  
   /// 检查并调度问候（应用启动时调用）
+  /// 
+  /// 新逻辑：
+  /// 1. 先检查错过的触发器（虚拟时间戳策略）
+  /// 2. 再检查当前时段的正常问候
   Future<void> checkAndScheduleGreeting() async {
+    // 【虚拟时间戳策略】先检查错过的触发器
+    final missedMessages = await _checkMissedTriggers();
+    for (final msg in missedMessages) {
+      print('[StartupGreeting] Inserting missed greeting with virtual timestamp: ${msg.time}');
+      onMissedGreetingMessage?.call(msg);
+    }
+    
+    // 如果有错过的消息，则跳过当前时段的正常问候（避免重复）
+    if (missedMessages.isNotEmpty) {
+      return;
+    }
+    
     final greetingType = _determineGreetingType();
     
     if (greetingType == GreetingType.none) {
@@ -51,6 +71,72 @@ class StartupGreetingService {
     Timer(Duration(seconds: delaySeconds), () {
       _sendGreeting(greetingType);
     });
+  }
+  
+  /// 【虚拟时间戳策略】检查错过的触发器
+  /// 
+  /// 比较 current_time 与 last_active_time，如果错过了预定的触发器，
+  /// 生成带有虚拟时间戳的消息
+  Future<List<ChatMessage>> _checkMissedTriggers() async {
+    final missedMessages = <ChatMessage>[];
+    final now = DateTime.now();
+    final todayDate = '${now.year}-${now.month}-${now.day}';
+    
+    // 获取上次活跃时间
+    final lastActive = _prefs.getInt(_lastInteractionKey) ?? 0;
+    if (lastActive == 0) {
+      return missedMessages; // 首次使用，无需补发
+    }
+    
+    final lastActiveTime = DateTime.fromMillisecondsSinceEpoch(lastActive);
+    
+    // 检查是否错过早安问候 (今天8:00)
+    final morningTrigger = DateTime(now.year, now.month, now.day, 8, 0);
+    final lastMorning = _prefs.getString(_lastMorningKey);
+    
+    if (lastMorning != todayDate && // 今天未发送过早安
+        now.hour >= 8 && now.hour < 12 && // 现在是上午
+        lastActiveTime.isBefore(morningTrigger)) { // 上次活跃在今天8点之前
+      
+      // 生成虚拟时间戳（8:15）
+      final virtualTime = DateTime(now.year, now.month, now.day, 8, 15);
+      final message = _getGreetingMessage(GreetingType.morning);
+      if (message != null) {
+        missedMessages.add(ChatMessage(
+          content: message,
+          isUser: false,
+          time: virtualTime,
+        ));
+        // 更新记录
+        await _prefs.setString(_lastMorningKey, todayDate);
+        await _prefs.setInt(_lastGreetingKey, now.millisecondsSinceEpoch);
+      }
+    }
+    
+    // 检查是否错过晚安问候 (今天22:00)
+    final eveningTrigger = DateTime(now.year, now.month, now.day, 22, 0);
+    final lastEvening = _prefs.getString(_lastEveningKey);
+    
+    if (lastEvening != todayDate && // 今天未发送过晚安
+        now.hour >= 22 && // 现在是晚上
+        lastActiveTime.isBefore(eveningTrigger)) { // 上次活跃在今天22点之前
+      
+      // 生成虚拟时间戳（22:15）
+      final virtualTime = DateTime(now.year, now.month, now.day, 22, 15);
+      final message = _getGreetingMessage(GreetingType.evening);
+      if (message != null) {
+        missedMessages.add(ChatMessage(
+          content: message,
+          isUser: false,
+          time: virtualTime,
+        ));
+        // 更新记录
+        await _prefs.setString(_lastEveningKey, todayDate);
+        await _prefs.setInt(_lastGreetingKey, now.millisecondsSinceEpoch);
+      }
+    }
+    
+    return missedMessages;
   }
   
   /// 判断需要哪种问候

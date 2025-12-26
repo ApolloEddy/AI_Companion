@@ -1,102 +1,38 @@
 # AI Companion 更新日志
 
-## [v2.0.0] - 2025-12-25 🎄
+## [v2.2.2] - 2025-12-26
+### 🎨 UI/UX 进化 (Neural HUD)
+- **全新侧边栏**：实现 `ModernSideBar` 玻璃拟态控制台。
+- **实时监测**：新增情绪波形图（Emotion Waveform）及亲密度实时进度条。
+- **人格实验室**：新增 **庄重度 (Formality)** 与 **幽默感 (Humor)** 实时调节滑块，动态改变 AI 语气。
+- **交互透明化**：支持长按气泡查看完整生成 Prompt 与 Token Usage 统计。
 
-### 🚀 新增：认知引擎系统
-
-#### 用户画像学习
-- 新增 `UserProfile` 数据模型，支持空白初始化
-- 新增 `ProfileService` 持久化服务，支持增量更新
-- 用户身份、职业、背景从对话中自动提取，而非预设
-
-#### 多阶段处理器
-- 新增 `PerceptionProcessor` - 深度感知处理器（阶段一）
-  - 分析用户表面情绪、潜台词、意图
-  - 支持规则基础的快速分析
-- 新增 `ReflectionProcessor` - 内心反思处理器（阶段三）
-  - 回复前内部思考，动态调整对话风格
-  - 生成回复策略指导
-
-#### 禁止模式检测
-- 新增 `ProhibitedPatterns` 硬编码规则系统
-  - 检测重复提问、说教、过度关心等恼人模式
-  - 自动清理违规内容
-
-#### 异步反思引擎
-- 新增 `AsyncReflectionEngine` 后台学习系统
-  - 对话静默 3 分钟后自动触发
-  - 从对话中提取用户信息并更新画像
-  - 记录里程碑事件
-
-#### 反馈分析器
-- 新增 `FeedbackAnalyzer` 用户行为分析
-  - 从消息长度、响应延迟推断满意度
-  - 识别不满信号，学习对话偏好
-
-#### 分层记忆检索
-- 新增 `LayeredMemoryRetriever` 四层记忆架构
-  - L1: 工作记忆（当前对话）
-  - L2: 情景记忆（近期事件）
-  - L3: 语义记忆（用户画像）
-  - L4: 程序记忆（对话规则）
-
-### 🐛 修复
-
-#### 主动消息机制优化
-- **问题**: 原 Flutter Timer 在 Android 后台被系统暂停，导致主动消息失效
-- **解决**: 改为应用启动时判断是否需要问候
-  - 早安问候 (6:00-10:00)
-  - 晚安问候 (20:00-23:00)
-  - 久未联系问候 (>24小时)
-  - 随机想起 (10%概率)
-- 随机延迟 2-30 秒后发送，自然不突兀
-- 新增 `StartupGreetingService` 轻量级服务
-
-### ✨ 改进
-
-#### ConversationEngine 集成
-- 集成禁止模式检查，自动清理违规输出
-- 集成异步反思引擎，每次对话后自动记录
-- 集成反馈分析器，追踪用户行为信号
-
-#### LLM 服务扩展
-- 新增 `completeWithSystem()` 方法，支持指定模型和参数
-- 新增 `streamComplete()` 预留接口
-
-#### 模型支持
-- 新增 Qwen3 Max (`qwen3-max`) - Qwen3 最强性能
-- 新增 Qwen3 Flash (`qwen3-flash`) - Qwen3 极速响应
-
-### 📁 新增文件
-
-| 文件 | 路径 |
-|------|------|
-| 用户画像模型 | `lib/core/model/user_profile.dart` |
-|画像服务 | `lib/core/service/profile_service.dart` |
-| 启动问候服务 | `lib/core/service/startup_greeting_service.dart` |
-| 深度感知处理器 | `lib/core/engine/perception_processor.dart` |
-| 内心反思处理器 | `lib/core/engine/reflection_processor.dart` |
-| 禁止模式规则 | `lib/core/policy/prohibited_patterns.dart` |
-| 反馈分析器 | `lib/core/engine/feedback_analyzer.dart` |
-| 分层记忆检索 | `lib/core/engine/memory_retriever.dart` |
-| 异步反思引擎 | `lib/core/engine/async_reflection_engine.dart` |
-| 阶段 Prompt 模板 | `lib/core/prompt/stage_prompts.dart` |
-
-### 🔧 修改文件
-
-| 文件 | 变更 |
-|------|------|
-| `conversation_engine.dart` | 集成认知组件 |
-| `app_engine.dart` | 初始化 ProfileService |
-| `llm_service.dart` | 添加新 API 方法 |
-| `config.dart` | 添加新模型 |
+### 🧠 逻辑精算 (Metamorphosis)
+- **表达约束**：新增“角色扮演稀缺性”约束，显著降低 AI 在日常对话中对括号动作描写的过度依赖。
+- **事实提取强化**：修复 `FactStore` 在多主语情况下的混淆问题，当前完全聚焦于提取用户事实。
+- **参数关联**：滑块参数实时注入 `PersonaPolicy`，实现“设置即表现”。
 
 ---
 
-## [v1.x] - 之前版本
+## [v2.2.0] - 2025-12-26
+### 🛠️ 核心架构重构 (Memory System v2)
+- **对象化存储**：弃用文本列表，升级为包含时间戳与重要性权重的 `MemoryEntry` 对象存储。
+- **零成本迁移**：实现旧版数据至 V2 格式的自动解析与元数据补全。
+- **智能衰减**：引入 `memoryDecayDays` 参数驱动的加权相关性检索模型。
+- **稳定性增强**：修复了 Windows 桌面端键盘断言错误及 JSON 解析边界崩溃问题。
 
-- 基础对话功能
-- Valence/Arousal 情绪系统
-- 策略驱动生成参数
-- 主动消息系统
-- 记忆管理
+---
+
+## [v2.0.0] - 2025-12-25
+### 🚀 认知引擎初版
+- **用户画像**：建立 `ProfileService` 基础数据结构。
+- **异步反思**：引入基础的反思机制以提取长期记忆。
+- **行为边界**：加入 ProhibitedPatterns 过滤机制，减少说教感。
+
+---
+
+## [v1.x] - 早期版本
+- 基础对话及 2D 情绪模型。
+- 界面风格体系建立。
+- 基础的主动消息逻辑（启动触发）。
+

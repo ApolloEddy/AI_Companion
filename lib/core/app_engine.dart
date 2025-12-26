@@ -20,9 +20,9 @@ import 'policy/persona_policy.dart';
 import 'engine/emotion_engine.dart';
 import 'engine/memory_manager.dart';
 import 'engine/conversation_engine.dart';
+import 'engine/fact_store.dart';
 
 // 保留向后兼容
-import 'service/memory_service.dart';
 import 'service/persona_service.dart';
 import 'service/profile_service.dart';
 import 'service/startup_greeting_service.dart';
@@ -33,33 +33,32 @@ class AppEngine extends ChangeNotifier {
   bool isLoadingHistory = false;
   bool hasMoreHistory = false;
   int _oldestLoadedIndex = 0;
-  
+
   // Token 统计
   int _totalTokensUsed = 0;
   int get totalTokensUsed => _totalTokensUsed;
-  
+
   // 核心服务
   late LLMService llm;
   late ChatHistoryService chatHistory;
   late SharedPreferences prefs;
-  
+
   // 新架构组件
   late ConversationEngine _conversationEngine;
   late EmotionEngine _emotionEngine;
   late MemoryManager _memoryManager;
   late PersonaPolicy _personaPolicy;
   late GenerationPolicy _generationPolicy;
-  
+
   // 向后兼容：保留旧服务引用
-  late MemoryService memory;
   late PersonaService persona;
-  
+
   // 认知引擎：用户画像服务
   late ProfileService _profileService;
-  
+
   // 启动问候服务
   StartupGreetingService? _startupGreetingService;
-  
+
   bool isInitialized = false;
 
   Map<String, dynamic> personaConfig = {
@@ -69,11 +68,13 @@ class AppEngine extends ChangeNotifier {
     'character': '温柔细腻，有时会害羞，真心对待朋友',
     'interests': '看小说、发呆、聊天',
     'values': ['真诚', '善良'],
+    'formality': 0.5,
+    'humor': 0.5,
   };
 
   /// 获取情绪状态（用于 UI 显示）
   Map<String, dynamic> get emotion => _emotionEngine.emotionMap;
-  
+
   /// 获取亲密度
   double get intimacy => persona.intimacy;
 
@@ -83,61 +84,69 @@ class AppEngine extends ChangeNotifier {
 
   Future<void> init() async {
     await SettingsLoader.loadAll();
-    
+
     prefs = await SharedPreferences.getInstance();
-    
+
     _loadPersonaConfig();
     _loadTokenCount();
-    
-    String key = prefs.getString(AppConfig.apiKeyKey) ?? AppConfig.defaultApiKey;
-    String savedModel = prefs.getString(AppConfig.modelKey) ?? AppConfig.defaultModel;
+
+    String key =
+        prefs.getString(AppConfig.apiKeyKey) ?? AppConfig.defaultApiKey;
+    String savedModel =
+        prefs.getString(AppConfig.modelKey) ?? AppConfig.defaultModel;
     llm = LLMService(key, model: savedModel);
-    
+
     // 初始化向后兼容服务
-    memory = MemoryService(prefs);
     persona = PersonaService(prefs);
     chatHistory = ChatHistoryService(prefs);
-    
+
     // 初始化新架构组件
     _emotionEngine = EmotionEngine(prefs);
     _memoryManager = MemoryManager(prefs);
     _personaPolicy = PersonaPolicy(personaConfig);
     _generationPolicy = GenerationPolicy.fromSettings();
-    
+
     // 初始化用户画像服务（认知引擎核心）
     _profileService = ProfileService(prefs);
-    
+
+    // 初始化核心事实存储并注入 LLM 服务（启用混合提取）
+    final factStore = FactStore(prefs);
+    factStore.setLLMService(llm);
+
     _conversationEngine = ConversationEngine(
       llmService: llm,
       memoryManager: _memoryManager,
       personaPolicy: _personaPolicy,
       emotionEngine: _emotionEngine,
       generationPolicy: _generationPolicy,
-      profileService: _profileService,  // 启用认知增强
+      profileService: _profileService, // 启用认知增强
     );
-    
+
+    // 注入 FactStore
+    _conversationEngine.setFactStore(factStore);
+
     // 设置主动消息回调
     _conversationEngine.onProactiveMessage = _handleProactiveMessage;
     // 设置待发送消息回调 - 主动消息会先进入队列
     _conversationEngine.onPendingMessage = addPendingMessage;
-    
+
     // 启动对话引擎（启动 Timer）
     await _conversationEngine.start();
-    
+
     await _loadChatHistory();
-    
+
     isInitialized = true;
     notifyListeners();
-    
+
     // 启动问候服务（应用打开时判断是否需要问候）
     _initStartupGreeting();
-    
+
     if (messages.isEmpty) {
       final name = personaConfig['name'] ?? '小悠';
       final welcomeMsg = ChatMessage(
-        content: "你好呀！我是$name，有什么想聊的吗？", 
-        isUser: false, 
-        time: DateTime.now()
+        content: "你好呀！我是$name，有什么想聊的吗？",
+        isUser: false,
+        time: DateTime.now(),
       );
       messages.add(welcomeMsg);
       await chatHistory.addMessage(welcomeMsg);
@@ -148,14 +157,29 @@ class AppEngine extends ChangeNotifier {
   void _initStartupGreeting() {
     final name = personaConfig['name'] ?? '小悠';
     _startupGreetingService = StartupGreetingService(prefs, personaName: name);
-    
+
     // 设置问候消息回调
     _startupGreetingService!.onGreetingMessage = (message) {
       messages.add(message);
       chatHistory.addMessage(message);
       notifyListeners();
     };
-    
+
+    // 【修复】设置虚拟时间戳消息回调（错过的问候）
+    _startupGreetingService!.onMissedGreetingMessage = (message) {
+      // 按时间戳插入到正确位置，而不是追加到末尾
+      final insertIndex = messages.indexWhere(
+        (m) => m.time.isAfter(message.time),
+      );
+      if (insertIndex == -1) {
+        messages.add(message);
+      } else {
+        messages.insert(insertIndex, message);
+      }
+      chatHistory.addMessage(message);
+      notifyListeners();
+    };
+
     // 检查并调度问候
     _startupGreetingService!.checkAndScheduleGreeting();
   }
@@ -178,7 +202,7 @@ class AppEngine extends ChangeNotifier {
   Future<void> _loadChatHistory() async {
     final totalCount = await chatHistory.getTotalCount();
     final recentMessages = await chatHistory.loadRecentMessages(count: 50);
-    
+
     messages = recentMessages;
     _oldestLoadedIndex = totalCount - recentMessages.length;
     hasMoreHistory = _oldestLoadedIndex > 0;
@@ -186,16 +210,16 @@ class AppEngine extends ChangeNotifier {
 
   Future<void> loadMoreHistory() async {
     if (isLoadingHistory || !hasMoreHistory) return;
-    
+
     isLoadingHistory = true;
     notifyListeners();
-    
+
     try {
       final olderMessages = await chatHistory.loadOlderMessages(
-        _oldestLoadedIndex, 
-        count: 30
+        _oldestLoadedIndex,
+        count: 30,
       );
-      
+
       if (olderMessages.isNotEmpty) {
         messages.insertAll(0, olderMessages);
         _oldestLoadedIndex -= olderMessages.length;
@@ -211,7 +235,7 @@ class AppEngine extends ChangeNotifier {
 
   void _loadPersonaConfig() {
     final saved = prefs.getString('personaConfig');
-    if (saved != null) {
+    if (saved != null && saved.isNotEmpty) {
       try {
         final decoded = jsonDecode(saved);
         if (decoded is Map<String, dynamic>) {
@@ -236,9 +260,10 @@ class AppEngine extends ChangeNotifier {
 
   Future<void> updateApiKey(String newKey) async {
     await prefs.setString(AppConfig.apiKeyKey, newKey);
-    final currentModelId = prefs.getString(AppConfig.modelKey) ?? AppConfig.defaultModel;
+    final currentModelId =
+        prefs.getString(AppConfig.modelKey) ?? AppConfig.defaultModel;
     llm = LLMService(newKey, model: currentModelId);
-    
+
     // 更新 ConversationEngine 中的 LLMService
     _conversationEngine = ConversationEngine(
       llmService: llm,
@@ -250,7 +275,7 @@ class AppEngine extends ChangeNotifier {
     _conversationEngine.onProactiveMessage = _handleProactiveMessage;
     _conversationEngine.onPendingMessage = addPendingMessage;
     await _conversationEngine.start();
-    
+
     notifyListeners();
   }
 
@@ -263,7 +288,6 @@ class AppEngine extends ChangeNotifier {
     llm.setModel(modelId);
     notifyListeners();
   }
-
 
   Future<void> clearChatHistory() async {
     messages.clear();
@@ -283,10 +307,14 @@ class AppEngine extends ChangeNotifier {
   Future<void> sendMessage(String text) async {
     if (text.trim().isEmpty) return;
 
-    final userMsg = ChatMessage(content: text, isUser: true, time: DateTime.now());
+    final userMsg = ChatMessage(
+      content: text,
+      isUser: true,
+      time: DateTime.now(),
+    );
     messages.add(userMsg);
-    notifyListeners();  // 立即显示用户消息
-    
+    notifyListeners(); // 立即显示用户消息
+
     // 异步保存历史
     chatHistory.addMessage(userMsg);
 
@@ -299,27 +327,30 @@ class AppEngine extends ChangeNotifier {
     // 显示"正在输入..."状态
     isLoading = true;
     notifyListeners();
-    
+
     try {
       // 更新 PersonaService 状态（保持向后兼容）
       await persona.updateInteraction(text);
-      
+
       // 同步状态给 ConversationEngine
       _conversationEngine.updateState(
         intimacy: persona.intimacy,
         interactionCount: persona.interactions,
         lastInteraction: persona.lastInteraction,
       );
-      
+
       // 委托给 ConversationEngine 处理
-      final result = await _conversationEngine.processUserMessage(text, messages);
-      
+      final result = await _conversationEngine.processUserMessage(
+        text,
+        messages,
+      );
+
       // 更新 token 统计
       if (result.tokensUsed > 0) {
         _totalTokensUsed += result.tokensUsed;
         await _saveTokenCount();
       }
-      
+
       // 按延迟逐条发送响应消息
       for (final delayed in result.delayedMessages) {
         if (delayed.delay.inMilliseconds > 0) {
@@ -327,14 +358,13 @@ class AppEngine extends ChangeNotifier {
         }
         messages.add(delayed.message);
         await chatHistory.addMessage(delayed.message);
-        notifyListeners();  // 每条消息单独通知 UI 更新
+        notifyListeners(); // 每条消息单独通知 UI 更新
       }
-      
     } catch (e) {
       final errorMsg = ChatMessage(
-        content: "[系统错误] $e", 
-        isUser: false, 
-        time: DateTime.now()
+        content: "[系统错误] $e",
+        isUser: false,
+        time: DateTime.now(),
       );
       messages.add(errorMsg);
       await chatHistory.addMessage(errorMsg);
@@ -362,7 +392,7 @@ class AppEngine extends ChangeNotifier {
   /// 立即发送队列中的某条消息
   void sendPendingMessageNow(int index) {
     if (index < 0 || index >= _pendingMessages.length) return;
-    
+
     final message = _pendingMessages.removeAt(index);
     messages.add(message);
     chatHistory.addMessage(message);

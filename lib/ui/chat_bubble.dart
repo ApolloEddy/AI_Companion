@@ -5,6 +5,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
 import '../core/model/chat_message.dart';
 import '../core/provider/bubble_color_provider.dart';
+import 'utils/ui_adapter.dart';
 
 class ChatBubble extends StatefulWidget {
   final ChatMessage message;
@@ -154,7 +155,7 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('关闭'),
+            child: const Text('好的'),
           ),
         ],
       ),
@@ -207,19 +208,15 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
   Widget build(BuildContext context) {
     final isUser = widget.message.isUser;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bubbleColors = context.watch<BubbleColorProvider>();
-    final screenWidth = MediaQuery.of(context).size.width;
+    final ui = UIAdapter(context);
     
-    // 自适应尺寸计算
-    final isCompact = screenWidth < 400;
-    final isLarge = screenWidth > 800;
-    
-    final avatarSize = isLarge ? 32.0 : (isCompact ? 28.0 : 32.0);
-    final fontSize = isLarge ? 15.0 : (isCompact ? 14.0 : 15.0);
-    final bubblePadding = isLarge ? 14.0 : (isCompact ? 10.0 : 12.0);
-    final borderRadius = isLarge ? 18.0 : (isCompact ? 14.0 : 16.0);
-    final maxWidthRatio = isLarge ? 0.6 : (isCompact ? 0.8 : 0.72);
-    final timestampFontSize = isCompact ? 10.0 : 11.0;
+    final avatarSize = ui.avatarSize;
+    final fontSize = ui.bodyFontSize;
+    final bubblePadding = ui.bubblePadding;
+    final borderRadius = ui.bubbleRadius;
+    final maxWidth = ui.bubbleMaxWidth;
+    final timestampFontSize = ui.tinyFontSize;
+    final isCompact = ui.isCompact;
     
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -260,8 +257,8 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
                     GestureDetector(
                       onLongPress: _showActionMenu,
                       child: isUser
-                          ? _buildUserBubble(isDark, bubbleColors, fontSize, bubblePadding, borderRadius, screenWidth * maxWidthRatio)
-                          : _buildAiBubble(isDark, bubbleColors, fontSize, bubblePadding, borderRadius, screenWidth * maxWidthRatio),
+                          ? _buildUserBubble(isDark, context.watch<BubbleColorProvider>(), fontSize, bubblePadding, borderRadius, maxWidth)
+                          : _buildAiBubble(isDark, context.watch<BubbleColorProvider>(), fontSize, bubblePadding, borderRadius, maxWidth),
                     ),
                     
                     if (isUser) ...[

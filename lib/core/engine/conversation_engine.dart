@@ -433,8 +433,10 @@ class ConversationEngine {
       context,
     );
 
-    // 【FactStore】获取核心事实用于注入 Prompt
-    final coreFacts = _factStore?.formatForSystemPrompt() ?? '';
+    // 【FactStore + UserProfile】获取核心事实与身份锚点用于注入 Prompt
+    final factData = _factStore?.formatForSystemPrompt() ?? '';
+    final identityAnchor = profileService?.profile.getIdentityAnchor() ?? '';
+    final coreFacts = '$identityAnchor\n\n$factData'.trim();
 
     final timeContext = TimeAwareness.getTimeContext();
     final timeGap = _lastInteraction != null

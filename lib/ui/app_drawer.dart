@@ -16,7 +16,7 @@ class _AppDrawerState extends State<AppDrawer> {
   late TextEditingController _ageController;
   late TextEditingController _characterController;
   late TextEditingController _interestsController;
-  String _selectedGender = '女性';
+  String _selectedGender = '女�?;
   bool _isEditing = false;
 
   @override
@@ -43,7 +43,7 @@ class _AppDrawerState extends State<AppDrawer> {
     _ageController.text = persona['age'] ?? '';
     _characterController.text = persona['character'] ?? '';
     _interestsController.text = persona['interests'] ?? '';
-    _selectedGender = persona['gender'] ?? '女性';
+    _selectedGender = persona['gender'] ?? '女�?;
   }
 
   void _savePersona(AppEngine engine) {
@@ -58,10 +58,10 @@ class _AppDrawerState extends State<AppDrawer> {
       'interests': _interestsController.text.trim(),
     });
     setState(() => _isEditing = false);
-    // SnackBar 顶部显示，缩短时间
+    // SnackBar 顶部显示，缩短时�?
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('人设已保存'),
+        content: Text('人设已保�?),
         duration: Duration(milliseconds: 800),
         behavior: SnackBarBehavior.floating,
       ),
@@ -117,7 +117,7 @@ class _AppDrawerState extends State<AppDrawer> {
             ),
           ),
           
-          // ========== 人设编辑器 ==========
+          // ========== 人设编辑�?==========
           ExpansionTile(
             leading: const Icon(Icons.person_outline),
             title: const Text('人设配置'),
@@ -140,11 +140,11 @@ class _AppDrawerState extends State<AppDrawer> {
                       value: _selectedGender,
                       decoration: const InputDecoration(labelText: '性别', isDense: true),
                       items: const [
-                        DropdownMenuItem(value: '女性', child: Text('女性')),
-                        DropdownMenuItem(value: '男性', child: Text('男性')),
-                        DropdownMenuItem(value: '中性', child: Text('中性')),
+                        DropdownMenuItem(value: '女�?, child: Text('女�?)),
+                        DropdownMenuItem(value: '男�?, child: Text('男�?)),
+                        DropdownMenuItem(value: '中�?, child: Text('中�?)),
                       ],
-                      onChanged: (v) => setState(() => _selectedGender = v ?? '女性'),
+                      onChanged: (v) => setState(() => _selectedGender = v ?? '女�?),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -214,14 +214,14 @@ class _AppDrawerState extends State<AppDrawer> {
           
           const Divider(),
           
-          // ========== 状态信息 ==========
+          // ========== 状态信�?==========
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Text('实时状态', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            child: Text('实时状�?, style: TextStyle(fontSize: 12, color: Colors.grey)),
           ),
           _buildStatTile('情绪象限', emotion['quadrant'] ?? '平静'),
           _buildStatTile('情绪强度', emotion['intensity'] ?? '平和'),
-          _buildStatTile('亲密度', '${(intimacy * 100).toStringAsFixed(0)}%'),
+          _buildStatTile('亲密�?, '${(intimacy * 100).toStringAsFixed(0)}%'),
           _buildStatTile('互动次数', interactions.toString()),
           _buildStatTile('已用 Token', _formatTokenCount(engine.totalTokensUsed)),
           
@@ -233,7 +233,7 @@ class _AppDrawerState extends State<AppDrawer> {
             child: Text('主题设置', style: TextStyle(fontSize: 12, color: Colors.grey)),
           ),
           RadioListTile<ThemeMode>(
-            title: const Text('☀️ 日间'),
+            title: const Text('☀�?日间'),
             value: ThemeMode.light,
             groupValue: themeProvider.themeMode,
             onChanged: (v) => themeProvider.setTheme(v!),
@@ -256,7 +256,7 @@ class _AppDrawerState extends State<AppDrawer> {
           
           const Divider(),
           
-          // ========== 待发送消息队列 ==========
+          // ========== 待发送消息队�?==========
           _buildPendingMessagesSection(engine),
         ],
       ),
@@ -296,9 +296,9 @@ class _AppDrawerState extends State<AppDrawer> {
     );
   }
 
-  /// 待发送消息队列 (主动消息)
+  /// 待发送消息队�?(主动消息)
   Widget _buildPendingMessagesSection(AppEngine engine) {
-    // 获取待发送消息列表
+    // 获取待发送消息列�?
     final pendingMessages = engine.pendingMessages;
     
     if (pendingMessages.isEmpty) {
@@ -309,7 +309,7 @@ class _AppDrawerState extends State<AppDrawer> {
       leading: const Icon(Icons.schedule_send),
       title: Row(
         children: [
-          const Text('待发送消息'),
+          const Text('待发送消�?),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -355,7 +355,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   // 立即发送该消息
                   engine.sendPendingMessageNow(index);
                 },
-                tooltip: '立即发送',
+                tooltip: '立即发�?,
               ),
             );
           },
@@ -365,7 +365,7 @@ class _AppDrawerState extends State<AppDrawer> {
             padding: const EdgeInsets.all(8.0),
             child: TextButton(
               onPressed: () => engine.clearPendingMessages(),
-              child: const Text('清空所有', style: TextStyle(color: Colors.red)),
+              child: const Text('清空所�?, style: TextStyle(color: Colors.red)),
             ),
           ),
       ],
@@ -377,11 +377,11 @@ class _AppDrawerState extends State<AppDrawer> {
     final diff = time.difference(now);
     
     if (diff.isNegative) {
-      return '待发送';
+      return '待发�?;
     } else if (diff.inMinutes < 60) {
-      return '${diff.inMinutes} 分钟后';
+      return '${diff.inMinutes} 分钟�?;
     } else if (diff.inHours < 24) {
-      return '${diff.inHours} 小时后';
+      return '${diff.inHours} 小时�?;
     } else {
       return '${time.month}/${time.day} ${time.hour}:${time.minute.toString().padLeft(2, '0')}';
     }

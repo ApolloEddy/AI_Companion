@@ -13,6 +13,7 @@ import 'config.dart';
 import 'settings_loader.dart';
 import 'service/llm_service.dart';
 import 'service/chat_history_service.dart';
+import 'model/user_profile.dart';
 
 // 新架构导入
 import 'policy/generation_policy.dart';
@@ -132,6 +133,17 @@ class AppEngine extends ChangeNotifier {
 
     // 启动对话引擎（启动 Timer）
     await _conversationEngine.start();
+
+    // 【Research-Grade】实现亲密度衰减逻辑
+    if (persona.lastInteraction != null) {
+      final hours = DateTime.now().difference(persona.lastInteraction!).inHours;
+      if (hours >= 24) {
+        final decayAmount = (hours / 24) * 0.05;
+        final newIntimacy = (persona.intimacy - decayAmount).clamp(0.1, 1.0);
+        persona.updateIntimacy(newIntimacy);
+        print('[AppEngine] Intimacy decayed by $decayAmount due to $hours hours of absence. New intimacy: $newIntimacy');
+      }
+    }
 
     await _loadChatHistory();
 
@@ -286,6 +298,15 @@ class AppEngine extends ChangeNotifier {
   Future<void> updateModel(String modelId) async {
     await prefs.setString(AppConfig.modelKey, modelId);
     llm.setModel(modelId);
+    notifyListeners();
+  }
+
+  /// 获取用户画像
+  UserProfile get userProfile => _profileService.profile;
+
+  /// 更新用户画像
+  Future<void> updateUserProfile(UserProfile newProfile) async {
+    await _profileService.updateProfile(newProfile);
     notifyListeners();
   }
 

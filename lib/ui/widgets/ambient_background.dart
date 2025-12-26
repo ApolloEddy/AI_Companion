@@ -2,29 +2,34 @@ import 'package:flutter/material.dart';
 
 /// AmbientBackground - 情绪驱动的动态渐变背景
 ///
-/// 设计原理：
-/// - 根据 AI 情绪状态（Valence 效价 / Arousal 唤起度）动态调整背景色
-/// - 负面情绪呈现冷色调（蓝紫），正面情绪呈现暖色调（橙粉）
-/// - 唤起度影响渐变的对比度和动画速度
+/// 【Research-Grade】升级：
+/// - 融合 亲密度 (Intimacy) 作为基调 (Base Tone)
+/// - 融合 情绪 (Emotion) 作为动态变化 (Dynamics)
+/// - 高亲密度 = 温暖/明亮；情绪 = 色相偏移
 class AmbientBackground extends StatelessWidget {
   final double valence; // -1.0 (负面) 到 1.0 (正面)
   final double arousal; // 0.0 (平静) 到 1.0 (兴奋)
+  final double intimacy; // 0.0 (疏远) 到 1.0 (亲密)
   final bool isDarkMode;
 
   const AmbientBackground({
     super.key,
     this.valence = 0.0,
     this.arousal = 0.5,
+    this.intimacy = 0.3,
     this.isDarkMode = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    // 计算渐变颜色基于情绪
-    final colors = _getGradientColors();
+    // 【Research-Grade】 亲密度决定基调颜色
+    final baseColor = _getBaseColorByIntimacy();
+    
+    // 【Research-Grade】 情绪决定偏移和对比
+    final colors = _applyEmotionDynamics(baseColor);
     
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 2000),
       curve: Curves.easeInOut,
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -36,54 +41,41 @@ class AmbientBackground extends StatelessWidget {
     );
   }
 
-  /// 根据情绪状态计算渐变颜色
-  List<Color> _getGradientColors() {
-    // 基础色相映射：
-    // valence < 0: 蓝色/紫色系 (冷色)
-    // valence > 0: 橙色/粉色系 (暖色)
-    // valence = 0: 中性灰蓝色
-    
-    Color primaryColor;
-    Color secondaryColor;
-    
-    if (valence < -0.3) {
-      // 负面情绪：深蓝/紫色
-      primaryColor = isDarkMode 
-          ? const Color(0xFF1a1a2e)  // 深蓝黑
-          : const Color(0xFF4a4e69);  // 灰紫
-      secondaryColor = isDarkMode
-          ? const Color(0xFF16213e)  // 深靛蓝
-          : const Color(0xFF9a8c98);  // 淡紫灰
-    } else if (valence > 0.3) {
-      // 正面情绪：暖橙/粉色
-      primaryColor = isDarkMode
-          ? const Color(0xFF2d132c)  // 深酒红
-          : const Color(0xFFf8edeb);  // 米粉
-      secondaryColor = isDarkMode
-          ? const Color(0xFF3d1a38)  // 深紫红
-          : const Color(0xFFfcd5ce);  // 淡桃粉
+  /// 亲密度决定背景基调
+  Color _getBaseColorByIntimacy() {
+    if (isDarkMode) {
+      if (intimacy > 0.7) return const Color(0xFF2D1B28); // 暖紫黑
+      if (intimacy > 0.4) return const Color(0xFF1B1B2D); // 深蓝蓝
+      return const Color(0xFF0D1117); // 极其冷淡的深色
     } else {
-      // 中性情绪：柔和蓝灰
-      primaryColor = isDarkMode
-          ? const Color(0xFF1e1e2e)  // 深灰蓝
-          : const Color(0xFFf0f0f5);  // 浅灰蓝
-      secondaryColor = isDarkMode
-          ? const Color(0xFF252536)  // 中灰蓝
-          : const Color(0xFFe8e8f0);  // 淡灰
+      if (intimacy > 0.7) return const Color(0xFFFFF5F8); // 温润淡粉
+      if (intimacy > 0.4) return const Color(0xFFF5F8FF); // 清新淡蓝
+      return const Color(0xFFF6F8FA); // 灰白
     }
-    
-    // 高唤起度增加颜色饱和度
-    if (arousal > 0.7) {
-      primaryColor = _saturateColor(primaryColor, 0.15);
-      secondaryColor = _saturateColor(secondaryColor, 0.15);
-    }
-    
-    return [primaryColor, secondaryColor];
   }
 
-  /// 增加颜色饱和度
-  Color _saturateColor(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl.withSaturation((hsl.saturation + amount).clamp(0.0, 1.0)).toColor();
+  /// 融合情绪动态
+  List<Color> _applyEmotionDynamics(Color base) {
+    final hsl = HSLColor.fromColor(base);
+    
+    // 效价 (Valence) 决定色相偏移
+    // 正面(+): 移向黄色/橙色；负面(-): 移向蓝色/紫色
+    double hueShift = valence * 20.0; // 最大偏移 20 度
+    
+    // 唤起度 (Arousal) 决定对比和饱和度
+    double saturationShift = (arousal - 0.5) * 0.2;
+    double lightnessShift = (arousal - 0.5) * 0.05;
+
+    final primary = hsl.withHue((hsl.hue + hueShift).clamp(0.0, 360.0))
+        .withSaturation((hsl.saturation + saturationShift).clamp(0.0, 1.0))
+        .withLightness((hsl.lightness + lightnessShift).clamp(0.0, 1.0))
+        .toColor();
+
+    final secondary = hsl.withHue((hsl.hue - hueShift).clamp(0.0, 360.0))
+        .withSaturation((hsl.saturation - saturationShift).clamp(0.0, 1.0))
+        .withLightness((hsl.lightness - lightnessShift).clamp(0.0, 1.0))
+        .toColor();
+
+    return [primary, secondary];
   }
 }

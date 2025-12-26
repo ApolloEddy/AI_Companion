@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../utils/ui_adapter.dart';
 
 /// GlassInputBar - 玻璃拟态浮动输入框
 ///
@@ -7,7 +8,7 @@ import 'package:flutter/material.dart';
 /// - 使用 BackdropFilter 实现毛玻璃效果
 /// - 渐变发送按钮增强视觉层次
 /// - 浮动设计与背景自然融合
-/// - 【新增】自适应尺寸基于屏幕宽度
+/// - 【新增】自适应尺寸基于 UIAdapter
 class GlassInputBar extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
@@ -22,17 +23,14 @@ class GlassInputBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
+    final ui = UIAdapter(context);
     
-    // 自适应尺寸计算
-    final isCompact = screenWidth < 400;  // 小屏手机
-    final isLarge = screenWidth > 800;    // 桌面/平板
-    
-    final horizontalPadding = isLarge ? 24.0 : (isCompact ? 8.0 : 12.0);
-    final borderRadius = isLarge ? 32.0 : (isCompact ? 22.0 : 28.0);
-    final fontSize = isLarge ? 15.0 : (isCompact ? 14.0 : 15.0);
-    final buttonSize = isLarge ? 42.0 : (isCompact ? 36.0 : 40.0);
-    final iconSize = isLarge ? 22.0 : (isCompact ? 18.0 : 20.0);
+    final isCompact = ui.isCompact;
+    final horizontalPadding = ui.inputBarSidePadding;
+    final borderRadius = ui.inputBarRadius;
+    final fontSize = ui.inputFontSize;
+    final buttonSize = ui.sendButtonSize;
+    final iconSize = ui.isLarge ? 24.0 : 20.0;
     
     return SafeArea(
       top: false,

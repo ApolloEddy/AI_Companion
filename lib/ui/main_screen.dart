@@ -7,6 +7,7 @@ import 'settings_screen.dart';
 import 'widgets/ambient_background.dart';
 import 'widgets/glass_input_bar.dart';
 import 'widgets/modern_sidebar.dart';
+import 'utils/ui_adapter.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -79,7 +80,8 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     final engine = context.watch<AppEngine>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final aiName = engine.personaConfig['name'] ?? 'April';
+    final ui = UIAdapter(context);
+    final aiName = engine.personaConfig['name'] ?? '小悠';
     
     // 获取情绪状态用于背景
     final emotionMap = engine.isInitialized ? engine.emotion : {};
@@ -92,6 +94,7 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     return Scaffold(
+      backgroundColor: Colors.transparent, // 【Research-Grade】透明背景以显示 AmbientBackground
       drawer: const ModernSideBar(),
       extendBodyBehindAppBar: true,
       
@@ -119,12 +122,12 @@ class _MainScreenState extends State<MainScreen> {
           ? Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(aiName, style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+                Text(aiName, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: ui.titleFontSize)),
                 const SizedBox(width: 8),
                 _buildTypingIndicator(isDark),
               ],
             )
-          : Text(aiName, style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
+          : Text(aiName, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: ui.titleFontSize)),
         actions: [
           IconButton(
             icon: Icon(Icons.settings, color: isDark ? Colors.white : Colors.black87),
@@ -146,6 +149,7 @@ class _MainScreenState extends State<MainScreen> {
             child: AmbientBackground(
               valence: valence,
               arousal: arousal,
+              intimacy: engine.intimacy, // 【Research-Grade】注入亲密度
               isDarkMode: isDark,
             ),
           ),

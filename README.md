@@ -1,106 +1,99 @@
-# AI Companion: 基于策略驱动架构的认知型虚拟伙伴
+# AI Companion: Research-Grade Ethereal OS
 
-AI Companion 是一个采用 **策略驱动（Policy-Driven）** 与 **认知引擎（Cognitive Engine）** 架构构建的 Flutter 应用程序。不同于传统的指令式 ChatBot，本项目旨在实现一个具有动态情绪演变、分层记忆检索及透明化逻辑处理的深度虚拟伙伴系统。
+> ![Status](https://img.shields.io/badge/Status-Research--Grade-blueviolet?style=for-the-badge)
+> ![Flutter](https://img.shields.io/badge/Flutter-v3.24+-02569B?style=for-the-badge&logo=flutter)
+> ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
+
+**AI Companion** 是一款基于 Flutter 构建的情感参数可视计算人工智能伴侣。与普通的聊天机器人不同，它拥有完整的**认知反馈环（Cognitive Loop）**、**维度情感模型（V-A Model）**以及**动态生成策略（Generation Policy）**，旨在将 LLM 从单纯的生产力工具转变为具备生命感和个性厚度的数字伴侣。
 
 ---
 
-## 1. 框架实现原理 (Architectural Principles)
+## 🌌 核心哲学：视觉与灵魂的共鸣
 
-核心设计哲学：**AI 的行为应由其内部认知状态（情绪、关系、时间感）动态驱动，而非单一的 Prompt 硬编码。**
+本项目在设计上追求 **"Ethereal HUD" (飘渺平显)** 风格，专为深色模式优化。
 
-### 1.1 系统架构概览 (System Layout)
+*   **光效美学**：使用 HSL 空间计算，将 AI 的**亲密度（Intimacy）**设定为背景基调，将**实时情绪（Emotion）**设定为动态扰动，实现视觉层面的“察言观色”。
+*   **交互深度**：每一条消息的生成参数（Temperature, Max Tokens）都由 AI 的当前的心理状态动态驱动，而非硬编码。
 
-项目采用三层解耦架构：**适配层 (UI/Provider)** -> **认知引擎层 (Cognitive Engine)** -> **策略执行层 (Execution Policy)**。
+---
+
+## 🧠 理论架构与机制分析
+
+### 1. 认知调度环 (Cognitive Engine)
+系统采用分层架构，彻底分离业务逻辑、情感计算与生成执行。
 
 ```mermaid
 graph TD
-    User((用户)) <--> UI[UI/Widgets: Glassmorphism]
-    UI <--> Provider[Provider: State Management]
-    Provider <--> AE[AppEngine: Orchestrator]
+    User([用户输入]) --> CE[Conversation Engine]
+    CE --> EE[Emotion Engine: V-A Model]
+    CE --> MM[Memory Manager: RAG]
+    CE --> PP[Persona Policy: Intimacy]
     
-    subgraph "认知层 (Cognitive Layer)"
-        AE <--> CE[ConversationEngine: 调度中枢]
-        CE --> EE[EmotionEngine: 2D 效价-唤醒度模型]
-        CE --> FS[FactStore: 混合式事实提取]
-        CE --> MM[MemoryManager: V2 对象级存储]
-        CE --> RE[ReflectionEngine: 异步反思机制]
-    end
+    EE -- 情绪状态 --> GP[Generation Policy]
+    PP -- 亲密度等级 --> GP
     
-    subgraph "执行与外部服务 (Policy & Services)"
-        CE --> GP[GenerationPolicy: 动态推理参数映射]
-        CE --> PP[PersonaPolicy: 人格行为约束集]
-        GP --> LS[LLMService: 通义千问 API 适配器]
-        CE --> RF[ResponseFormatter: 异步打字流模拟]
-    end
+    GP -- 映射参数 --> LLM[LLM Service: Qwen]
+    
+    MM -- 历史上下文 --> PA[Prompt Assembler]
+    EE -- 情绪标签 --> PA
+    PA -- 结构化 Prompt --> LLM
+    
+    LLM --> Response([AI 响应])
+    Response --> Feedback{用户反馈}
+    Feedback -- 强化/减弱 --> EE
 ```
 
-### 1.2 分层记忆模型 (Layered Memory Hierarchy)
+### 2. 参数映射机制 (The Mapping Logic)
+项目实现了一套严谨的**生成动力学**映射，AI 的回复风格受物理参数限制：
 
-系统通过 `MemoryManager` 维护一个多粒度的记忆存储体系，通过 `WeightedScore` 算法实现拟人化的检索与遗忘。
+| 心理维度 | 状态区间 | LLM 参数调整 (Mapping) | 表现后果 |
+| :--- | :--- | :--- | :--- |
+| **效价 (Valence)** | 极端负面 (< -0.6) | `max_tokens` 强制限制为 20 | AI 表现为冷漠、愤怒，拒绝长篇大论 |
+| **唤醒度 (Arousal)** | 极高活力 (> 0.8) | `temperature` 提升至 1.1 | AI 表现为兴奋或语无伦次，语言多样性激增 |
+| **亲密度 (Intimacy)** | 萌芽状态 (< 0.2) | 关键词提示词增强 | 保持礼貌距离感，使用敬语 |
+| **亲密度 (Intimacy)** | 深厚羁绊 (> 0.7) | 开锁更多历史 Context | 记忆深度增加，表现为“默契” |
 
-```mermaid
-mindmap
-  root((分层记忆))
-    L1 工作记忆
-      当前对话上下文
-      快速响应缓存
-    L2 情景记忆
-      JSON V2 消息记录
-      物理时间戳
-      重要性权重
-    L3 语义记忆
-      FactStore 用户画像
-      地理/偏好事实索引
-    L4 规则记忆
-      人格准则
-      角色扮演稀缺性指令
-```
-
-- **L2 情景记忆检索算法**：`Score = (Keyword * 0.6) + (Recency * 0.2) + (Importance * 0.2)`。根据 `memoryDecayDays` 参数实现自然的遗忘曲线。
-
-### 1.3 2D 情绪坐标系 (Valence-Arousal Model)
-
-AI 内部维护一个连续的情绪向量：
-- **Valence (效价)**：[-1.0, 1.0]，代表从极度悲伤到极度快乐。
-- **Arousal (唤起度)**：[0.0, 1.0]，代表从平静淡漠到极度兴奋。
-
-该向量实时驱动 `AmbientBackground` 的着色器计算，并直接映射至 `GenerationPolicy` 中的 `temperature` 与 `top_p` 参数。
+### 3. 时间感知与熵增 (Temporal Entropy)
+AI 拥有独立的时间线。`ConversationEngine` 通过心跳定时器（Heartbeat Timer）计算情绪衰减。
+- **熵增现象**：随着时间推移，强烈的愤怒或喜悦会向中性基位回归。
+- **久别感知**：若用户长时间未上线，AI 会根据 `LastSeenTime` 生成带有“怀念”或“生疏感”的主动问候。
 
 ---
 
-## 2. 功能实现状态 (Feature Status Matrix)
+## 🛠️ 功能实现清单 (Real-world Status)
 
-本节严格区分已上线功能与目前代码库中存在的逻辑问题/占位符。
+### ✅ 已深度实现 (Implemented)
+- [x] **V-A 维度情感引擎**：实时计算 Valence（效价）与 Arousal（唤醒度）。
+- [x] **RAG 长期记忆**：基于本地向量和关键词的历史信息检索。
+- [x] **用户画像锚点**：自动提取用户姓名、职业、性别并持久化，构建身份认知。
+- [x] **UI 自适应框架**：`UIAdapter` 自动转换各端（Windows/Android）的阅读体验。
+- [x] **多模型对齐**：完整接入 Qwen 系列（Max, Plus, Flash, Turbo）官方 API 规范。
+- [x] **物理参数约束**：情感状态强制干预 LLM 生成长度与随机性。
 
-### 2.1 核心实现 (Implemented & Verified)
-- **Neural HUD 侧边栏**：实时渲染情绪波形、关系进度条，支持 Formal/Humor 滑块调节。
-- **混合事实提取 (Hybrid FactStore)**：正则触发(Regex Gate)结合 LLM 语义分析，精准捕捉用户所在地与习性。
-- **Token/Prompt 透明化**：长按消息气泡可查看该次生成的完整 System Prompt 与 阶梯式 Token 消耗。
-- **数据迁移系统**：支持旧版 `List<String>` 记忆自动升级至 V2 对象格式，补全元数据。
-- **Ethereal Flow UI**：全局玻璃拟态组件、基于情绪向量的实时流体背景。
+### 🌓 部分完成 / 实验中 (Partial)
+- [ ] **异步反思机制 (Reflection)**：AI 在闲暇时对历史对话进行深层次总结（逻辑已预留）。
+- [ ] **主动消息策略**：目前实现了启动时的自适应问候，实时后台推送待完善。
 
-### 2.2 逻辑限制与已知问题 (Limitations & Known Stubs)
-- **非实时流式输出 (Pseudo-Streaming)**：虽然 `LLMService` 提供了 Stream 接口，但目前仍为 **Blocking Mode** 调用。API 完全返回后才由 `ResponseFormatter` 模拟打字间隔。
-- **非系统级主动消息**：受限于移动端后台保活机制，目前的“主动关怀”属于 **Virtual Drift** 方案。仅在应用冷启动/唤醒时计算上次离线至今的时间差并触发相应问候。
-- **异步反思瓶颈**：目前的 `ReflectionEngine` 仅能定期提取短句记忆，尚未实现对用户长期性格画像（Personality Profile）的自动化演进修改。
-
----
-
-## 3. 开发与运行指南
-
-### 3.1 环境要求
-- Flutter SDK版本 >= 3.0
-- Dart SDK版本 >= 3.0
-
-### 3.2 API 密钥配置
-在应用初始化前，需在 `AppConfig` 或通过 UI 设置界面填入 DashScope API Key。
-
-### 3.3 目录结构
-- `/lib/core/engine/`：包含认知引擎核心源码。
-- `/lib/core/policy/`：外部注入的行为准则配置。
-- `/lib/ui/widgets/`：高性能 UI 组件（采用 Glassmorphism 设计规范）。
+### ❌ 暂未实现 (Planned/Not Implemented)
+- [ ] **实时语音交互**：尚未集成低延迟双工语音系统。
+- [ ] **多模态视觉感知**：不支持直接分析用户上传的照片。
 
 ---
 
-## 4. License
-MIT License
+## 🚀 开发者指南
+
+### 环境依赖
+- Flutter 3.24.0+
+- Dart 3.5.0+
+- DashScope (阿里云灵积) API Key
+
+### 快速启动
+1. 克隆仓库。
+2. 在 `lib/core/` 下创建 `secrets.dart` 并配置 `dashScopeApiKey`。
+3. 运行 `flutter pub get`。
+4. 运行 `flutter run -d windows` (推荐) 或 `android`。
+
+---
+
+## 📄 许可说明
+本项目遵循 **MIT 开源协议**。欢迎在学术研究或情感计算探索中使用，请注明出处。

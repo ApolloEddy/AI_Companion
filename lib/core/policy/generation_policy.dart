@@ -56,9 +56,9 @@ class ConversationContext {
 
 /// LLM 生成策略 - 集中管理所有生成参数
 class GenerationPolicy {
-  // 默认参数值 (从 YAML 读取或使用硬编码默认值)
-  static const double _defaultTemperature = 0.85;
-  static const double _defaultTopP = 0.9;
+  // 默认参数值 (来自阿里云官方示例)
+  static const double _defaultTemperature = 0.7;
+  static const double _defaultTopP = 0.8;
   static const int _defaultMaxTokens = 1024;
 
   // 权重配置

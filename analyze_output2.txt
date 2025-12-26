@@ -1,0 +1,35 @@
+﻿Analyzing AI_Companion...                                       
+
+  error - Target of URI doesn't exist: '../config.dart' - lib\core\provider\theme_provider.dart:3:8 - uri_does_not_exist
+  error - Undefined name 'AppConfig' - lib\core\provider\theme_provider.dart:16:35 - undefined_identifier
+  error - Undefined name 'AppConfig' - lib\core\provider\theme_provider.dart:40:27 - undefined_identifier
+  error - Target of URI doesn't exist: 'core/app_engine.dart' - lib\main.dart:5:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: 'core/provider/bubble_color_provider.dart' - lib\main.dart:7:8 - uri_does_not_exist
+  error - The method 'AppEngine' isn't defined for the type 'MyApp' - lib\main.dart:31:47 - undefined_method
+  error - The method 'BubbleColorProvider' isn't defined for the type 'MyApp' - lib\main.dart:33:47 - undefined_method
+  error - Target of URI doesn't exist: '../core/model/chat_message.dart' - lib\ui\chat_bubble.dart:6:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: '../core/provider/bubble_color_provider.dart' - lib\ui\chat_bubble.dart:7:8 - uri_does_not_exist
+  error - Undefined class 'ChatMessage' - lib\ui\chat_bubble.dart:10:9 - undefined_class
+   info - 'copySelection' is deprecated and shouldn't be used. Use `contextMenuBuilder` instead. This feature was deprecated after v3.3.0-0.5.pre - lib\ui\chat_bubble.dart:260:33 - deprecated_member_use
+  error - The name 'BubbleColorProvider' isn't a type, so it can't be used as a type argument - lib\ui\chat_bubble.dart:303:40 - non_type_as_type_argument
+  error - Undefined class 'BubbleColorProvider' - lib\ui\chat_bubble.dart:375:40 - undefined_class
+  error - Undefined class 'BubbleColorProvider' - lib\ui\chat_bubble.dart:413:38 - undefined_class
+  error - Target of URI doesn't exist: '../core/app_engine.dart' - lib\ui\main_screen.dart:4:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: 'settings_screen.dart' - lib\ui\main_screen.dart:6:8 - uri_does_not_exist
+  error - Target of URI doesn't exist: 'widgets/modern_sidebar.dart' - lib\ui\main_screen.dart:9:8 - uri_does_not_exist
+  error - The name 'AppEngine' isn't a type, so it can't be used as a type argument - lib\ui\main_screen.dart:40:35 - non_type_as_type_argument
+  error - The name 'AppEngine' isn't a type, so it can't be used as a type argument - lib\ui\main_screen.dart:80:34 - non_type_as_type_argument
+  error - The name 'ModernSideBar' isn't a class - lib\ui\main_screen.dart:97:21 - creation_with_non_type
+  error - The name 'SettingsScreen' isn't a class - lib\ui\main_screen.dart:136:57 - creation_with_non_type
+  error - Undefined class 'AppEngine' - lib\ui\main_screen.dart:239:34 - undefined_class
+  error - The name 'AppEngine' isn't a type, so it can't be used as a type argument - lib\ui\main_screen.dart:268:18 - non_type_as_type_argument
+
+flutter : 23 issues found. (ran in 2.0s)
+所在位置 行:1 字符: 1
++ flutter analyze 2>&1 | Out-File -FilePath analyze_output2.t
+xt -Encodi ...
++ ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (23 issues found.
+     (ran in 2.0s):String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

@@ -25,48 +25,36 @@ class AppConfig {
   static const String apiUrl = 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions';
   static const String defaultModel = 'qwen-turbo';  // 默认使用有免费额度的模型
   
-  /// 可用的 Qwen 模型列表（5个免费/有免费额度的模型）
+  /// 可用的 Qwen 模型列表 (4个核心模型)
+  /// 
+  /// 按能力从高到低排列:
+  /// - qwen3-max: 复杂多步骤任务，顶级推理能力
+  /// - qwen-plus: 平衡效果与成本，通用场景
+  /// - qwen-flash: 低延迟、高性价比，简单任务（原 qwen-flush 应为此）
+  /// - qwen-turbo: 低成本基础任务
   static const List<QwenModel> availableModels = [
     QwenModel(
-      id: 'qwen-turbo',
-      name: 'Qwen Turbo',
-      desc: '速度快，免费额度充足',
+      id: 'qwen3-max',
+      name: 'Qwen3 Max',
+      desc: '顶级推理能力，复杂多步骤任务',
       hasFreeQuota: true,
     ),
     QwenModel(
       id: 'qwen-plus',
       name: 'Qwen Plus',
-      desc: '平衡性能，有免费额度',
+      desc: '平衡效果与成本，通用场景',
       hasFreeQuota: true,
     ),
     QwenModel(
-      id: 'qwen-max',
-      name: 'Qwen Max',
-      desc: '最强性能，少量免费额度',
+      id: 'qwen-flash',
+      name: 'Qwen Flash',
+      desc: '低延迟、高性价比，简单任务',
       hasFreeQuota: true,
     ),
     QwenModel(
-      id: 'qwen3-8b',
-      name: 'Qwen3 8B',
-      desc: '开源模型，性能均衡',
-      hasFreeQuota: true,
-    ),
-    QwenModel(
-      id: 'qwen3-max',
-      name: 'Qwen3 Max',
-      desc: 'Qwen3 最强性能',
-      hasFreeQuota: true,
-    ),
-    QwenModel(
-      id: 'qwen3-flash',
-      name: 'Qwen3 Flash',
-      desc: 'Qwen3 极速响应',
-      hasFreeQuota: true,
-    ),
-    QwenModel(
-      id: 'qwq-32b-preview',
-      name: 'QwQ 32B',
-      desc: '推理增强模型',
+      id: 'qwen-turbo',
+      name: 'Qwen Turbo',
+      desc: '低成本基础任务',
       hasFreeQuota: true,
     ),
   ];

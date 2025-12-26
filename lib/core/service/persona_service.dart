@@ -62,6 +62,7 @@ class PersonaService {
     final now = DateTime.now();
     final hoursPassed = now.difference(last).inHours;
     
+    
     if (hoursPassed < 1) return;
     
     var em = state['emotion'];
@@ -148,5 +149,11 @@ class PersonaService {
     
     em['quadrant'] = quadrant;
     em['intensity'] = intensity;
+  }
+
+  /// 更新亲密度（用于外部调节，如衰减逻辑）
+  void updateIntimacy(double val) {
+    state['intimacy'] = val.clamp(0.0, 1.0);
+    save();
   }
 }

@@ -18,8 +18,6 @@ update:
   intimacy_buffer_factor: 0.8
   # 边界软化参数 - 接近边界时变化减缓的程度
   boundary_softness: 0.2
-  # LLM情绪提示影响权重（0-1）
-  llm_hint_weight: 0.1
 
 # 情绪阈值
 thresholds:

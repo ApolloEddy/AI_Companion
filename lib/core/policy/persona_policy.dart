@@ -29,7 +29,7 @@ class PersonaPolicy {
   
   String get name => config['name']?.toString() ?? 'April';
   String get gender => config['gender']?.toString() ?? '女性';
-  String get age => config['age']?.toString() ?? '20岁的少女';
+  String get appearance => (config['appearance'] ?? config['age'])?.toString() ?? '20岁的少女';
   String get character => config['character']?.toString() ?? '温柔细腻';
   String get interests => config['interests']?.toString() ?? '聊天';
   
@@ -44,7 +44,7 @@ class PersonaPolicy {
   /// 获取身份描述 (用于 System Prompt)
   String getIdentityPrompt() {
     final lines = <String>[];
-    lines.add('我是$name，$age。');
+    lines.add('我是$name，$appearance。');
     lines.add('性格：$character');
     lines.add('兴趣：$interests');
     if (values.isNotEmpty) {

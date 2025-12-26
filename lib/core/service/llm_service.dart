@@ -115,10 +115,10 @@ class LLMService {
   /// 
   /// 注意：此方法使用默认参数，推荐使用 generateWithTokens 并传入 GenerationParams
   Future<String?> generate(List<Map<String, String>> messages) async {
-    // 使用默认参数保持向后兼容
+    // 使用阿里云官方默认参数保持向后兼容
     const defaultParams = GenerationParams(
-      temperature: 0.85,
-      topP: 0.9,
+      temperature: 0.7,
+      topP: 0.8,
       maxTokens: 1024,
     );
     final result = await generateWithTokens(messages, params: defaultParams);
@@ -163,7 +163,7 @@ class LLMService {
 
     final params = GenerationParams(
       temperature: temperature,
-      topP: 0.9,
+      topP: 0.8,  // 阿里云官方默认值
       maxTokens: maxTokens,
     );
 

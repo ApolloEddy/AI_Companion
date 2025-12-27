@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
+import '../core/app_engine.dart';
 import '../core/model/chat_message.dart';
 import '../core/provider/bubble_color_provider.dart';
 import 'utils/ui_adapter.dart';
@@ -134,6 +136,7 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
                 const Text('生成使用的完整 Prompt:', style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Container(
+                  width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.1),
@@ -308,40 +311,119 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
           fontSize: fontSize,
           height: 1.4,
         ),
+        contextMenuBuilder: (context, editableTextState) {
+          return _buildSimplifiedContextMenu(context, editableTextState);
+        },
       ),
     );
   }
 
-  /// AI 气泡：毛玻璃效果
+  /// 构建简化的中文右键菜单（适配 Android）
+  Widget _buildSimplifiedContextMenu(
+    BuildContext context, 
+    EditableTextState editableTextState,
+  ) {
+    final List<ContextMenuButtonItem> items = [];
+    final selection = editableTextState.textEditingValue.selection;
+    
+    // 复制
+    if (!selection.isCollapsed) {
+      items.add(ContextMenuButtonItem(
+        label: '复制',
+        onPressed: () {
+          editableTextState.copySelection(SelectionChangedCause.toolbar);
+        },
+      ));
+    }
+    
+    // 全选
+    items.add(ContextMenuButtonItem(
+      label: '全选',
+      onPressed: () {
+        editableTextState.selectAll(SelectionChangedCause.toolbar);
+      },
+    ));
+    
+    // 分享（仅当有选中内容时）
+    if (!selection.isCollapsed) {
+      items.add(ContextMenuButtonItem(
+        label: '分享',
+        onPressed: () {
+          final text = editableTextState.textEditingValue.text.substring(
+            selection.start,
+            selection.end,
+          );
+          _shareText(text);
+          editableTextState.hideToolbar();
+        },
+      ));
+    }
+    
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: items,
+    );
+  }
+
+  /// 分享文本
+  void _shareText(String text) {
+    // 使用 Clipboard 作为简单的分享替代
+    // 实际项目可以接入 share_plus 插件
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('已复制到剪贴板，可粘贴分享'),
+        duration: const Duration(milliseconds: 1200),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 16),
+      ),
+    );
+  }
+
+  /// AI 气泡：毛玻璃效果 + 柔和阴影
   Widget _buildAiBubble(bool isDark, BubbleColorProvider bubbleColors, double fontSize, double padding, double radius, double maxWidth) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          padding: EdgeInsets.all(padding),
-          constraints: BoxConstraints(maxWidth: maxWidth),
-          decoration: BoxDecoration(
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: [
+          BoxShadow(
             color: isDark 
-                ? Colors.white.withOpacity(0.08)
-                : Colors.white.withOpacity(0.7),
-            borderRadius: BorderRadius.circular(radius),
-            border: Border.all(
-              color: isDark 
-                  ? Colors.white.withOpacity(0.1)
-                  : Colors.white.withOpacity(0.8),
-              width: 1,
-            ),
+                ? Colors.black.withOpacity(0.3) 
+                : Colors.black.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-          child: MarkdownBody(
-            data: widget.message.content,
-            selectable: true,
-            styleSheet: MarkdownStyleSheet(
-              p: TextStyle(
-                fontSize: fontSize, 
-                height: 1.5, 
-                color: isDark ? Colors.white.withOpacity(0.9) : Colors.black87,
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+          child: Container(
+            padding: EdgeInsets.all(padding),
+            constraints: BoxConstraints(maxWidth: maxWidth),
+            decoration: BoxDecoration(
+              color: isDark 
+                  ? Colors.white.withOpacity(0.08)
+                  : Colors.white.withOpacity(0.85), // 提高亮色模式不透明度以提升对比度
+              borderRadius: BorderRadius.circular(radius),
+              border: Border.all(
+                color: isDark 
+                    ? Colors.white.withOpacity(0.1)
+                    : Colors.white.withOpacity(1.0), // 亮色模式边框纯白增强轮廓
+                width: 1.5,
+              ),
+            ),
+            child: MarkdownBody(
+              data: widget.message.content,
+              selectable: true,
+              styleSheet: MarkdownStyleSheet(
+                p: TextStyle(
+                  fontSize: fontSize, 
+                  height: 1.5, 
+                  color: isDark ? Colors.white.withOpacity(0.9) : Colors.black, // 亮色模式使用纯黑文字
+                ),
               ),
             ),
           ),
@@ -351,6 +433,31 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
   }
 
   Widget _buildAvatar({required bool isUser, required bool isDark, required double size}) {
+    final engine = context.read<AppEngine>();
+    final avatarPath = isUser ? engine.userAvatarPath : engine.aiAvatarPath;
+    
+    // 优先使用自定义头像
+    if (avatarPath != null) {
+      final file = File(avatarPath);
+      if (file.existsSync()) {
+        return ClipOval(
+          child: Image.file(
+            file,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildDefaultAvatar(isUser: isUser, isDark: isDark, size: size),
+          ),
+        );
+      }
+    }
+    
+    // 回退到默认头像
+    return _buildDefaultAvatar(isUser: isUser, isDark: isDark, size: size);
+  }
+
+  /// 默认头像（无自定义头像时使用）
+  Widget _buildDefaultAvatar({required bool isUser, required bool isDark, required double size}) {
     final iconSize = size * 0.5;
     final textSize = size * 0.35;
     return Container(

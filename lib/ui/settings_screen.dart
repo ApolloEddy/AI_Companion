@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'dart:ui';
 import 'dart:async';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_engine.dart';
 import '../core/config.dart';
+import '../core/policy/generation_policy.dart';
 import '../core/provider/theme_provider.dart';
 import '../core/provider/bubble_color_provider.dart';
 import '../core/service/chat_export_service.dart';
@@ -128,6 +131,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           
           const SizedBox(height: 16),
+          
+          // 【新增】内心独白模型选择
+          _buildSectionCard(
+            title: '内心独白模型',
+            icon: Icons.psychology_outlined,
+            isDark: isDark,
+            children: [
+              _buildMonologueModelSelector(engine, isDark),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // 【新增】头像设置
+          _buildSectionCard(
+            title: '头像设置',
+            icon: Icons.face_outlined,
+            isDark: isDark,
+            children: [
+              _buildAvatarSettings(engine, isDark),
+            ],
+          ),
+
+          const SizedBox(height: 16),
 
           // 用户画像卡片
           _buildSectionCard(
@@ -208,17 +235,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required bool isDark,
     required List<Widget> children,
   }) {
+    const accentColor = Color(0xFFFFB74D); // 统一使用 amber 主题色
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+        color: isDark ? const Color(0xFF252229) : Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+          color: isDark ? accentColor.withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.2),
         ),
         boxShadow: isDark ? null : [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 12,
             offset: const Offset(0, 2),
           ),
         ],
@@ -230,7 +258,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Row(
               children: [
-                Icon(icon, size: 20, color: Colors.cyan),
+                Icon(icon, size: 20, color: accentColor),
                 const SizedBox(width: 8),
                 Text(
                   title,
@@ -277,6 +305,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildThemeChip(String label, ThemeMode mode, ThemeProvider provider, bool isDark) {
     final isSelected = provider.themeMode == mode;
+    const accentColor = Color(0xFFFFB74D);
     return GestureDetector(
       onTap: () => provider.setTheme(mode),
       child: AnimatedContainer(
@@ -284,11 +313,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected 
-              ? Colors.cyan.withValues(alpha: 0.2)
+              ? accentColor.withValues(alpha: 0.2)
               : (isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1)),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isSelected ? Colors.cyan : Colors.transparent,
+            color: isSelected ? accentColor : Colors.transparent,
             width: 1.5,
           ),
         ),
@@ -296,7 +325,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           label,
           style: TextStyle(
             fontSize: 13,
-            color: isSelected ? Colors.cyan : (isDark ? Colors.white70 : Colors.black54),
+            color: isSelected ? (isDark ? accentColor : const Color(0xFFD87C00)) : (isDark ? Colors.white70 : Colors.black87),
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -378,6 +407,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildModelTile(QwenModel model, AppEngine engine, bool isDark) {
     final isSelected = _selectedModel == model.id;
+    const accentColor = Color(0xFFFFB74D);
     return GestureDetector(
       onTap: () {
         setState(() => _selectedModel = model.id);
@@ -390,18 +420,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isSelected 
-              ? Colors.cyan.withValues(alpha: 0.15)
+              ? accentColor.withValues(alpha: 0.15)
               : (isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.withValues(alpha: 0.05)),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isSelected ? Colors.cyan : Colors.transparent,
+            color: isSelected ? accentColor : Colors.transparent,
           ),
         ),
         child: Row(
           children: [
             Icon(
               isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: isSelected ? Colors.cyan : (isDark ? Colors.white38 : Colors.black38),
+              color: isSelected ? accentColor : (isDark ? Colors.white38 : Colors.black38),
               size: 20,
             ),
             const SizedBox(width: 12),
@@ -474,9 +504,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildParamIndicator('Temperature', '0.7', isDark),
-              _buildParamIndicator('Top P', '0.8', isDark),
-              _buildParamIndicator('Max Tokens', '1024', isDark),
+              _buildParamIndicator('Temperature', GenerationPolicy.defaultTemperature.toString(), isDark),
+              _buildParamIndicator('Top P', GenerationPolicy.defaultTopP.toString(), isDark),
+              _buildParamIndicator('Max Tokens', '${GenerationPolicy.defaultMaxTokens}', isDark),
             ],
           ),
         ],
@@ -507,25 +537,83 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildExportButtons(AppEngine engine) {
-    return Row(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Column(
       children: [
-        Expanded(child: _buildExportButton('JSON', Icons.code, () => _exportChat('json'))),
-        const SizedBox(width: 8),
-        Expanded(child: _buildExportButton('TXT', Icons.text_snippet, () => _exportChat('txt'))),
-        const SizedBox(width: 8),
-        Expanded(child: _buildExportButton('CSV', Icons.table_chart, () => _exportChat('csv'))),
+        Row(
+          children: [
+            Expanded(child: _buildExportCard(
+              label: 'JSON',
+              desc: '结构化数据',
+              icon: Icons.code,
+              onTap: () => _exportChat('json'),
+              isDark: isDark,
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: _buildExportCard(
+              label: 'TXT',
+              desc: '纯文本',
+              icon: Icons.text_snippet,
+              onTap: () => _exportChat('txt'),
+              isDark: isDark,
+            )),
+            const SizedBox(width: 10),
+            Expanded(child: _buildExportCard(
+              label: 'CSV',
+              desc: '表格格式',
+              icon: Icons.table_chart,
+              onTap: () => _exportChat('csv'),
+              isDark: isDark,
+            )),
+          ],
+        ),
       ],
     );
   }
 
-  Widget _buildExportButton(String label, IconData icon, VoidCallback onTap) {
-    return OutlinedButton.icon(
-      onPressed: _isExporting ? null : onTap,
-      icon: Icon(icon, size: 16),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: Colors.cyan,
-        side: const BorderSide(color: Colors.cyan),
+  Widget _buildExportCard({
+    required String label,
+    required String desc,
+    required IconData icon,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    const accentColor = Color(0xFFFFB74D); // 主题琥珀色
+    return GestureDetector(
+      onTap: _isExporting ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? accentColor.withValues(alpha: 0.3) : accentColor.withValues(alpha: 0.4),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 22, color: accentColor),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              desc,
+              style: TextStyle(
+                fontSize: 9,
+                color: isDark ? Colors.white38 : Colors.black38,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -643,6 +731,196 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
+  }
+
+  /// 【新增】内心独白模型选择器
+  Widget _buildMonologueModelSelector(AppEngine engine, bool isDark) {
+    final currentModel = engine.monologueModel;
+    final models = [
+      {'id': 'qwen-max', 'name': 'Qwen Max', 'desc': '深度思考，质量更高'},
+      {'id': 'qwen-flash', 'name': 'Qwen Flash', 'desc': '快速响应，节省资源'},
+    ];
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '选择用于生成内心独白的模型',
+          style: TextStyle(
+            fontSize: 12,
+            color: isDark ? Colors.white54 : Colors.black54,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...models.map((model) {
+          final isSelected = currentModel == model['id'];
+          return GestureDetector(
+            onTap: () {
+              engine.updateMonologueModel(model['id']!);
+              _showSnackBar('已切换内心独白模型为 ${model['name']}');
+            },
+            child: Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? const Color(0xFFFFB74D).withValues(alpha: 0.15)
+                    : (isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.withValues(alpha: 0.05)),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected ? const Color(0xFFFFB74D) : Colors.transparent,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                    color: isSelected ? const Color(0xFFFFB74D) : (isDark ? Colors.white38 : Colors.black38),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          model['name']!,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                        Text(
+                          model['desc']!,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? Colors.white38 : Colors.black38,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  /// 【新增】头像设置
+  Widget _buildAvatarSettings(AppEngine engine, bool isDark) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildAvatarPicker(
+                label: 'AI 头像',
+                currentPath: engine.aiAvatarPath,
+                onPick: () => _pickAvatar(engine, isAi: true),
+                onRemove: () => engine.updateAiAvatar(null),
+                isDark: isDark,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildAvatarPicker(
+                label: '用户头像',
+                currentPath: engine.userAvatarPath,
+                onPick: () => _pickAvatar(engine, isAi: false),
+                onRemove: () => engine.updateUserAvatar(null),
+                isDark: isDark,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '支持 JPG/PNG/BMP/ICO 格式，5MB 以内',
+          style: TextStyle(fontSize: 10, color: isDark ? Colors.white30 : Colors.black26),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAvatarPicker({
+    required String label,
+    required String? currentPath,
+    required VoidCallback onPick,
+    required VoidCallback onRemove,
+    required bool isDark,
+  }) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 11, color: isDark ? Colors.white54 : Colors.black54),
+        ),
+        const SizedBox(height: 8),
+        GestureDetector(
+          onTap: onPick,
+          child: Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.1),
+              ),
+              image: currentPath != null
+                  ? DecorationImage(
+                      image: FileImage(File(currentPath)),
+                      fit: BoxFit.cover,
+                    )
+                  : null,
+            ),
+            child: currentPath == null
+                ? Icon(Icons.add_a_photo, color: isDark ? Colors.white38 : Colors.black38)
+                : null,
+          ),
+        ),
+        if (currentPath != null) ...[
+          const SizedBox(height: 4),
+          GestureDetector(
+            onTap: onRemove,
+            child: Text(
+              '移除',
+              style: TextStyle(fontSize: 10, color: Colors.redAccent.withValues(alpha: 0.8)),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _pickAvatar(AppEngine engine, {required bool isAi}) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'bmp', 'ico'],
+      withData: false,
+    );
+    
+    if (result != null && result.files.isNotEmpty) {
+      final file = result.files.first;
+      if (file.path != null) {
+        // 检查文件大小 (5MB = 5 * 1024 * 1024 = 5242880)
+        final fileSize = File(file.path!).lengthSync();
+        if (fileSize > 5242880) {
+          _showSnackBar('文件过大，请选择 5MB 以内的图片');
+          return;
+        }
+        
+        if (isAi) {
+          await engine.updateAiAvatar(file.path);
+        } else {
+          await engine.updateUserAvatar(file.path);
+        }
+        _showSnackBar('头像已更新');
+      }
+    }
   }
 
   Widget _buildVersionInfo(AppEngine engine, bool isDark) {

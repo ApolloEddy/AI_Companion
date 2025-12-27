@@ -15,6 +15,10 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
   late TextEditingController _appearanceController;
   late TextEditingController _personalityController;
   late TextEditingController _speakingStyleController;
+  late TextEditingController _hobbiesController;
+  late final TextEditingController _taboosController;
+  late final TextEditingController _backstoryController;
+  late final TextEditingController _valuesController;
   
   double _formality = 0.5;
   double _humor = 0.5;
@@ -31,6 +35,14 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
     );
     _personalityController = TextEditingController(text: config['personality'] ?? '');
     _speakingStyleController = TextEditingController(text: config['speakingStyle'] ?? '');
+    _hobbiesController = TextEditingController(text: config['hobbies'] ?? '');
+    _taboosController = TextEditingController(text: config['taboos'] ?? '');
+    _backstoryController = TextEditingController(text: config['backstory'] ?? '');
+    _valuesController = TextEditingController(
+      text: (config['values'] is List) 
+          ? (config['values'] as List).join('、') 
+          : (config['values']?.toString() ?? ''),
+    );
     _formality = (config['formality'] as num?)?.toDouble() ?? 0.5;
     _humor = (config['humor'] as num?)?.toDouble() ?? 0.5;
   }
@@ -41,6 +53,10 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
     _appearanceController.dispose();
     _personalityController.dispose();
     _speakingStyleController.dispose();
+    _hobbiesController.dispose();
+    _taboosController.dispose();
+    _backstoryController.dispose();
+    _valuesController.dispose();
     super.dispose();
   }
 
@@ -54,6 +70,10 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
       'age': _appearanceController.text.trim(),
       'personality': _personalityController.text.trim(),
       'speakingStyle': _speakingStyleController.text.trim(),
+      'hobbies': _hobbiesController.text.trim(),
+      'taboos': _taboosController.text.trim(),
+      'backstory': _backstoryController.text.trim(),
+      'values': _valuesController.text.trim().split(RegExp(r'[、,，\s]+')).where((s) => s.isNotEmpty).toList(),
       'formality': _formality,
       'humor': _humor,
     });
@@ -127,13 +147,45 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
                       isDark: isDark,
                       maxLines: 2,
                     ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      label: '兴趣爱好',
+                      hint: '喜欢什么？（如：看小说、听音乐、画画）',
+                      controller: _hobbiesController,
+                      isDark: isDark,
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      label: '禁忌/雷区',
+                      hint: '应该避免谈论什么话题？',
+                      controller: _taboosController,
+                      isDark: isDark,
+                      maxLines: 2,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      label: '背景故事',
+                      hint: '她/他有什么过去的经历或背景？',
+                      controller: _backstoryController,
+                      isDark: isDark,
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField(
+                      label: '价值观',
+                      hint: '她/他看重什么？（如：真诚、自由、努力）用逗号或顿号分隔',
+                      controller: _valuesController,
+                      isDark: isDark,
+                      maxLines: 2,
+                    ),
                     const SizedBox(height: 24),
                     _buildSlider(
                       label: '庄重度',
                       value: _formality,
                       onChanged: (v) => setState(() => _formality = v),
                       isDark: isDark,
-                      color: Colors.blueAccent,
+                      color: const Color(0xFFFFB74D),
                     ),
                     const SizedBox(height: 16),
                     _buildSlider(
@@ -141,7 +193,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
                       value: _humor,
                       onChanged: (v) => setState(() => _humor = v),
                       isDark: isDark,
-                      color: Colors.orangeAccent,
+                      color: const Color(0xFFFFB74D),
                     ),
                   ],
                 ),

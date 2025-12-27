@@ -184,21 +184,71 @@ class LLMService {
     }
   }
 
-  /// 流式生成（预留接口，未来实现）
+  /// 流式生成 (SSE 实现)
   Stream<String> streamComplete({
     required String systemPrompt,
     required String userMessage,
     String? model,
     double temperature = 0.85,
+    int maxTokens = 512,
   }) async* {
-    // 当前简化实现：一次性返回
-    // TODO: 实现真正的 SSE 流式调用
-    final result = await completeWithSystem(
-      systemPrompt: systemPrompt,
-      userMessage: userMessage,
-      model: model,
-      temperature: temperature,
-    );
-    yield result;
+    if (apiKey.isEmpty) {
+      yield 'Error: API Key is empty';
+      return;
+    }
+
+    final client = http.Client();
+    try {
+      final request = http.Request('POST', Uri.parse(AppConfig.apiUrl));
+      request.headers.addAll({
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $apiKey',
+      });
+      
+      request.body = jsonEncode({
+        'model': model ?? _model,
+        'messages': [
+          {'role': 'system', 'content': systemPrompt},
+          {'role': 'user', 'content': userMessage},
+        ],
+        'temperature': temperature,
+        'max_tokens': maxTokens,
+        'stream': true, // 【关键】启用流式输出
+      });
+
+      final response = await client.send(request).timeout(timeout);
+      
+      if (response.statusCode != 200) {
+        yield 'API Error: ${response.statusCode}';
+        return;
+      }
+
+      // 处理 SSE 数据流
+      await for (final line in response.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())) {
+        
+        if (line.isEmpty) continue;
+        if (line == 'data: [DONE]') break;
+        
+        if (line.startsWith('data: ')) {
+          final dataJson = line.substring(6);
+          try {
+            final data = jsonDecode(dataJson);
+            final content = data['choices']?[0]?['delta']?['content'] ?? '';
+            if (content.isNotEmpty) {
+              yield content;
+            }
+          } catch (e) {
+            // 忽略非 JSON 数据块或解析错误
+            continue;
+          }
+        }
+      }
+    } catch (e) {
+      yield 'Stream Error: $e';
+    } finally {
+      client.close();
+    }
   }
 }

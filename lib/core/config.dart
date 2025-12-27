@@ -70,4 +70,12 @@ class AppConfig {
   
   // Token 统计
   static const String tokenCountKey = 'token_count';
+  
+  // 内心独白模型
+  static const String monologueModelKey = 'monologue_model';
+  static const String defaultMonologueModel = 'qwen-max';
+  
+  // 头像设置
+  static const String userAvatarKey = 'user_avatar_path';
+  static const String aiAvatarKey = 'ai_avatar_path';
 }

@@ -1,100 +1,130 @@
-# AI Companion: Cozy Edition
+# AI Companion: Premium Cozy Edition
 
-> ![Status](https://img.shields.io/badge/Status-Cozy--Edition-orange?style=for-the-badge)
+> ![Status](https://img.shields.io/badge/Status-v2.4.0--Release-orange?style=for-the-badge)
 > ![Flutter](https://img.shields.io/badge/Flutter-v3.24+-02569B?style=for-the-badge&logo=flutter)
 > ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-**AI Companion** 是一款基于 Flutter 构建的情感参数可视计算人工智能伴侣。与普通的聊天机器人不同，它拥有完整的**认知反馈环（Cognitive Loop）**、**维度情感模型（V-A Model）**以及**动态生成策略（Generation Policy）**，旨在将 LLM 从单纯的生产力工具转变为具备生命感和个性厚度的数字伴侣。
+**AI Companion** 是一款基于 Flutter 构建的**情感参数可视计算人工智能伴侣**。它不仅拥有完整的**认知反馈环（Cognitive Loop）**和**维度情感模型（V-A Model）**，在 v2.4.0 版本中更迎来了**视觉与交互质感的全面跃升**，旨在打造一个既有“灵魂深度”又有“高级美感”的数字生命。
 
 ---
 
-## 🌌 核心哲学：温暖与智能的共鸣
+## 🎨 v2.4.0 视觉与美学升级：拟态与灵动
 
-本项目在设计上追求 **"Cozy Companion" (温暖伴侣)** 风格，专为深色模式优化。
+本项目在 "Cozy Companion" 温暖美学的基础上，引入了大量现代 UI 设计语言：
 
-*   **温暖美学**：使用琥珀色（Amber `#FFB74D`）作为主色调，营造舒适温馨的视觉体验。
-*   **光效美学**：使用 HSL 空间计算，将 AI 的**亲密度（Intimacy）**设定为背景基调，将**实时情绪（Emotion）**设定为动态扰动。
-*   **交互深度**：每一条消息的生成参数（Temperature, Max Tokens）都由 AI 的当前心理状态动态驱动，而非硬编码。
+*   **拟态与光影 (Neomorphism)**：聊天气泡不再是扁平的色块，而是拥有**彩色层级阴影**（用户侧）和**磨砂毛玻璃质感**（AI 侧）的立体实体。
+*   **灵动交互 (Fluid Motion)**：
+    *   **流光回信**：等待 AI 回复时，标题栏会出现波浪式流动的圆点指示器，赋予程序生命力。
+    *   **丝滑转场**：全链路支持 `AnimatedTheme`，主题切换如呼吸般平滑过渡。
+*   **极致排版 (Typography)**：全局适配 **Microsoft YaHei** 与 **PingFang SC**，在高分屏上提供 Retinal 级别的中文阅读体验。
+*   **琥珀色系统 (Amber System)**：无论深浅模式，所有关键信息、图表、控件均统一在温暖的琥珀色系下，并针对亮色模式进行了**高对比度重塑**，确保清晰易读。
 
 ---
 
-## 🧠 理论架构与机制分析
+## 🧠 核心架构：认知与人格的深化
 
-### 1. 认知调度环 (Cognitive Engine)
-系统采用分层架构，彻底分离业务逻辑、情感计算与生成执行。
+### 1. 深度人格系统 (Deep Persona)
+AI 不再只有简单的“设定”，而是拥有了完整的人格维度：
+*   **价值观 (Values)**：指导 AI 的道德判断与宏观视角。
+*   **爱好与禁忌 (Hobbies & Taboos)**：决定 AI 对特定话题的热情或反感。
+*   **背景故事 (Backstory)**：为 AI 的每一次回答提供历史厚度。
+*   **自然终结 (Graceful Exit)**：当对话变得干瘪时，AI 有能力主动识别并礼貌结束话题，而非机械复读。
+
+### 2. 情绪驱动的表达控制
+*   **Emoji 节制策略**：AI 只有在情绪激动或用户主动使用表情时才会使用 Emoji，拒绝“表情包轰炸”，回归自然对话。
+*   **动态参数映射**：
+    *   **效价 (Valence) < -0.6**：强制限制回复长度，表现冷漠。
+    *   **唤醒度 (Arousal) > 0.8**：提升 `temperature`，表现兴奋与跳跃。
+
+---
+
+## 🏗️ L1~L4 Prompt 构建架构 (The 4-Layer Prompt Engineering)
+
+本项目创造性地使用了**四级动态 Prompt 注入系统**，每一层都由独立的计算模块驱动，确保 AI 的每一次回复都通过了身份、记忆、状态和表达四个维度的校验。
 
 ```mermaid
-graph TD
-    User([用户输入]) --> CE[Conversation Engine]
-    CE --> EE[Emotion Engine: V-A Model]
-    CE --> MM[Memory Manager: RAG]
-    CE --> PP[Persona Policy: Intimacy]
-    
-    EE -- 情绪状态 --> GP[Generation Policy]
-    PP -- 亲密度等级 --> GP
-    
-    GP -- 映射参数 --> LLM[LLM Service: Qwen]
-    
-    MM -- 历史上下文 --> PA[Prompt Assembler]
-    EE -- 情绪标签 --> PA
-    PA -- 结构化 Prompt --> LLM
-    
-    LLM --> Response([AI 响应])
-    Response --> Feedback{用户反馈}
-    Feedback -- 强化/减弱 --> EE
+classDiagram
+    class L1_Identity {
+        +Persona (价值观/背景)
+        +Core Facts (核心事实)
+    }
+    class L2_Memory {
+        +RAG Context (向量检索)
+        +User Profile (用户画像)
+    }
+    class L3_State {
+        +V-A Emotion (实时情绪)
+        +Intimacy (亲密度)
+        +Time Perception (时间感知)
+    }
+    class L4_Expression {
+        +Styling (表达风格)
+        +Constraints (长度/Emoji策略)
+        +Format (输出格式)
+    }
+
+    L1_Identity --> L2_Memory : 奠定基调
+    L2_Memory --> L3_State : 提供语境
+    L3_State --> L4_Expression : 驱动表达
+    L4_Expression --> FinalPrompt : 最终合成
 ```
 
-### 2. 参数映射机制 (The Mapping Logic)
-项目实现了一套严谨的**生成动力学**映射，AI 的回复风格受物理参数限制：
-
-| 心理维度 | 状态区间 | LLM 参数调整 (Mapping) | 表现后果 |
-| :--- | :--- | :--- | :--- |
-| **效价 (Valence)** | 极端负面 (< -0.6) | `max_tokens` 强制限制为 20 | AI 表现为冷漠、愤怒，拒绝长篇大论 |
-| **唤醒度 (Arousal)** | 极高活力 (> 0.8) | `temperature` 提升至 1.1 | AI 表现为兴奋或语无伦次，语言多样性激增 |
-| **亲密度 (Intimacy)** | 萌芽状态 (< 0.2) | 关键词提示词增强 | 保持礼貌距离感，使用敬语 |
-| **亲密度 (Intimacy)** | 深厚羁绊 (> 0.7) | 开锁更多历史 Context | 记忆深度增加，表现为“默契” |
-
-### 3. 时间感知与熵增 (Temporal Entropy)
-AI 拥有独立的时间线。`ConversationEngine` 通过心跳定时器（Heartbeat Timer）计算情绪衰减。
-- **熵增现象**：随着时间推移，强烈的愤怒或喜悦会向中性基位回归。
-- **久别感知**：若用户长时间未上线，AI 会根据 `LastSeenTime` 生成带有“怀念”或“生疏感”的主动问候。
+*   **L1 根源人格层 (Identity Layer)**: `PersonaPolicy`
+    *   定义 AI 的底层世界观。包括姓名、性格底色、价值观 (Values)、禁忌 (Taboos) 和背景故事 (Backstory)。
+    *   *作用*: 无论发生什么，AI 都不应偏离其核心人设。
+*   **L2 情境记忆层 (Contextual Memory Layer)**: `MemoryManager` & `FactStore`
+    *   动态检索与当前对话相关的长期记忆 (RAG) 和用户画像 (User Profile)。
+    *   *作用*: 让 AI "记得" 你们的过去，而不是只会机械回复。
+*   **L3 认知状态层 (Cognitive State Layer)**: `EmotionEngine` & `TimeAwareness`
+    *   注入当前的心理状态。包括 V-A 情绪坐标 (Valence/Arousal)、亲密度等级、以及对时间流逝的感知（如“好久不见”）。
+    *   *作用*: 让 AI 的回复具有“当下感”和“情绪色彩”。
+*   **L4 表达合成层 (Expression Synthesis Layer)**: `ExpressionSelector` & `GenerationPolicy`
+    *   根据 L3 的状态，动态施加表达约束。例如：情绪低落时强制简短回复；兴奋时允许使用大量 Emoji；严肃话题时禁用颜文字。
+    *   *作用*: 控制“怎么说”，确保语言风格与内在情绪一致。
 
 ---
 
-## 🛠️ 功能实现清单 (Real-world Status)
+## 🛠️ 功能状态清单 (Live Status)
 
-### ✅ 已深度实现 (Implemented)
-- [x] **V-A 维度情感引擎**：实时计算 Valence（效价）与 Arousal（唤醒度）。
-- [x] **RAG 长期记忆**：基于本地向量和关键词的历史信息检索。
-- [x] **用户画像锚点**：自动提取用户姓名、职业、性别并持久化，构建身份认知。
-- [x] **UI 自适应框架**：`UIAdapter` 自动转换各端（Windows/Android）的阅读体验。
-- [x] **多模型对齐**：完整接入 Qwen 系列（Max, Plus, Flash, Turbo）官方 API 规范。
-- [x] **物理参数约束**：情感状态强制干预 LLM 生成长度与随机性。
+### ✅ 已完美实现 (Polished)
+- [x] **全链路琥珀色 UI**：侧栏、设置、图表颜色高度统一且适配深浅主题。
+- [x] **V-A 情感可视化**：通过实时折线图与雷达图展示 AI 心理状态。
+- [x] **拟态聊天界面**：支持阴影、模糊与动态背景混合。
+- [x] **RAG 长期记忆**：基于本地向量库的历史回溯。
+- [x] **多模型热切换**：支持 Qwen 全系列模型无缝切换。
 
-### 🌓 部分完成 / 实验中 (Partial)
-- [ ] **异步反思机制 (Reflection)**：AI 在闲暇时对历史对话进行深层次总结（逻辑已预留）。
-- [ ] **主动消息策略**：目前实现了启动时的自适应问候，实时后台推送待完善。
-
-### ❌ 暂未实现 (Planned/Not Implemented)
-- [ ] **实时语音交互**：尚未集成低延迟双工语音系统。
-- [ ] **多模态视觉感知**：不支持直接分析用户上传的照片。
+### 🚀 正在实验 (Experimental)
+- [ ] **主动消息推送**：基于时间感知的后台主动问候（逻辑已就绪，正在优化触发策略）。
+- [ ] **深度反思 (Deep Reflection)**：闲暇时刻对用户画像的二次提炼。
 
 ---
 
-## 🚀 开发者指南
+## 💻 快速启动指南
 
-### 环境依赖
+### 环境要求
 - Flutter 3.24.0+
 - Dart 3.5.0+
-- DashScope (阿里云灵积) API Key
+- DashScope API Key
 
-### 快速启动
-1. 克隆仓库。
-2. 在 `lib/core/` 下创建 `secrets.dart` 并配置 `dashScopeApiKey`。
-3. 运行 `flutter pub get`。
-4. 运行 `flutter run -d windows` (推荐) 或 `android`。
+### 运行
+1. 克隆项目：
+   ```bash
+   git clone https://github.com/ApolloEddy/AI_Companion.git
+   ```
+2. 密钥配置：
+   在 `lib/core/` 目录下创建 `secrets.dart` 文件，内容如下：
+   ```dart
+   const String dashScopeApiKey = 'YOUR_API_KEY_HERE';
+   ```
+3. 依赖安装与运行：
+   ```bash
+   flutter pub get
+   flutter run -d windows  # 推荐：获得最佳拟态视觉体验
+   # 或
+   flutter run -d android  # 移动端适配已就绪
+   ```
 
 ---
 
-## 📄 许可说明
-本项目遵循 **MIT 开源协议**。欢迎在学术研究或情感计算探索中使用，请注明出处。
+## 📄 许可
+MIT License. Created for the love of AI & Design.

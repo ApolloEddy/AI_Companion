@@ -194,6 +194,22 @@ class EmotionEngine {
     await save();
   }
 
+  /// 应用基于反思的情绪偏移 (Reflective Steering)
+  Future<void> applyEmotionShift(Map<String, double> shift) async {
+    final dv = shift['valence'] ?? 0.0;
+    final da = shift['arousal'] ?? 0.0;
+
+    if (dv == 0.0 && da == 0.0) return;
+
+    _valence = (_valence + dv).clamp(-1.0, 1.0);
+    _arousal = (_arousal + da).clamp(0.0, 1.0);
+
+    _lastUpdated = DateTime.now();
+    await save();
+    
+    print('[EmotionEngine] Reflective shift applied: DV=$dv, DA=$da -> New V=$_valence, A=$_arousal');
+  }
+
   // ========== 【必须保留】象限标签更新 ==========
 
   /// 获取情绪标签

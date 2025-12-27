@@ -6,8 +6,8 @@
 // - 确保输出格式一致性
 
 import '../model/user_profile.dart';
-import '../engine/perception_processor.dart';
-import '../engine/reflection_processor.dart';
+import '../perception/perception_processor.dart';
+import '../decision/reflection_processor.dart';
 import '../policy/prohibited_patterns.dart';
 
 /// 阶段 Prompt 构建器
@@ -58,6 +58,14 @@ $behaviorRules
 === 禁止模式 ===
 $avoidanceGuide$userDislikedGuide
 
+=== 话题收尾授权 ===
+如果你判断话题已经聊得差不多了，可以自然地结束话题而不必强行延续。
+结束方式可以是：
+- 温和的总结："嗯，就是这样~"
+- 轻松的收尾："好啦，那先这样~"
+- 认可式回应："懂了懂了~"
+不要每次都试图延续话题或追问，自然的对话有时候就是简短的。
+
 --- 现在，以 $personaName 的身份回复 ---
 
 记住：
@@ -65,6 +73,7 @@ $avoidanceGuide$userDislikedGuide
 - 说话自然，像和朋友聊天
 - 根据心情调整语气
 - 避免所有禁止模式
+- 话题聊完了就可以结束，不用硬撑
 ''';
   }
 

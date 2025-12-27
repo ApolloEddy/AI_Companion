@@ -59,7 +59,19 @@ class GenerationPolicy {
   // 默认参数值 (来自阿里云官方示例)
   static const double _defaultTemperature = 0.7;
   static const double _defaultTopP = 0.8;
-  static const int _defaultMaxTokens = 1024;
+  static const int _defaultMaxTokens = 4096;  // 【升级】提升至 4096 以支持更长的响应
+
+  // 【UI映射】静态 getter 供 UI 层读取默认参数
+  static double get defaultTemperature => _defaultTemperature;
+  static double get defaultTopP => _defaultTopP;
+  static int get defaultMaxTokens => _defaultMaxTokens;
+
+  // 【审计修复】情绪阈值常量化，提高可读性
+  static const double _extremeNegativeValence = -0.6;
+  static const double _negativeValence = -0.3;
+  static const double _extremeHighArousal = 0.8;
+  static const double _highArousal = 0.7;
+  static const double _lowArousal = 0.3;
 
   // 权重配置
   final double memoryWeight;      // 记忆在 prompt 中的权重
@@ -69,15 +81,16 @@ class GenerationPolicy {
   GenerationPolicy({
     this.memoryWeight = 0.3,
     this.personaWeight = 0.5,
-    this.maxHistoryMessages = 10,
+    this.maxHistoryMessages = 15,  // 从 10 提升到 15 以利用增加的上下文窗口
   });
 
   /// 从 SettingsLoader 创建 (读取 YAML 配置)
+  /// 【审计修复】移除硬编码值，使用类默认值
   factory GenerationPolicy.fromSettings() {
     return GenerationPolicy(
       memoryWeight: 0.3,  // 可扩展：从 YAML 读取
       personaWeight: 0.5,
-      maxHistoryMessages: 10,
+      // maxHistoryMessages 使用类默认值 15
     );
   }
 
@@ -99,38 +112,38 @@ class GenerationPolicy {
     
     // 极端负面情绪 (愤怒/冷漠): 强制极短回复
     // 物理约束 AI 只能回复 "哦。" "嗯。" "随便。" 等
-    if (context.emotionValence < -0.6) {
+    if (context.emotionValence < _extremeNegativeValence) {
       maxTokens = 20;
       temperature = 0.6;  // 更确定性的短回复
       presencePenalty = 0.3;  // 避免重复
     }
     // 负面情绪: 较短回复
-    else if (context.emotionValence < -0.3) {
+    else if (context.emotionValence < _negativeValence) {
       maxTokens = (maxTokens * 0.5).round().clamp(50, 256);
     }
     
     // 极高唤醒度 (兴奋/激动): 高随机性模拟快速/混乱表达
-    if (context.emotionArousal > 0.8) {
+    if (context.emotionArousal > _extremeHighArousal) {
       temperature = 1.1;  // 更随机的回复
-      maxTokens = (maxTokens * 1.3).round().clamp(256, 2048);
+      maxTokens = (maxTokens * 1.3).round().clamp(256, _defaultMaxTokens);
     }
     // 高唤醒度: 稍微聚焦
-    else if (context.emotionArousal > 0.7) {
+    else if (context.emotionArousal > _highArousal) {
       temperature = (temperature - 0.1).clamp(0.5, 1.0);
     } 
     // 低唤醒度: 稍微放松
-    else if (context.emotionArousal < 0.3) {
+    else if (context.emotionArousal < _lowArousal) {
       temperature = (temperature + 0.05).clamp(0.5, 1.0);
     }
 
     // ========== 亲密度调整 ==========
     
     // 低亲密度时回复更简短（但不覆盖极端情绪的设置）
-    if (context.emotionValence >= -0.6) {
+    if (context.emotionValence >= _extremeNegativeValence) {
       if (context.intimacy < SettingsLoader.intimacyLowThreshold) {
         maxTokens = (maxTokens * 0.7).round();
       } else if (context.intimacy > SettingsLoader.intimacyHighThreshold) {
-        maxTokens = (maxTokens * 1.2).round().clamp(512, 2048);
+        maxTokens = (maxTokens * 1.2).round().clamp(512, _defaultMaxTokens);
       }
     }
 
@@ -149,10 +162,14 @@ class GenerationPolicy {
   }
 
   /// 获取应发送给 LLM 的历史消息数量
+  /// 
+  /// 策略：
+  /// - 高亲密度：最多 20 条历史（充分利用上下文）
+  /// - 默认：15 条历史
   int getHistoryCount(ConversationContext context) {
     // 高亲密度时可发送更多历史
     if (context.intimacy > SettingsLoader.intimacyHighThreshold) {
-      return maxHistoryMessages + 2;
+      return maxHistoryMessages + 5;  // 最多 20 条
     }
     return maxHistoryMessages;
   }

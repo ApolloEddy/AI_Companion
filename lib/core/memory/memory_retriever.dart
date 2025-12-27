@@ -8,7 +8,7 @@
 import '../model/user_profile.dart';
 import '../settings_loader.dart';
 import 'memory_manager.dart';
-import 'perception_processor.dart';
+import '../perception/perception_processor.dart';
 import '../policy/generation_policy.dart';
 
 /// 检索结果

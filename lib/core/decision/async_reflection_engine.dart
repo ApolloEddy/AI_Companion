@@ -10,7 +10,7 @@ import 'dart:async';
 import 'dart:convert';
 import '../model/user_profile.dart';
 import '../service/profile_service.dart';
-import 'memory_manager.dart';
+import '../memory/memory_manager.dart';
 import '../service/llm_service.dart';
 
 /// 对话轮次

@@ -9,11 +9,48 @@ import '../utils/ui_adapter.dart';
 /// Research HUD 侧边栏 - 科幻风格实时状态监控面板
 /// 
 /// 【Research-Grade 升级】
-/// - 人格雷达图 (Personality Radar Chart)
 /// - 情绪趋势折线图 (Emotion Trend Sparkline)
+/// - 内心独白智能滚动
 /// - 科幻数据展示风格
-class ModernSideBar extends StatelessWidget {
+class ModernSideBar extends StatefulWidget {
   const ModernSideBar({super.key});
+
+  @override
+  State<ModernSideBar> createState() => _ModernSideBarState();
+}
+
+class _ModernSideBarState extends State<ModernSideBar> {
+  // 情绪历史记录（最近20个数据点）
+  final List<double> _valenceHistory = [];
+  final List<double> _arousalHistory = [];
+  static const int _maxHistoryLength = 20;
+  
+  // 父级 ListView 滚动控制器
+  final ScrollController _listScrollController = ScrollController();
+  
+  // 内心独白生成状态跟踪
+  String _previousMonologue = '';
+  bool _isMonologueGenerating = false;
+  
+  @override
+  void dispose() {
+    _listScrollController.dispose();
+    super.dispose();
+  }
+  
+  void _updateEmotionHistory(double valence, double arousal) {
+    // 仅当数值有明显变化时才记录
+    if (_valenceHistory.isEmpty || 
+        ((_valenceHistory.last - valence).abs() > 0.01 || 
+         (_arousalHistory.last - arousal).abs() > 0.01)) {
+      _valenceHistory.add(valence);
+      _arousalHistory.add(arousal);
+      if (_valenceHistory.length > _maxHistoryLength) {
+        _valenceHistory.removeAt(0);
+        _arousalHistory.removeAt(0);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,10 +64,38 @@ class ModernSideBar extends StatelessWidget {
     final arousal = (emotion['arousal'] as num?)?.toDouble() ?? 0.5;
     final intimacy = engine.intimacy;
     
+    // 更新情绪历史
+    _updateEmotionHistory(valence, arousal);
+    
     // 人格参数
     final config = engine.personaConfig;
-    final formality = (config['formality'] as num?)?.toDouble() ?? 0.5;
-    final humor = (config['humor'] as num?)?.toDouble() ?? 0.5;
+    final personaName = config['name'] ?? '小悠';
+    final userName = engine.userProfile.nickname.isNotEmpty 
+        ? engine.userProfile.nickname 
+        : '用户';
+    
+    // 检测内心独白生成状态
+    final currentMonologue = engine.streamingMonologue;
+    final isNewContent = currentMonologue != _previousMonologue && currentMonologue.isNotEmpty;
+    if (isNewContent) {
+      _isMonologueGenerating = currentMonologue.length > _previousMonologue.length;
+      _previousMonologue = currentMonologue;
+      
+      // 内心独白生成中时，确保面板可见
+      if (_isMonologueGenerating) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _listScrollController.hasClients) {
+            _listScrollController.animateTo(
+              _listScrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
+    } else if (currentMonologue.isEmpty) {
+      _isMonologueGenerating = false;
+    }
     
     return Container(
       width: ui.sidebarWidth,
@@ -53,44 +118,44 @@ class ModernSideBar extends StatelessWidget {
                 _buildHeader(context, engine, isDark),
                 Expanded(
                   child: ListView(
+                    controller: _listScrollController,
                     padding: const EdgeInsets.all(20),
                     children: [
-                      // 【Research-Grade】人格雷达图
-                      _buildSectionTitle('人格特征雷达 (PERSONA)', isDark: isDark),
-                      _buildPersonalityRadar(
-                        formality: formality,
-                        humor: humor,
-                        intimacy: intimacy,
+                      // $personaName 的情绪状态（带曲线）
+                      _buildSectionTitle('$personaName 的情绪状态', isDark: isDark),
+                      _buildEmotionStatusPanel(
                         valence: valence,
                         arousal: arousal,
+                        intimacy: intimacy,
                         isDark: isDark,
+                        valenceHistory: _valenceHistory,
+                        arousalHistory: _arousalHistory,
                       ),
                       
                       const SizedBox(height: 24),
                       
-                      // 【Research-Grade】情绪趋势
-                      _buildSectionTitle('情绪趋势 (EMOTION)', isDark: isDark),
-                      _buildEmotionTrendSparkline(arousal, valence, isDark),
+                      // $personaName 的认知状态
+                      _buildSectionTitle('$personaName 的认知状态', isDark: isDark),
+                      _buildCognitiveStatePanel(engine, isDark),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // 内心独白（自适应高度，无内部滚动条）
+                      _buildSectionTitle('$personaName 的内心独白', isDark: isDark),
+                      _buildMonologuePanel(engine, isDark),
                       
                       const SizedBox(height: 24),
                       
                       // 亲密度进度条
-                      _buildSectionTitle('亲密度 (INTIMACY)', isDark: isDark),
+                      _buildSectionTitle('亲密度', isDark: isDark),
                       _buildIntimacyBar(intimacy, isDark),
                       
                       const SizedBox(height: 24),
                       
-                      // 人格调节滑块
-                      _buildSectionTitle('人格实验室 (LAB)', isDark: isDark),
-                      _buildPersonalitySliders(engine, isDark),
-                      
-                      const SizedBox(height: 24),
-                      
-                      // 核心状态网格
-                      _buildSectionTitle('核心状态 (CORTEX)', isDark: isDark),
+                      // 核心状态网格（置底）
+                      _buildSectionTitle('核心状态', isDark: isDark),
                       _buildStatusGrid(engine, isDark),
                     ],
-
                   ),
                 ),
               ],
@@ -111,10 +176,10 @@ class ModernSideBar extends StatelessWidget {
             padding: const EdgeInsets.all(2),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.cyan.withValues(alpha: 0.5), width: 2),
+              border: Border.all(color: (isDark ? const Color(0xFFFFB74D) : const Color(0xFFD87C00)).withValues(alpha: 0.5), width: 2),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.cyan.withValues(alpha: 0.3),
+                  color: (isDark ? const Color(0xFFFFB74D) : const Color(0xFFD87C00)).withValues(alpha: 0.3),
                   blurRadius: 12,
                 ),
               ],
@@ -127,7 +192,7 @@ class ModernSideBar extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 24, 
                   fontWeight: FontWeight.bold,
-                  color: isDark ? Colors.cyanAccent : Colors.cyan
+                  color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFD87C00)
                 ),
               ),
             ),
@@ -172,9 +237,13 @@ class ModernSideBar extends StatelessWidget {
                     color: Colors.green.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Text(
+                  child: Text(
                     '活跃中',
-                    style: TextStyle(fontSize: 10, color: Colors.greenAccent, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 10, 
+                      color: isDark ? Colors.greenAccent : const Color(0xFF2E7D32), 
+                      fontWeight: FontWeight.bold
+                    ),
                   ),
                 ),
               ],
@@ -189,7 +258,7 @@ class ModernSideBar extends StatelessWidget {
     // 浅色模式用深绿，深色模式用琥珀
     final color = isDark 
         ? const Color(0xFFFFB74D).withValues(alpha: 0.9) 
-        : const Color(0xFF1B5E20); // 深森林绿
+        : const Color(0xFFD87C00); // 改为深琥珀色提升对比度
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
@@ -270,6 +339,277 @@ class ModernSideBar extends StatelessWidget {
     );
   }
 
+  /// 【重构】情绪状态面板 - 展示核心情绪指标和动态曲线
+  Widget _buildEmotionStatusPanel({
+    required double valence,
+    required double arousal,
+    required double intimacy,
+    required bool isDark,
+    required List<double> valenceHistory,
+    required List<double> arousalHistory,
+  }) {
+    // 计算情绪象限
+    String quadrant;
+    Color quadrantColor;
+    if (valence > 0.3 && arousal >= 0.5) {
+      quadrant = '兴奋';
+      quadrantColor = isDark ? Colors.orangeAccent : const Color(0xFFE65100);
+    } else if (valence > 0.3) {
+      quadrant = '愉悦';
+      quadrantColor = isDark ? Colors.greenAccent : const Color(0xFF2E7D32);
+    } else if (valence < -0.3 && arousal < 0.5) {
+      quadrant = '低落';
+      quadrantColor = isDark ? Colors.blueGrey : const Color(0xFF455A64);
+    } else if (valence < -0.3) {
+      quadrant = '焦躁';
+      quadrantColor = isDark ? Colors.redAccent : const Color(0xFFC62828);
+    } else if (arousal > 0.6) {
+      quadrant = '警觉';
+      quadrantColor = isDark ? Colors.amber : const Color(0xFFD84315);
+    } else {
+      quadrant = '平静';
+      quadrantColor = isDark ? Colors.cyanAccent : const Color(0xFF00838F);
+    }
+
+    // 情绪强度
+    final intensity = (valence.abs() > 0.5 || arousal > 0.7) ? '强烈' : '平和';
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252229) : Colors.grey.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFFFFB74D).withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        children: [
+          // 情绪象限 - 大标题
+          Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: quadrantColor,
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: quadrantColor.withValues(alpha: 0.5), blurRadius: 8)],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                quadrant,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: quadrantColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  intensity,
+                  style: TextStyle(fontSize: 11, color: quadrantColor, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // 数值指标网格 - 使用更易懂的术语
+          Row(
+            children: [
+              Expanded(
+                child: _buildEmotionMetric(
+                  label: '愉悦度',
+                  value: valence,
+                  displayValue: valence >= 0 ? '+${valence.toStringAsFixed(2)}' : valence.toStringAsFixed(2),
+                  color: valence >= 0 ? Colors.greenAccent : Colors.redAccent,
+                  isDark: isDark,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildEmotionMetric(
+                  label: '活跃度',
+                  value: arousal,
+                  displayValue: '${(arousal * 100).toStringAsFixed(0)}%',
+                  color: arousal > 0.6 
+                      ? (isDark ? Colors.orangeAccent : const Color(0xFFD87C00)) 
+                      : (isDark ? Colors.cyanAccent : const Color(0xFF00796B)),
+                  isDark: isDark,
+                ),
+              ),
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // 愉悦度变化曲线
+          _buildEmotionCurve(
+            label: '愉悦度变化',
+            history: valenceHistory,
+            color: isDark ? Colors.greenAccent : const Color(0xFF2E7D32),
+            isDark: isDark,
+            normalize: true, // valence 范围 -1~1
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // 活跃度变化曲线
+          _buildEmotionCurve(
+            label: '活跃度变化',
+            history: arousalHistory,
+            color: isDark ? Colors.orangeAccent : const Color(0xFFD87C00),
+            isDark: isDark,
+            normalize: false, // arousal 范围 0~1
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// 情绪变化曲线
+  Widget _buildEmotionCurve({
+    required String label,
+    required List<double> history,
+    required Color color,
+    required bool isDark,
+    bool normalize = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 9, color: isDark ? Colors.white30 : Colors.black54, letterSpacing: 0.5),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          height: 40,
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.02),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: history.isEmpty
+              ? Center(
+                  child: Text(
+                    '等待数据...',
+                    style: TextStyle(fontSize: 9, color: isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.2)),
+                  ),
+                )
+              : CustomPaint(
+                  size: const Size(double.infinity, 40),
+                  painter: _EmotionCurvePainter(
+                    data: history,
+                    color: color,
+                    isDark: isDark,
+                    normalize: normalize,
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
+  
+  /// 情绪指标卡片
+  Widget _buildEmotionMetric({
+    required String label,
+    required double value,
+    required String displayValue,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.03),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(fontSize: 10, color: isDark ? Colors.white38 : Colors.black38),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            displayValue,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// 进度条组件
+  Widget _buildProgressBar({
+    required String label,
+    required double value,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(fontSize: 9, color: isDark ? Colors.white30 : Colors.black26, letterSpacing: 1),
+            ),
+            Text(
+              '${(value * 100).toStringAsFixed(0)}%',
+              style: TextStyle(fontSize: 9, color: color.withValues(alpha: 0.8)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: Stack(
+            children: [
+              Container(
+                height: 4,
+                color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.05),
+              ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  return AnimatedContainer(
+                    duration: const Duration(milliseconds: 400),
+                    height: 4,
+                    width: constraints.maxWidth * value.clamp(0.0, 1.0),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [color, color.withValues(alpha: 0.6)],
+                      ),
+                      boxShadow: [
+                        BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 4),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildIntimacyBar(double intimacy, bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,9 +633,9 @@ class ModernSideBar extends StatelessWidget {
               child: Text(
                 '${(intimacy * 100).toStringAsFixed(0)}%',
                 style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                  color: _getIntimacyColor(intimacy),
+                  fontSize: 12, 
+                  fontWeight: FontWeight.bold, 
+                  color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFD87C00)
                 ),
               ),
             ),
@@ -317,7 +657,7 @@ class ModernSideBar extends StatelessWidget {
                   return AnimatedContainer(
                     duration: const Duration(milliseconds: 500),
                     height: 8,
-                    width: constraints.maxWidth * intimacy,
+                    width: constraints.maxWidth * intimacy.clamp(0.0, 1.0),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -407,10 +747,10 @@ class ModernSideBar extends StatelessWidget {
       crossAxisSpacing: 10,
       childAspectRatio: 1.8,
       children: [
-        _buildStatusCard('记忆库', '${engine.isInitialized ? engine.messages.length : 0}', Icons.memory, isDark),
+        _buildStatusCard('记忆库', '${engine.memoryCount}', Icons.memory, isDark),
+        _buildStatusCard('对话', '${engine.totalChatCount}', Icons.chat_bubble_outline, isDark),
         _buildStatusCard('TOKEN', _formatTokenCount(engine.totalTokensUsed), Icons.toll, isDark),
         _buildStatusCard('模型', engine.currentModel.split('-').last.toUpperCase(), Icons.model_training, isDark),
-        _buildStatusCard('版本', 'v2.1.0', Icons.hub, isDark),
       ],
     );
   }
@@ -431,9 +771,9 @@ class ModernSideBar extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(icon, size: 12, color: Colors.cyan.withValues(alpha: 0.7)),
+              Icon(icon, size: 12, color: isDark ? const Color(0xFFFFB74D).withValues(alpha: 0.7) : const Color(0xFFD87C00)),
               const SizedBox(width: 4),
-              Text(label, style: TextStyle(fontSize: 10, color: isDark ? Colors.white38 : Colors.black38)),
+              Text(label, style: TextStyle(fontSize: 10, color: isDark ? Colors.white38 : Colors.black87)),
             ],
           ),
           const SizedBox(height: 4),
@@ -442,7 +782,7 @@ class ModernSideBar extends StatelessWidget {
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.bold,
-              color: isDark ? Colors.white : Colors.black87,
+              color: isDark ? Colors.white : Colors.black,
             ),
           ),
         ],
@@ -450,10 +790,325 @@ class ModernSideBar extends StatelessWidget {
     );
   }
 
+  /// 【新增】认知状态面板 - 显示 AI 的感知与决策状态
+  Widget _buildCognitiveStatePanel(AppEngine engine, bool isDark) {
+    // 获取最新的调试状态
+    final debugState = engine.getDebugState();
+    final cognitiveEnabled = debugState['cognitiveEngineEnabled'] ?? false;
+    
+    if (!cognitiveEnabled) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.grey.withValues(alpha: 0.15),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.psychology_outlined, size: 16, color: isDark ? Colors.white38 : Colors.black38),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '认知引擎待激活',
+                style: TextStyle(fontSize: 12, color: isDark ? Colors.white38 : Colors.black38),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    // 模拟认知状态数据（实际应从 engine 获取最新的 cognitiveState）
+    final emotion = engine.emotion;
+    final valence = (emotion['valence'] as num?)?.toDouble() ?? 0.0;
+    final arousal = (emotion['arousal'] as num?)?.toDouble() ?? 0.5;
+    
+    // 基于情绪推断感知状态
+    String perceptionLabel;
+    Color perceptionColor;
+    if (valence > 0.3) {
+      perceptionLabel = '积极';
+      perceptionColor = isDark ? Colors.greenAccent : const Color(0xFF1B5E20); // 亮色用深绿
+    } else if (valence < -0.3) {
+      perceptionLabel = '消极';
+      perceptionColor = isDark ? Colors.redAccent : const Color(0xFFB71C1C); // 亮色用深红
+    } else {
+      perceptionLabel = '中性';
+      perceptionColor = isDark ? Colors.blueAccent : const Color(0xFF0D47A1); // 亮色用深蓝
+    }
+    
+    // 基于唤醒度推断活跃程度
+    String arousalLabel;
+    if (arousal > 0.7) {
+      arousalLabel = '高活跃';
+    } else if (arousal < 0.3) {
+      arousalLabel = '低活跃';
+    } else {
+      arousalLabel = '平稳';
+    }
+    
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252229) : Colors.grey.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFFFFB74D).withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 感知状态
+          _buildCognitiveRow(
+            icon: Icons.visibility_outlined,
+            label: '感知',
+            value: perceptionLabel,
+            color: perceptionColor,
+            isDark: isDark,
+          ),
+          const SizedBox(height: 8),
+          // 活跃度
+          _buildCognitiveRow(
+            icon: Icons.bolt_outlined,
+            label: '活跃',
+            value: arousalLabel,
+            color: arousal > 0.7 ? Colors.orangeAccent : Colors.cyanAccent,
+            isDark: isDark,
+          ),
+          const SizedBox(height: 8),
+          // 响应策略
+          _buildCognitiveRow(
+            icon: Icons.route_outlined,
+            label: '策略',
+            value: '自然对话',
+            color: Colors.tealAccent,
+            isDark: isDark,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCognitiveRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+    required bool isDark,
+  }) {
+    return Row(
+      children: [
+        Icon(icon, size: 14, color: color.withValues(alpha: 0.8)),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black87),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: isDark ? 0.15 : 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: color.withValues(alpha: isDark ? 0.2 : 0.3), width: 0.5),
+          ),
+          child: Text(
+            value,
+            style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 内心独白面板 - 自适应高度，无内部滚动条
+  Widget _buildMonologuePanel(AppEngine engine, bool isDark) {
+    final rawText = engine.streamingMonologue;
+    final personaName = engine.personaConfig['name'] ?? '小悠';
+    
+    // 清理 XML 标签
+    final cleanedText = _cleanXmlTags(rawText);
+    
+    if (cleanedText.isEmpty) {
+      return Container(
+        height: 80,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.05),
+          ),
+        ),
+        child: Text(
+          '等候指令中...',
+          style: TextStyle(fontSize: 12, color: isDark ? Colors.white24 : Colors.black45),
+        ),
+      );
+    }
+    
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1E1C22) : Colors.grey.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFFFFB74D).withValues(alpha: 0.2) : const Color(0xFFFFB74D).withValues(alpha: 0.3),
+        ),
+        boxShadow: isDark ? [
+          BoxShadow(
+            color: const Color(0xFFFFB74D).withValues(alpha: 0.05),
+            blurRadius: 10,
+            spreadRadius: -2,
+          )
+        ] : [],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 标题区域
+          Row(
+            children: [
+              Icon(Icons.auto_awesome, size: 14, color: const Color(0xFFFFB74D)),
+              const SizedBox(width: 8),
+              Text(
+                '$personaName 的思维流',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? const Color(0xFFFFB74D).withValues(alpha: 0.8) : const Color(0xFFD87C00),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // 自适应高度的文本内容
+          SelectableText(
+            cleanedText,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.6,
+              color: isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black87,
+              fontFamily: 'Georgia',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  /// 清理 XML 标签 (多策略版: 适配流式传输场景)
+  static String _cleanXmlTags(String text) {
+    var cleaned = text;
+    
+    // 1. 移除完整的 XML 标签 (含属性)
+    cleaned = cleaned.replaceAll(RegExp(r'</?[a-zA-Z][a-zA-Z0-9]*(?:\s+[^>]*)?>'), '');
+    
+    // 2. 移除末尾残留的起始不完整标签 (流式场景): <thou, <stra
+    cleaned = cleaned.replaceAll(RegExp(r'</?[a-zA-Z]{1,15}$'), '');
+    
+    // 3. 移除开头残留的闭合不完整标签: ght>, tegy>
+    cleaned = cleaned.replaceAll(RegExp(r'^[a-zA-Z]{1,15}>'), '');
+    
+    // 4. 移除开头的单独 > 或 />
+    cleaned = cleaned.replaceAll(RegExp(r'^/?>'), '');
+    
+    // 5. 移除末尾的单独 < 或 </
+    cleaned = cleaned.replaceAll(RegExp(r'</?$'), '');
+    
+    return cleaned.trim();
+  }
+
   String _formatTokenCount(int tokens) {
     if (tokens >= 1000000) return '${(tokens / 1000000).toStringAsFixed(1)}M';
     if (tokens >= 1000) return '${(tokens / 1000).toStringAsFixed(1)}K';
     return tokens.toString();
+  }
+}
+
+/// 情绪变化曲线绘制器
+class _EmotionCurvePainter extends CustomPainter {
+  final List<double> data;
+  final Color color;
+  final bool isDark;
+  final bool normalize; // true: -1~1, false: 0~1
+
+  _EmotionCurvePainter({
+    required this.data,
+    required this.color,
+    required this.isDark,
+    this.normalize = false,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (data.isEmpty) return;
+    
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final fillPaint = Paint()
+      ..color = color.withValues(alpha: 0.1)
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    final fillPath = Path();
+    
+    final paddingY = 4.0;
+    final drawHeight = size.height - paddingY * 2;
+    
+    for (int i = 0; i < data.length; i++) {
+      final x = data.length == 1 ? size.width / 2 : (i / (data.length - 1)) * size.width;
+      
+      // 归一化 y 值到 0~1 范围
+      double normalizedY;
+      if (normalize) {
+        normalizedY = (data[i] + 1) / 2; // -1~1 -> 0~1
+      } else {
+        normalizedY = data[i]; // 已经是 0~1
+      }
+      
+      final y = paddingY + drawHeight * (1 - normalizedY);
+      
+      if (i == 0) {
+        path.moveTo(x, y);
+        fillPath.moveTo(x, size.height);
+        fillPath.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
+    }
+    
+    // 完成填充路径
+    fillPath.lineTo(size.width, size.height);
+    fillPath.close();
+    
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, paint);
+    
+    // 绘制最后一个点的圆点
+    if (data.isNotEmpty) {
+      final lastX = size.width;
+      double lastNormalized = normalize ? (data.last + 1) / 2 : data.last;
+      final lastY = paddingY + drawHeight * (1 - lastNormalized);
+      
+      canvas.drawCircle(Offset(lastX, lastY), 3, Paint()..color = color);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _EmotionCurvePainter oldDelegate) {
+    return oldDelegate.data != data || oldDelegate.color != color;
   }
 }
 

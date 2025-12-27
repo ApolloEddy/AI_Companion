@@ -40,37 +40,33 @@ class MyApp extends StatelessWidget {
             
             // 日间主题 - 奶油暖白高对比度
             theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF2E7D32),
-                brightness: Brightness.light,
-                primary: const Color(0xFF1B5E20),        // 深森林绿主色
-                secondary: const Color(0xFF558B2F),      // 草绿辅助色
-                surface: const Color(0xFFFFFBF5),        // 奶油白背景
-                onSurface: const Color(0xFF1A1A1A),      // 纯黑文字
-                onSurfaceVariant: const Color(0xFF37474F), // 深蓝灰次要文字
-              ),
               useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color(0xFFFFB74D), // 统一使用琥珀色种子
+                brightness: Brightness.light,
+                primary: const Color(0xFFD87C00),       // 亮色模式下使用深琥珀色提升对比度
+                secondary: const Color(0xFFE65100),     // 次要强调色
+                surface: const Color(0xFFFFFBF5),        // 奶油白背景
+                onSurface: Colors.black,                 // 纯黑文字
+                onSurfaceVariant: Colors.black87,        // 高对比度次要文字
+              ),
               fontFamily: fontFamily,
-              scaffoldBackgroundColor: const Color(0xFFFFFBF5), // 奶油白
+              fontFamilyFallback: const ['Microsoft YaHei', 'PingFang SC', 'sans-serif'],
+              scaffoldBackgroundColor: const Color(0xFFFFFBF5),
               appBarTheme: const AppBarTheme(
-                backgroundColor: Color(0xFFF5F0E8),       // 暖米色
-                foregroundColor: Color(0xFF1A1A1A),
+                backgroundColor: Color(0xFFF5F0E8),
+                foregroundColor: Colors.black,
                 elevation: 0,
                 titleTextStyle: TextStyle(
-                  color: Color(0xFF1A1A1A),
+                  color: Colors.black,
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               textTheme: const TextTheme(
-                displayLarge: TextStyle(color: Color(0xFF1A1A1A), fontSize: 32),
-                displayMedium: TextStyle(color: Color(0xFF1A1A1A), fontSize: 28),
-                titleLarge: TextStyle(color: Color(0xFF1A1A1A), fontSize: 20, fontWeight: FontWeight.w600),
-                titleMedium: TextStyle(color: Color(0xFF1A1A1A), fontSize: 16, fontWeight: FontWeight.w500),
-                bodyLarge: TextStyle(color: Color(0xFF1A1A1A), fontSize: 16),
-                bodyMedium: TextStyle(color: Color(0xFF2D2D2D), fontSize: 14),
-                bodySmall: TextStyle(color: Color(0xFF424242), fontSize: 13),
-                labelLarge: TextStyle(color: Color(0xFF1A1A1A), fontSize: 14, fontWeight: FontWeight.w500),
+                bodyLarge: TextStyle(color: Colors.black),
+                bodyMedium: TextStyle(color: Colors.black),
+                bodySmall: TextStyle(color: Colors.black87),
               ),
               cardTheme: const CardThemeData(
                 color: Color(0xFFFFFDF8),
@@ -82,21 +78,21 @@ class MyApp extends StatelessWidget {
               ),
             ),
 
-            
-            // 夜间主题 - 温暖舒适风格 (Cozy/Warm AI Companion)
+            // 夜间主题 - 温暖舒适风格
             darkTheme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFFFFB74D),     // 琥珀色种子
-                brightness: Brightness.dark,
-                primary: const Color(0xFFFFB74D),       // 温暖琥珀主色
-                secondary: const Color(0xFFFFCC80),     // 浅琥珀辅助色
-                surface: const Color(0xFF1C1B1F),       // 深紫灰背景
-                onSurface: const Color(0xFFE8E0D5),     // 暖白色文字
-                onSurfaceVariant: const Color(0xFFB8AFA6), // 次要暖灰文字
-              ),
               useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: const Color(0xFFFFB74D),
+                brightness: Brightness.dark,
+                primary: const Color(0xFFFFB74D),
+                secondary: const Color(0xFFFFCC80),
+                surface: const Color(0xFF1C1B1F),
+                onSurface: const Color(0xFFE8E0D5),
+                onSurfaceVariant: const Color(0xFFB8AFA6),
+              ),
               fontFamily: fontFamily,
-              scaffoldBackgroundColor: const Color(0xFF16141A), // 深海军蓝紫
+              fontFamilyFallback: const ['Microsoft YaHei', 'PingFang SC', 'sans-serif'],
+              scaffoldBackgroundColor: const Color(0xFF16141A),
               appBarTheme: const AppBarTheme(
                 backgroundColor: Color(0xFF1E1C22),
                 foregroundColor: Color(0xFFE8E0D5),
@@ -116,7 +112,16 @@ class MyApp extends StatelessWidget {
               ),
             ),
 
-            
+            builder: (context, child) {
+              // 注入 AnimatedTheme 以实现主题色缓慢切换动画
+              final theme = Theme.of(context);
+              return AnimatedTheme(
+                data: theme,
+                duration: const Duration(milliseconds: 400),
+                curve: Curves.easeInOut,
+                child: child!,
+              );
+            },
             home: const MainScreen(),
           );
         },

@@ -1,15 +1,18 @@
 import '../settings_loader.dart';
+import '../policy/behavior_matrix.dart';
 
 /// 表达选择器 - 使用动态 YAML 配置
 class ExpressionSelector {
 
+  static final BehaviorMatrix _matrix = BehaviorMatrix.defaultMatrix();
+
   /// 根据情绪状态选择表达模式
-  static String selectMode(double valence, double arousal) {
-    if (valence > 0.3 && arousal >= 0.5) return 'excited';
-    if (valence > 0.3 && arousal < 0.5) return 'playful';
-    if (valence < -0.2 && arousal < 0.5) return 'empathetic';
-    if (valence >= -0.2 && valence <= 0.3 && arousal < 0.4) return 'calm';
-    return 'warm';
+  static String selectMode(double valence, double arousal, {double intimacy = 0.5}) {
+    return _matrix.match({
+      'valence': valence,
+      'arousal': arousal,
+      'intimacy': intimacy,
+    });
   }
 
   /// 计算回复长度模式
@@ -21,12 +24,18 @@ class ExpressionSelector {
   }
 
   /// 生成表达指引
+  /// 
+  /// [formality] 可选，动态传入的庄重度值（0-1），不传则使用 YAML 配置
+  /// [humor] 可选，动态传入的幽默度值（0-1），不传则使用 YAML 配置
   static String getExpressionInstructions(
     double valence,
     double arousal,
-    double intimacy,
-  ) {
-    final mode = selectMode(valence, arousal);
+    double intimacy, {
+    double? formality,
+    double? humor,
+    bool userUsedEmoji = false,
+  }) {
+    final mode = selectMode(valence, arousal, intimacy: intimacy);
     final modeConfig = SettingsLoader.getExpressionMode(mode);
     final lengthMode = calculateResponseLength(arousal, intimacy);
     
@@ -46,32 +55,52 @@ class ExpressionSelector {
       emojiLevel = rawEmojiLevel.toDouble();
     }
     
+    // 【重构】默认不使用表情
+    // Emoji 使用条件极为严格：
+    // 1. 用户消息含有emoji (userUsedEmoji == true)
+    // 2. 情绪极端 (|valence| > 0.7)
     String emojiGuide;
-    if (emojiLevel < 0.3) {
-      emojiGuide = '基本不用表情';
-    } else if (emojiLevel < 0.5) {
-      emojiGuide = '偶尔用一个表情点缀就好';
-    } else if (emojiLevel < 0.7) {
-      emojiGuide = '可以用表情，但别每句都加';
+    if (valence.abs() > 0.7) {
+      // 极端情绪时可适度使用
+      emojiGuide = '情绪强烈，可用一个表情表达此刻心境';
+    } else if (userUsedEmoji) {
+      // 用户用了，可以回一个
+      emojiGuide = '可以顺着用户的语气用一个表情';
+    } else if (emojiLevel < 0.3) {
+      emojiGuide = '不使用表情';
     } else {
-      emojiGuide = '可以活泼点用表情';
+      // 默认情况：不使用
+      emojiGuide = '平时不用表情，保持自然得体';
     }
     
-    // 正式程度受亲密度影响
-    double formality = SettingsLoader.formality;
+    // 【FIX】使用动态传入的 formality，如果没传则用 YAML 配置
+    double effectiveFormality = formality ?? SettingsLoader.formality;
     if (intimacy < SettingsLoader.intimacyLowThreshold) {
-      formality = (formality + 0.2).clamp(0.0, 1.0);
+      effectiveFormality = (effectiveFormality + 0.2).clamp(0.0, 1.0);
     } else if (intimacy > SettingsLoader.intimacyHighThreshold) {
-      formality = (formality - 0.2).clamp(0.0, 1.0);
+      effectiveFormality = (effectiveFormality - 0.2).clamp(0.0, 1.0);
     }
     
     String formalityGuide;
-    if (formality < 0.3) {
+    // 【P2-1 修复】使用 YAML 配置的阈值
+    if (effectiveFormality < SettingsLoader.formalityCasualBelow) {
       formalityGuide = '完全口语化，像和好朋友聊天';
-    } else if (formality < 0.6) {
+    } else if (effectiveFormality < SettingsLoader.formalityFormalAbove) {
       formalityGuide = '自然聊天，不用太正式';
     } else {
       formalityGuide = '稍微客气一点';
+    }
+    
+    // 【FIX】使用动态传入的 humor
+    double effectiveHumor = humor ?? SettingsLoader.humor;
+    String humorGuide;
+    // 【P2-1 修复】使用 YAML 配置的阈值
+    if (effectiveHumor < SettingsLoader.humorSeriousBelow) {
+      humorGuide = '正经诚恳，不开玩笑';
+    } else if (effectiveHumor < SettingsLoader.humorHumorousAbove) {
+      humorGuide = '偶尔可以调侃一下';
+    } else {
+      humorGuide = '可以多开玩笑，活跃气氛';
     }
     
     final description = modeConfig['description']?.toString() ?? '温暖关怀';
@@ -83,6 +112,7 @@ class ExpressionSelector {
 长度：${lengthGuide[lengthMode]}
 表情：$emojiGuide
 风格：$formalityGuide
+幽默：$humorGuide
 
 【自然表达要点】
 - 回复长度不固定，根据内容自然决定

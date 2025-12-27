@@ -164,32 +164,44 @@ class FeedbackAnalyzer {
   }
 
   /// 计算整体情绪分数
+  /// 
+  /// 【P2-2 增强】使用指数移动平均 (EMA) 平滑情绪变化
+  /// - 最近的信号权重更高
+  /// - 防止单个极端事件导致情绪突变
   double getOverallSentiment() {
     if (_recentSignals.isEmpty) return 0.5;
 
-    double score = 0.5;
+    // EMA 权重因子 (0.3 = 较平滑, 0.5 = 响应快)
+    const double alpha = 0.3;
+    double ema = 0.5;  // 初始值为中性
+    
     for (final signal in _recentSignals) {
+      double delta = 0.0;
+      
       switch (signal.type) {
         case FeedbackType.satisfied:
         case FeedbackType.engaged:
-          score += signal.intensity * 0.1;
+          delta = signal.intensity * 0.15;
           break;
         case FeedbackType.annoyed:
-          score -= signal.intensity * 0.2;
+          delta = -signal.intensity * 0.2;
           break;
         case FeedbackType.disengaged:
         case FeedbackType.wantToEnd:
-          score -= signal.intensity * 0.1;
+          delta = -signal.intensity * 0.1;
           break;
         case FeedbackType.confused:
-          score -= signal.intensity * 0.05;
+          delta = -signal.intensity * 0.05;
           break;
         case FeedbackType.neutral:
           break;
       }
+      
+      // EMA 公式: new_value = alpha * current_delta + (1 - alpha) * old_value
+      ema = alpha * (ema + delta) + (1 - alpha) * ema;
     }
 
-    return score.clamp(0.0, 1.0);
+    return ema.clamp(0.0, 1.0);
   }
 
   /// 检测是否应该调整风格

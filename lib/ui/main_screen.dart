@@ -40,14 +40,22 @@ class _MainScreenState extends State<MainScreen> {
         _scrollController.position.pixels < 100) {
       final engine = context.read<AppEngine>();
       if (engine.hasMoreHistory && !engine.isLoadingHistory) {
-        final beforeCount = engine.messages.length;
+        // 【FIX】记录加载前的滚动位置和最大滚动范围
+        final scrollPositionBefore = _scrollController.position.pixels;
+        final maxExtentBefore = _scrollController.position.maxScrollExtent;
+        
         engine.loadMoreHistory().then((_) {
-          final afterCount = engine.messages.length;
-          final addedCount = afterCount - beforeCount;
-          if (addedCount > 0 && _scrollController.hasClients) {
-            _scrollController.jumpTo(
-              _scrollController.position.pixels + addedCount * 80.0
-            );
+          if (_scrollController.hasClients) {
+            // 计算新增内容的高度差
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_scrollController.hasClients) {
+                final maxExtentAfter = _scrollController.position.maxScrollExtent;
+                final addedHeight = maxExtentAfter - maxExtentBefore;
+                
+                // 保持相对位置：新位置 = 旧位置 + 新增高度
+                _scrollController.jumpTo(scrollPositionBefore + addedHeight);
+              }
+            });
           }
         });
       }
@@ -79,6 +87,16 @@ class _MainScreenState extends State<MainScreen> {
   @override
   Widget build(BuildContext context) {
     final engine = context.watch<AppEngine>();
+    
+    // 【FIX】等待引擎初始化完成，防止 LateInitializationError
+    if (!engine.isInitialized) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final ui = UIAdapter(context);
     final aiName = engine.personaConfig['name'] ?? '小悠';
@@ -191,10 +209,13 @@ class _MainScreenState extends State<MainScreen> {
                     },
                   ),
                 ),
+                // 【已迁移】此处原有 ThoughtBubble 已移至侧边栏
               ],
             ),
           ),
           
+
+
           // Layer 2: 浮动玻璃输入框
           Positioned(
             left: 0,
@@ -211,28 +232,12 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  /// 构建输入状态指示器
+  /// 构建流动波浪感输入状态指示器
   Widget _buildTypingIndicator(bool isDark) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(3, (index) {
-        return TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.0, end: 1.0),
-          duration: Duration(milliseconds: 600 + index * 200),
-          curve: Curves.easeInOut,
-          builder: (context, value, child) {
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              width: 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: (isDark ? Colors.white : Colors.black54)
-                    .withOpacity(0.3 + value * 0.7),
-                shape: BoxShape.circle,
-              ),
-            );
-          },
-        );
+        return _FlowingDot(index: index, isDark: isDark);
       }),
     );
   }
@@ -273,5 +278,80 @@ class _MainScreenState extends State<MainScreen> {
     Future.delayed(const Duration(milliseconds: 200), () {
       if (mounted) _scrollToBottom(force: true);
     });
+  }
+}
+
+/// 发光流动圆点组件
+class _FlowingDot extends StatefulWidget {
+  final int index;
+  final bool isDark;
+  const _FlowingDot({required this.index, required this.isDark});
+
+  @override
+  State<_FlowingDot> createState() => _FlowingDotState();
+}
+
+class _FlowingDotState extends State<_FlowingDot> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+
+    _animation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 1.6).chain(CurveTween(curve: Curves.easeInOut)), 
+        weight: 50
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.6, end: 1.0).chain(CurveTween(curve: Curves.easeInOut)), 
+        weight: 50
+      ),
+    ]).animate(_controller);
+
+    // 延迟启动以形成波浪感
+    Future.delayed(Duration(milliseconds: widget.index * 200), () {
+      if (mounted) _controller.repeat();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        final double value = _animation.value;
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: 5,
+          height: 5,
+          transform: Matrix4.identity()..scale(value),
+          transformAlignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: (widget.isDark ? Colors.white : const Color(0xFFD87C00))
+                .withValues(alpha: 0.3 + (value - 1.0) * 0.7),
+            shape: BoxShape.circle,
+            boxShadow: widget.isDark && value > 1.3 ? [
+              BoxShadow(
+                color: Colors.white.withValues(alpha: 0.2),
+                blurRadius: 4,
+                spreadRadius: 1,
+              )
+            ] : null,
+          ),
+        );
+      },
+    );
   }
 }

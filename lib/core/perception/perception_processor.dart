@@ -67,6 +67,7 @@ class PerceptionResult {
   final String? subtextInference;
   final String conversationIntent;
   final TimeSensitivity timeSensitivity;
+  final bool hasEmoji; // 【新增】用户消息中是否包含 emoji
   final double confidence;
   final DateTime timestamp;
 
@@ -76,6 +77,7 @@ class PerceptionResult {
     this.subtextInference,
     required this.conversationIntent,
     required this.timeSensitivity,
+    required this.hasEmoji,
     required this.confidence,
     required this.timestamp,
   });
@@ -87,6 +89,7 @@ class PerceptionResult {
     subtextInference: null,
     conversationIntent: '延续上文',
     timeSensitivity: const TimeSensitivity(),
+    hasEmoji: false,
     confidence: 0.5,
     timestamp: DateTime.now(),
   );
@@ -98,6 +101,7 @@ class PerceptionResult {
       subtextInference: json['subtext_inference'],
       conversationIntent: json['conversation_intent'] ?? '延续上文',
       timeSensitivity: TimeSensitivity.fromJson(json['time_sensitivity'] ?? {}),
+      hasEmoji: json['has_emoji'] ?? false,
       confidence: (json['confidence'] ?? 0.5).toDouble(),
       timestamp: DateTime.now(),
     );
@@ -153,7 +157,7 @@ class PerceptionProcessor {
       final response = await _llmService.completeWithSystem(
         systemPrompt: prompt,
         userMessage: '请分析上述用户消息，输出 JSON 格式的感知结果。',
-        model: 'qwen-turbo',  // 使用快速模型降低延迟
+        model: 'qwen-flash',  // 使用 qwen-flash 提升速度
         temperature: 0.3,     // 低随机性确保稳定输出
         maxTokens: 500,
       );
@@ -183,13 +187,16 @@ class PerceptionProcessor {
 
 你是一个情绪感知模块。分析用户的消息，输出结构化的感知结果。
 
+=== 物理世界时间 (绝对基准) ===
+当前精确时间：$timeContext
+【CRITICAL】"深夜"定义：仅限 23:00 - 05:00
+【CRITICAL】如果现在是19:45 (晚间)，严禁判定为"深夜"。
+【CRITICAL】区分"内容时间"与"物理时间"：用户说"昨晚3点睡"，不代表现在是3点。
+
 === 用户背景 ===
 身份：${userProfile.nickname}，${userProfile.occupation}
 ${userProfile.lifeContexts.isNotEmpty ? '核心背景：${userProfile.lifeContexts.map((c) => c.content).join('；')}' : ''}
 最近情绪趋势：$recentEmotionTrend
-
-=== 当前时间 ===
-$timeContext
 
 === 用户消息 ===
 "$userMessage"
@@ -222,11 +229,14 @@ ${recentMessages != null && recentMessages.isNotEmpty ? '=== 最近几条消息 
    - 测试AI理解
 
 5. 时间敏感性 (time_sensitivity)
-   - is_time_related: 是否与当前时间段相关
-   - context: 时间关联说明（如"深夜倾诉"/"午休闲聊"）
+   - is_time_related: 只有在【物理时间】与当前话题强相关时才为 true (如深夜失眠、早起打卡)
+   - context: 时间关联说明（如"深夜失眠"、"清晨问候"），必须基于【物理时间】
 
 6. 置信度 (confidence)
    0.0 ~ 1.0，表示你对分析结果的确信程度
+
+7. 使用了表情 (has_emoji)
+   - 只有在用户消息中包含明确的表情符号（图形 emoji 或符号表情）时为 true
 
 === 输出格式 ===
 必须输出有效的 JSON，不要包含任何其他文本：
@@ -236,12 +246,13 @@ ${recentMessages != null && recentMessages.isNotEmpty ? '=== 最近几条消息 
   "subtext_inference": "..." 或 null,
   "conversation_intent": "...",
   "time_sensitivity": {"is_time_related": false, "context": null},
+  "has_emoji": false,
   "confidence": 0.8
 }
 ''';
   }
 
-  /// 获取时间上下文
+  /// 获取时间上下文 (严格定义)
   String _getTimeContext(DateTime time) {
     final hour = time.hour;
     final weekday = time.weekday;
@@ -255,10 +266,10 @@ ${recentMessages != null && recentMessages.isNotEmpty ? '=== 最近几条消息 
       period = '午间';
     } else if (hour >= 14 && hour < 18) {
       period = '下午';
-    } else if (hour >= 18 && hour < 22) {
+    } else if (hour >= 18 && hour < 23) { // 修正：18-23 为晚间
       period = '晚间';
     } else {
-      period = '深夜';
+      period = '深夜'; // 仅 23:00 - 05:00
     }
     
     final weekdayName = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'][weekday - 1];
@@ -293,6 +304,10 @@ ${recentMessages != null && recentMessages.isNotEmpty ? '=== 最近几条消息 
   }
 
   /// 快速感知（不调用 LLM，基于规则）
+  /// 
+  /// 动态置信度计算：
+  /// - 关键词命中数越多，置信度越高
+  /// - 命中数 ≤1 时置信度降低到 0.4，建议 LLM fallback
   PerceptionResult quickAnalyze(String userMessage, DateTime currentTime) {
     // 简单的规则基础分析
     double valence = 0.0;
@@ -300,40 +315,78 @@ ${recentMessages != null && recentMessages.isNotEmpty ? '=== 最近几条消息 
     String label = '平静';
     String need = '闲聊解闷';
     String intent = '延续上文';
+    int keywordHits = 0;  // 【新增】关键词命中计数
     
-    // 情绪关键词检测
-    if (_containsAny(userMessage, ['开心', '高兴', '太好了', '哈哈', '😊', '🎉'])) {
+    // 表情检测
+    final hasEmoji = _detectEmoji(userMessage);
+
+    // 情绪关键词检测 (带命中计数)
+    final happyKeywords = ['开心', '高兴', '太好了', '哈哈', '😊', '🎉'];
+    final sadKeywords = ['难过', '伤心', '唉', '😢', '😭'];
+    final anxiousKeywords = ['烦', '累', '焦虑', '压力', '😤', '😫'];
+    final tiredKeywords = ['困', '睡', '晚安', '😴'];
+    
+    final happyHits = _countHits(userMessage, happyKeywords);
+    final sadHits = _countHits(userMessage, sadKeywords);
+    final anxiousHits = _countHits(userMessage, anxiousKeywords);
+    final tiredHits = _countHits(userMessage, tiredKeywords);
+    
+    // 选择命中最多的情绪类别
+    final maxHits = [happyHits, sadHits, anxiousHits, tiredHits].reduce((a, b) => a > b ? a : b);
+    keywordHits = maxHits;
+    
+    if (happyHits == maxHits && happyHits > 0) {
       valence = 0.6;
       arousal = 0.7;
       label = '开心';
       need = '分享喜悦';
-    } else if (_containsAny(userMessage, ['难过', '伤心', '唉', '😢', '😭'])) {
+    } else if (sadHits == maxHits && sadHits > 0) {
       valence = -0.6;
       arousal = 0.3;
       label = '难过';
       need = '陪伴安慰';
-    } else if (_containsAny(userMessage, ['烦', '累', '焦虑', '压力', '😤', '😫'])) {
+    } else if (anxiousHits == maxHits && anxiousHits > 0) {
       valence = -0.4;
       arousal = 0.6;
       label = '焦虑';
       need = '倾诉宣泄';
-    } else if (_containsAny(userMessage, ['困', '睡', '晚安', '😴'])) {
+    } else if (tiredHits == maxHits && tiredHits > 0) {
       valence = 0.0;
       arousal = 0.2;
       label = '疲惫';
       intent = '结束对话';
     }
     
-    // 意图检测
-    if (userMessage.length < 5 && _containsAny(userMessage, ['嗯', '哦', '好', '行'])) {
+    // 意图检测 (带命中计数)
+    final endKeywords = ['嗯', '哦', '好', '行'];
+    if (userMessage.length < 5 && _containsAny(userMessage, endKeywords)) {
       intent = '结束对话';
+      keywordHits += 1;
     } else if (userMessage.contains('?') || userMessage.contains('？')) {
       need = '寻求建议';
+      keywordHits += 1;
     }
     
-    // 时间相关
+    // 时间相关 (严格判定)
     final hour = currentTime.hour;
+    // 只有 23:00 - 05:00 是深夜
     final isLateNight = hour >= 23 || hour < 5;
+    
+    // 【P0-2 核心】动态置信度计算
+    // 命中数 0: 0.35 (需要 LLM)
+    // 命中数 1: 0.45 (边缘，建议 LLM)
+    // 命中数 2: 0.55 (尚可)
+    // 命中数 3+: 0.65 (可信)
+    double confidence;
+    if (keywordHits == 0) {
+      confidence = 0.35;
+    } else if (keywordHits == 1) {
+      confidence = 0.45;
+    } else if (keywordHits == 2) {
+      confidence = 0.55;
+    } else {
+      confidence = 0.65;
+    }
     
     return PerceptionResult(
       surfaceEmotion: SurfaceEmotion(label: label, valence: valence, arousal: arousal),
@@ -344,9 +397,26 @@ ${recentMessages != null && recentMessages.isNotEmpty ? '=== 最近几条消息 
         isTimeRelated: isLateNight,
         context: isLateNight ? '深夜时分' : null,
       ),
-      confidence: 0.6,  // 规则基础分析置信度较低
+      hasEmoji: hasEmoji,
+      confidence: confidence,
       timestamp: DateTime.now(),
     );
+  }
+
+  /// 简单的正则检测表情
+  bool _detectEmoji(String text) {
+    // 包含常见的图形 emoji 和常见的字符表情符号
+    final emojiRegex = RegExp(r'[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F1E6}-\u{1F1FF}😊😢😭😤😫😴🎉]');
+    return emojiRegex.hasMatch(text);
+  }
+
+  /// 计算关键词命中数量
+  int _countHits(String text, List<String> keywords) {
+    int count = 0;
+    for (final keyword in keywords) {
+      if (text.contains(keyword)) count++;
+    }
+    return count;
   }
 
   bool _containsAny(String text, List<String> keywords) {

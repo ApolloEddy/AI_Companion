@@ -8,6 +8,13 @@
 // 业务逻辑修复：
 // - 情绪衰减：Timer 每 5 分钟自动重算 Valence/Arousal
 // - 主动消息：读取 proactive_settings.yaml，检查触发条件
+//
+// 【架构重构】状态驱动认知流水线 (State-Driven Cognitive Pipeline)
+// 四阶段执行顺序：
+// 1. 感知 (Perception) - 分析用户意图和情绪
+// 2. 状态加载 (State Loading) - 更新情绪引擎，获取记忆
+// 3. 决策 (Decision Making) - 反思处理，生成响应策略
+// 4. 执行 (Execution) - 注入策略到 Prompt，调用 LLM
 
 import 'dart:async';
 import 'dart:math';
@@ -22,18 +29,17 @@ import '../policy/generation_policy.dart';
 import '../policy/persona_policy.dart';
 
 import 'emotion_engine.dart';
-import 'memory_manager.dart';
+import '../memory/memory_manager.dart';
 import 'proactive_settings.dart';
-import 'fact_store.dart';
+import '../memory/fact_store.dart';
 import '../settings_loader.dart';
 
 // 认知引擎组件
-import 'perception_processor.dart';
-import 'reflection_processor.dart';
-import 'feedback_analyzer.dart';
-import 'async_reflection_engine.dart';
+import '../perception/perception_processor.dart';
+import '../decision/reflection_processor.dart';
+import '../perception/feedback_analyzer.dart';
+import '../decision/async_reflection_engine.dart';
 import '../service/profile_service.dart';
-import '../service/analysis_service.dart';
 import '../policy/prohibited_patterns.dart';
 
 import '../prompt/prompt_assembler.dart';
@@ -41,6 +47,28 @@ import '../prompt/prompt_snapshot.dart';
 
 /// 主动消息回调
 typedef ProactiveMessageCallback = void Function(ChatMessage message);
+
+/// 认知状态 - 封装流水线各阶段的内部状态 (用于 UI 可视化)
+class CognitiveState {
+  final Map<String, dynamic> perception;   // 感知结果
+  final Map<String, dynamic> decision;     // 决策策略
+  final Map<String, dynamic> emotion;      // AI情绪状态
+  final String memorySummary;              // 记忆摘要
+
+  const CognitiveState({
+    required this.perception,
+    required this.decision,
+    required this.emotion,
+    required this.memorySummary,
+  });
+
+  Map<String, dynamic> toMap() => {
+    'perception': perception,
+    'decision': decision,
+    'emotion': emotion,
+    'memory_summary': memorySummary,
+  };
+}
 
 /// 对话引擎 - 核心调度器
 class ConversationEngine {
@@ -68,8 +96,10 @@ class ConversationEngine {
   DateTime? _lastInteraction;
 
   // 回调
-  ProactiveMessageCallback? onProactiveMessage; // 立即发送
   ProactiveMessageCallback? onPendingMessage; // 加入待发送队列
+  
+  /// 获取当前内心独白模型的回调（由 AppEngine 注入）
+  String Function()? monologueModelGetter;
 
   // 最近的快照（用于调试）
   PromptSnapshot? lastSnapshot;
@@ -85,17 +115,13 @@ class ConversationEngine {
 
   // 认知引擎组件（可选，用于增强模式）
   ProfileService? profileService;
-  // ignore: unused_field - 保留用于未来认知引擎扩展
   PerceptionProcessor? _perceptionProcessor;
-  // ignore: unused_field - 保留用于未来认知引擎扩展
   ReflectionProcessor? _reflectionProcessor;
-  // ignore: unused_field - 保留用于未来认知引擎扩展
   FeedbackAnalyzer? _feedbackAnalyzer;
   AsyncReflectionEngine? _asyncReflectionEngine;
   bool _cognitiveEngineEnabled = false;
 
   // 多阶段 Agentic 工作流组件
-  AnalysisService? _analysisService;
   FactStore? _factStore;
 
   // ========== 生命周期管理 ==========
@@ -135,7 +161,7 @@ class ConversationEngine {
     print('[ConversationEngine] stopped');
   }
 
-  /// 初始化认知引擎组件
+    // 初始化认知引擎组件
   void _initCognitiveEngine() {
     _perceptionProcessor = PerceptionProcessor(llmService);
     _reflectionProcessor = ReflectionProcessor(llmService);
@@ -146,9 +172,6 @@ class ConversationEngine {
       memoryManager: memoryManager,
       quietPeriod: const Duration(minutes: 3),
     );
-
-    // 初始化多阶段 Agentic 工作流组件
-    _analysisService = AnalysisService(llmService);
 
     _cognitiveEngineEnabled = true;
     print('[ConversationEngine] cognitive engine initialized');
@@ -171,12 +194,11 @@ class ConversationEngine {
     _lastInteraction = lastInteraction;
   }
 
-  // ========== 【业务修复1】实时情绪衰减 ==========
+  // ========== 实时情绪衰减 ==========
 
   /// 启动情绪衰减定时器
   ///
-  /// 原问题：衰减仅在启动时计算一次
-  /// 修复：每 5 分钟自动重算 Valence/Arousal
+  /// 每 5 分钟自动重算 Valence/Arousal
   void _startEmotionDecayTimer() {
     const interval = Duration(minutes: 5);
     _emotionDecayTimer = Timer.periodic(interval, (_) {
@@ -193,12 +215,11 @@ class ConversationEngine {
     print('[ConversationEngine] emotion decay timer started (interval: 5 min)');
   }
 
-  // ========== 【业务修复2】主动消息触发 ==========
+  // ========== 主动消息触发 ==========
 
   /// 启动主动消息检查定时器
   ///
-  /// 原问题：proactive_settings.yaml 被忽略
-  /// 修复：定期检查并触发主动消息
+  /// 定期检查并触发主动消息
   void _startProactiveMessageTimer() {
     const interval = Duration(minutes: 30);
     _proactiveCheckTimer = Timer.periodic(interval, (_) {
@@ -373,48 +394,134 @@ class ConversationEngine {
     onPendingMessage?.call(message);
   }
 
-  // ========== 核心消息处理 ==========
+  // ========== 核心消息处理：状态驱动认知流水线 ==========
 
   /// 处理用户消息
   ///
-  /// 协调各模块完成一次完整的对话流程：
-  /// 1. 更新情绪状态
-  /// 2. 构建上下文
-  /// 3. 组装 Prompt
-  /// 4. 调用 LLM
-  /// 5. 格式化响应
+  /// 【架构重构】四阶段认知流水线：
+  /// 1. 感知 (Perception) - 分析用户意图和情绪
+  /// 2. 状态加载 (State Loading) - 更新情绪引擎，获取记忆
+  /// 3. 决策 (Decision Making) - 反思处理，生成响应策略
+  /// 4. 执行 (Execution) - 注入策略到 Prompt，调用 LLM
   Future<ConversationResult> processUserMessage(
+    String text,
+    List<ChatMessage> currentMessages, {
+    Function(String)? onMonologueChunk,
+  }) async {
+    // 记录处理前的状态 (用于计算 delta)
+    final prevValence = emotionEngine.valence;
+    final prevArousal = emotionEngine.arousal;
+
+    // 清理之前的思考状态
+    if (onMonologueChunk != null) {
+      onMonologueChunk(''); // 发送空串表示重置
+    }
+
+    // ======== Step 1: 感知阶段 (Perception) ========
+    // 分析用户意图、情绪、潜台词
+    print('[Pipeline] Step 1: Perception phase');
+    final perception = await _runPerceptionPhase(text, currentMessages);
+    
+    // ======== Step 2: 状态加载阶段 (State Loading) ========
+    // 更新情绪引擎，获取相关记忆
+    print('[Pipeline] Step 2: State Loading phase');
+    final stateData = await _runStateLoadingPhase(text, perception);
+    
+    // ======== Step 3: 决策阶段 (Decision Making) ========
+    // 反思处理，生成响应策略
+    print('[Pipeline] Step 3: Decision Making phase');
+    final reflection = await _runDecisionPhase(
+      perception, 
+      currentMessages,
+      text, // 传递用户实际消息
+      onMonologueChunk: onMonologueChunk,
+    );
+
+    // 【认知闭环】根据反思结果更新情绪状态
+    if (reflection.emotionShift != null) {
+      await emotionEngine.applyEmotionShift(reflection.emotionShift!);
+    }
+    
+    // ======== Step 4: 执行阶段 (Execution) ========
+    // 注入策略到 Prompt，调用 LLM 生成响应
+    print('[Pipeline] Step 4: Execution phase');
+    final result = await _runExecutionPhase(
+      text,
+      currentMessages,
+      perception,
+      reflection,
+      stateData,
+      prevValence: prevValence,
+      prevArousal: prevArousal,
+    );
+    
+    return result;
+  }
+
+  /// 感知阶段 - 分析用户意图和情绪
+  /// 
+  /// 降级逻辑：如果 LLM 调用失败，使用快速规则分析
+  Future<PerceptionResult> _runPerceptionPhase(
     String text,
     List<ChatMessage> currentMessages,
   ) async {
-    // 【多阶段 Agentic 工作流】Step 1: 快速分析用户意图和情绪
-    AnalysisResult? analysis;
-    String dynamicRules = '';
-    if (_analysisService != null) {
-      final recentContext = currentMessages
-          .take(3)
+    // 如果认知引擎未启用，使用快速分析
+    if (!_cognitiveEngineEnabled || _perceptionProcessor == null || profileService == null) {
+      print('[Pipeline] Perception: using quick analyze (cognitive engine not enabled)');
+      return PerceptionResult.fallback();
+    }
+
+    try {
+      final recentMessages = currentMessages
+          .take(5)
           .map((m) => '${m.isUser ? "用户" : "AI"}: ${m.content}')
           .toList();
-      analysis = await _analysisService!.analyze(
-        text,
-        recentContext: recentContext,
+
+      final lastAiMessage = currentMessages.isNotEmpty
+          ? currentMessages.lastWhere((m) => !m.isUser, orElse: () => currentMessages.last).content
+          : null;
+
+      final perception = await _perceptionProcessor!.analyze(
+        userMessage: text,
+        userProfile: profileService!.profile,
+        recentEmotionTrend: profileService!.getEmotionTrend(),
+        currentTime: DateTime.now(),
+        lastAiResponse: lastAiMessage,
+        recentMessages: recentMessages,
       );
-      dynamicRules = _analysisService!.generateDynamicRules(analysis);
-      print('[ConversationEngine] Analysis: $analysis');
+
+      print('[Pipeline] Perception completed: ${perception.underlyingNeed}, intent: ${perception.conversationIntent}');
+      return perception;
+    } catch (e) {
+      // 降级：使用快速规则分析
+      print('[Pipeline] Perception failed, using fallback: $e');
+      return _perceptionProcessor!.quickAnalyze(text, DateTime.now());
+    }
+  }
+
+  /// 状态加载阶段 - 更新情绪引擎，获取记忆
+  Future<Map<String, dynamic>> _runStateLoadingPhase(
+    String text,
+    PerceptionResult perception,
+  ) async {
+    // 更新情绪状态（基于感知结果增强）
+    await emotionEngine.applyInteractionImpact(text, _intimacy);
+
+    // 如果感知到高情绪，额外调整唤醒度
+    if (perception.surfaceEmotion.arousal > 0.7) {
+      final newArousal = emotionEngine.arousal + perception.surfaceEmotion.arousal * 0.3;
+      await emotionEngine.setEmotion(arousal: newArousal.clamp(0.0, 1.0));
     }
 
     // 【FactStore】从用户消息中提取核心事实
     if (_factStore != null) {
       final extracted = await _factStore!.extractAndStore(text);
       if (extracted.isNotEmpty) {
-        print('[ConversationEngine] Extracted facts: $extracted');
+        print('[Pipeline] State Loading: Extracted facts: $extracted');
       }
     }
 
-    // 1. 更新情绪状态
-    await emotionEngine.applyInteractionImpact(text, _intimacy);
-
-    // 2. 构建对话上下文
+    // 构建对话上下文
     final context = ConversationContext(
       intimacy: _intimacy,
       emotionValence: emotionEngine.valence,
@@ -423,58 +530,179 @@ class ConversationEngine {
       isProactiveMessage: false,
     );
 
-    // 3. 获取 LLM 参数
-    final params = generationPolicy.getParams(context);
-
-    // 4. 获取各组件内容
+    // 获取相关记忆
     final memories = memoryManager.getRelevantMemories(
       text,
       generationPolicy,
       context,
     );
 
-    // 【FactStore + UserProfile】获取核心事实与身份锚点用于注入 Prompt
+    return {
+      'context': context,
+      'memories': memories,
+    };
+  }
+
+  /// 决策阶段 - 反思处理，生成响应策略
+  /// 
+  /// 降级逻辑：如果 LLM 调用失败，使用规则基础反思
+  Future<ReflectionResult> _runDecisionPhase(
+    PerceptionResult perception,
+    List<ChatMessage> currentMessages,
+    String userMessage, { // 【新增】传入用户实际消息
+    Function(String)? onMonologueChunk,
+  }) async {
+    // 如果认知引擎未启用，使用规则基础反思
+    if (!_cognitiveEngineEnabled || _reflectionProcessor == null || profileService == null) {
+      print('[Pipeline] Decision: using quick reflect (cognitive engine not enabled)');
+      return ReflectionResult.fromRules(perception, []);
+    }
+
+    try {
+      final lastAiMessage = currentMessages.isNotEmpty
+          ? currentMessages.lastWhere((m) => !m.isUser, orElse: () => currentMessages.last).content
+          : '';
+
+      // 获取最近的反馈信号（格式化为字符串）
+      final recentFeedbackSignals = _feedbackAnalyzer?.formatRecentFeedbackForPrompt() ?? [];
+      
+      // 获取内心独白模型（从设置）
+      final monologueModel = monologueModelGetter?.call() ?? 'qwen-max';
+
+      // 如果提供了回调，则进行流式反思
+      if (onMonologueChunk != null) {
+        final completer = Completer<ReflectionResult>();
+        String currentMonologue = '';
+        
+        _reflectionProcessor!.streamReflect(
+          perception: perception,
+          userProfile: profileService!.profile,
+          lastAiResponse: lastAiMessage,
+          recentFeedbackSignals: recentFeedbackSignals,
+          resultCompleter: completer,
+          userMessage: userMessage,
+          model: monologueModel, // 使用用户设置的模型
+        ).listen(
+          (chunk) {
+            currentMonologue += chunk;
+            onMonologueChunk(currentMonologue);
+          },
+          onError: (e) => print('[Decision] Monologue stream error: $e'),
+        );
+        
+        return await completer.future;
+      }
+
+      // 非流式常规路径 (Fallback)
+      final reflection = await _reflectionProcessor!.reflect(
+        perception: perception,
+        userProfile: profileService!.profile,
+        lastAiResponse: lastAiMessage,
+        recentFeedbackSignals: recentFeedbackSignals,
+        userMessage: userMessage,
+        model: monologueModel, // 使用用户设置的模型
+      );
+
+      print('[Pipeline] Decision completed: strategy=${reflection.responseStrategy}, tone=${reflection.emotionalTone}');
+      return reflection;
+    } catch (e) {
+      // 降级：使用规则基础反思
+      print('[Pipeline] Decision failed, using fallback: $e');
+      return ReflectionResult.fromRules(
+        perception,
+        profileService?.getDislikedPatterns() ?? [],
+      );
+    }
+  }
+
+  /// 执行阶段 - 注入策略到 Prompt，调用 LLM 生成响应
+  Future<ConversationResult> _runExecutionPhase(
+    String text,
+    List<ChatMessage> currentMessages,
+    PerceptionResult perception,
+    ReflectionResult reflection,
+    Map<String, dynamic> stateData, {
+    double prevValence = 0.5,
+    double prevArousal = 0.5,
+  }) async {
+    final context = stateData['context'] as ConversationContext;
+    final memories = stateData['memories'] as String;
+
+    // 获取 LLM 参数
+    final params = generationPolicy.getParams(context);
+
+    // 【FactStore + UserProfile】合并核心事实
     final factData = _factStore?.formatForSystemPrompt() ?? '';
-    final identityAnchor = profileService?.profile.getIdentityAnchor() ?? '';
-    final coreFacts = '$identityAnchor\n\n$factData'.trim();
-
-    final timeContext = TimeAwareness.getTimeContext();
-    final timeGap = _lastInteraction != null
-        ? TimeAwareness.calculateGap(_lastInteraction!)
-        : <String, dynamic>{};
-
-    // 5. 构建当前状态
-    String? absenceAck;
-    if (timeGap['acknowledgeAbsence'] == true) {
-      absenceAck = '距离上次聊天有一段时间了，可以表达想念或问候';
+    final profile = profileService?.profile;
+    
+    String coreFacts;
+    if (factData.contains('用户') && factData.length > 20) {
+       // 如果 FactStore 已经有详细摘录，仅从 Profile 补充 FactStore 没覆盖的内容（如专业）
+       final major = profile?.major;
+       coreFacts = (major != null && major.isNotEmpty && !factData.contains(major)) 
+           ? '专业：$major\n$factData' 
+           : factData;
+    } else {
+       // 兜底方案
+       final identityAnchor = profile?.getIdentityAnchor() ?? '';
+       coreFacts = '$identityAnchor\n\n$factData'.trim();
     }
 
-    String? lateNightReminder;
-    if (timeContext['isLate'] == true) {
-      lateNightReminder = '现在很晚了，可以关心对方是否该休息了';
-    }
+    final temporalNarrative = TimeAwareness.getTemporalNarrative(
+      _lastInteraction, 
+      DateTime.now(),
+    );
 
     final currentState = PromptAssembler.buildCurrentState(
       emotionDescription: emotionEngine.getEmotionDescription(),
       relationshipDescription: personaPolicy.getRelationshipDescription(
         _intimacy,
       ),
-      timeContext: timeContext['greeting'] ?? '白天',
-      absenceAcknowledge: absenceAck,
-      lateNightReminder: lateNightReminder,
+      temporalNarrative: temporalNarrative,
     );
 
-    // 6. 获取表达指引
+    // 获取表达指引（【FIX】传入动态参数并进行取整，避免浮点数干扰）
+    final personaFormality = (personaPolicy.config['formality'] as num?)?.toDouble() ?? 0.5;
+    final personaHumor = (personaPolicy.config['humor'] as num?)?.toDouble() ?? 0.5;
+    
     final expressionGuide = ExpressionSelector.getExpressionInstructions(
       emotionEngine.valence,
       emotionEngine.arousal,
       _intimacy,
+      formality: double.parse(personaFormality.toStringAsFixed(1)),
+      humor: double.parse(personaHumor.toStringAsFixed(1)),
+      userUsedEmoji: perception.hasEmoji,
     );
 
-    // 7. 组装 Prompt（包含核心事实和动态规则）
+    // 【认知增强】将反思策略和内心独白注入到行为规则中
+    String dynamicRules = '';
+    if (_cognitiveEngineEnabled) {
+      dynamicRules = '\n\n【本次回复策略】\n${reflection.toStrategyGuide()}';
+      
+      // 【核心修复】注入内心独白到 L4 Prompt，打通 L3→L4 数据流
+      if (reflection.innerMonologue != null && reflection.innerMonologue!.isNotEmpty) {
+        final cleanMonologue = reflection.innerMonologue!
+            .replaceAll(RegExp(r'<[^>]+>'), '') // 清理残留XML
+            .trim();
+        if (cleanMonologue.length > 20) { // 避免注入无意义内容
+          dynamicRules += '\n\n【你的内心思考】\n$cleanMonologue';
+        }
+      }
+      
+      // 如果感知到用户情绪，添加感知上下文
+      if (perception.confidence > 0.6) {
+        dynamicRules += '\n\n【用户状态感知】\n${perception.toContextDescription()}';
+      }
+    }
+
+    // 组装 Prompt（包含核心事实和动态规则）
     final behaviorRules = personaPolicy.getBehaviorConstraints() + dynamicRules;
+    
+    // 【P0-1 修复】从 FactStore 获取用户名，传递给灵魂锚点
+    final userName = _factStore?.getFact('user_name') ?? profile?.nickname ?? '用户';
+    
     final assembleResult = PromptAssembler.assemble(
-      personaHeader: personaPolicy.formatForSystemPrompt(),
+      personaHeader: personaPolicy.formatForSystemPrompt(userName: userName),
       currentTime: _formatCurrentTime(),
       currentState: currentState,
       memories: memories,
@@ -484,14 +712,13 @@ class ConversationEngine {
       coreFacts: coreFacts,
     );
 
-    // 8. 构建 API 消息列表
+    // 构建 API 消息列表 (【时间注入】启用时间前缀)
     final historyCount = generationPolicy.getHistoryCount(context);
-    // 【修复】用户消息已在 app_engine.dart:287 添加到 currentMessages
-    // 必须排除最后一条（当前用户消息），避免在 history 和 user message 中重复出现
     final historyMessages = PromptAssembler.assembleHistoryMessages(
       currentMessages,
       maxCount: historyCount,
-      excludeLastN: 1, // 排除最后一条（当前用户消息），因为它会单独添加在 apiMessages 末尾
+      excludeLastN: 1,
+      injectTimestamps: true, // 启用时间注入
     );
 
     final apiMessages = <Map<String, String>>[
@@ -500,7 +727,7 @@ class ConversationEngine {
       {'role': 'user', 'content': text},
     ];
 
-    // 9. 创建快照 (用于调试)
+    // 创建快照 (用于调试)
     lastSnapshot = PromptSnapshot(
       fullPrompt: assembleResult.systemPrompt,
       userMessage: text,
@@ -512,18 +739,49 @@ class ConversationEngine {
         text,
       ),
       components: assembleResult.components,
-      generationParams: params, // 记录生成参数用于调试
+      generationParams: params,
     );
 
     print(lastSnapshot!.toLogString());
 
-    // 10. 调用 LLM
+    // 调用 LLM
     final response = await llmService.generateWithTokens(
       apiMessages,
       params: params,
     );
 
-    // 11. 处理响应
+    // 构建认知状态 (用于 UI 可视化)
+    final cognitiveState = CognitiveState(
+      perception: {
+        'surface_emotion': perception.surfaceEmotion.label,
+        'valence': perception.surfaceEmotion.valence,
+        'arousal': perception.surfaceEmotion.arousal,
+        'underlying_need': perception.underlyingNeed,
+        'conversation_intent': perception.conversationIntent,
+        'subtext': perception.subtextInference,
+        'confidence': perception.confidence,
+        'temporal_context': temporalNarrative, // 【新增】
+      },
+      decision: {
+        'response_strategy': reflection.responseStrategy,
+        'inner_monologue': reflection.innerMonologue, // 【新增】
+        'emotional_tone': reflection.emotionalTone,
+        'recommended_length': reflection.recommendedLength,
+        'use_emoji': reflection.useEmoji,
+        'should_ask_question': reflection.shouldAskQuestion,
+        'content_hints': reflection.contentHints,
+      },
+      emotion: {
+        'valence': emotionEngine.valence,
+        'arousal': emotionEngine.arousal,
+        'valence_delta': emotionEngine.valence - prevValence, // 【新增】
+        'arousal_delta': emotionEngine.arousal - prevArousal, // 【新增】
+        'description': emotionEngine.getEmotionDescription(),
+      },
+      memorySummary: memories.length > 100 ? '${memories.substring(0, 100)}...' : memories,
+    );
+
+    // 处理响应
     if (response.success && response.content != null) {
       var responseText = response.content!;
 
@@ -534,6 +792,21 @@ class ConversationEngine {
           '[ConversationEngine] Prohibited patterns detected: $patternCheck',
         );
         responseText = ProhibitedPatterns.sanitize(responseText);
+      }
+
+      // 【Fix】全方位清理 LLM 误输出的时间戳前缀 (如 [12-27 20:19])
+      // 增强正则：支持多行匹配和各种空白符
+      final timestampRegex = RegExp(r'\[\d{2}-\d{2} \d{2}:\d{2}\]\s*', multiLine: true);
+      if (timestampRegex.hasMatch(responseText)) {
+         print('[ConversationEngine] Removed hallucinated timestamps');
+         responseText = responseText.replaceAll(timestampRegex, '').trim();
+      }
+
+      // 【Fix】清理可能泄漏到最终回复的 XML 标签（内心独白等）
+      final xmlTagRegex = RegExp(r'</?(?:thought|strategy)>', caseSensitive: false);
+      if (xmlTagRegex.hasMatch(responseText)) {
+        print('[ConversationEngine] Removed leaked XML tags');
+        responseText = responseText.replaceAll(xmlTagRegex, '').trim();
       }
 
       // 格式化响应（包含延迟信息）
@@ -551,8 +824,8 @@ class ConversationEngine {
               content: msg['content'] as String,
               isUser: false,
               time: DateTime.now(),
-              fullPrompt: assembleResult.systemPrompt, // 记录完整 Prompt
-              tokensUsed: response.tokensUsed,         // 记录消耗 Token
+              fullPrompt: assembleResult.systemPrompt,
+              tokensUsed: response.tokensUsed,
             ),
             delay: Duration(
               milliseconds: ((msg['delay'] as double) * 1000).round(),
@@ -562,10 +835,6 @@ class ConversationEngine {
       }
 
       // 【关键修复】动态计算记忆重要性 - 集成情感系统与记忆系统
-      //
-      // Step 1: 检测高情感价值时刻
-      // - 条件A: AI情绪唤醒度或效价绝对值超过阈值
-      // - 条件B: 用户输入包含偏好关键词（如"喜欢"、"讨厌"）
       final isHighArousal =
           emotionEngine.arousal > SettingsLoader.highEmotionalIntensity;
       final isHighValence =
@@ -577,19 +846,13 @@ class ConversationEngine {
       final isHighEmotionalValue =
           isHighArousal || isHighValence || containsPreferenceKeyword;
 
-      // Step 2: 计算重要性分数
-      // - 使用 memoryEmotionalThreshold 参数（此处应用未使用的配置参数）
-      // - 高情感时刻: emotionalThreshold + 0.1 ≈ 0.7 (确保超过存储阈值0.6)
-      // - 普通消息: baseScore + 0.35 ≈ 0.65 (仍能被存储)
       double memoryScore;
       if (isHighEmotionalValue) {
-        // Using memoryEmotionalThreshold parameter here
         memoryScore = SettingsLoader.memoryEmotionalThreshold + 0.1;
       } else {
         memoryScore = SettingsLoader.memoryBaseScore + 0.35;
       }
 
-      // 使用 max 确保分数至少达到存储阈值以上
       final finalScore = max(memoryScore, 0.65);
 
       await memoryManager.addMemory(
@@ -597,7 +860,7 @@ class ConversationEngine {
         importance: finalScore.clamp(0.0, 1.0),
       );
 
-      // 【认知增强】记录对话到异步反思引擎（用于后台学习用户信息）
+      // 【认知增强】记录对话到异步反思引擎
       if (_cognitiveEngineEnabled && _asyncReflectionEngine != null) {
         final fullResponse = formattedMessages
             .map((m) => m['content'])
@@ -631,6 +894,7 @@ class ConversationEngine {
         delayedMessages: aiMessages,
         tokensUsed: response.tokensUsed,
         snapshot: lastSnapshot,
+        cognitiveState: cognitiveState.toMap(),
       );
     } else {
       // 错误响应
@@ -649,6 +913,7 @@ class ConversationEngine {
         tokensUsed: response.tokensUsed,
         error: response.error,
         snapshot: lastSnapshot,
+        cognitiveState: cognitiveState.toMap(),
       );
     }
   }
@@ -665,6 +930,7 @@ class ConversationEngine {
       'lastInteraction': _lastInteraction?.toIso8601String(),
       'lastProactiveMessage': _lastProactiveMessage?.toIso8601String(),
       'lastSnapshot': lastSnapshot?.toMap(),
+      'cognitiveEngineEnabled': _cognitiveEngineEnabled,
     };
   }
 
@@ -699,6 +965,9 @@ class ConversationResult {
   final int tokensUsed;
   final String? error;
   final PromptSnapshot? snapshot;
+  
+  /// 【新增】认知状态 - 供 UI 可视化 AI 的"心智"
+  final Map<String, dynamic>? cognitiveState;
 
   const ConversationResult({
     required this.success,
@@ -706,6 +975,7 @@ class ConversationResult {
     required this.tokensUsed,
     this.error,
     this.snapshot,
+    this.cognitiveState,
   });
 
   /// 获取所有消息（不含延迟信息，用于向后兼容）

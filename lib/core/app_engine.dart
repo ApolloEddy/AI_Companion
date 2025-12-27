@@ -1,7 +1,7 @@
 // AppEngine - UI 适配层
 //
 // 设计原理：
-// - 【重构后】仅保留 Provider 适配和 UI 状态管理
+// - 重构后：仅保留 Provider 适配和 UI 状态管理
 // - 业务逻辑委托给 ConversationEngine
 // - 保持 UI 层 (main_screen.dart) 无需修改
 
@@ -13,15 +13,16 @@ import 'config.dart';
 import 'settings_loader.dart';
 import 'service/llm_service.dart';
 import 'service/chat_history_service.dart';
+import 'service/database_helper.dart';
 import 'model/user_profile.dart';
 
 // 新架构导入
 import 'policy/generation_policy.dart';
 import 'policy/persona_policy.dart';
 import 'engine/emotion_engine.dart';
-import 'engine/memory_manager.dart';
+import 'memory/memory_manager.dart'; // Moved to memory
 import 'engine/conversation_engine.dart';
-import 'engine/fact_store.dart';
+import 'memory/fact_store.dart'; // Moved to memory
 
 // 保留向后兼容
 import 'service/persona_service.dart';
@@ -73,15 +74,74 @@ class AppEngine extends ChangeNotifier {
     'humor': 0.5,
   };
 
+  // 最近的认知状态与流式独白（供 UI 层消费）
+  Map<String, dynamic> _currentThoughtProcess = {};
+  String _streamingMonologue = '';
+  
+  /// 获取实时步进的内心独白
+  String get streamingMonologue => _streamingMonologue;
+
+  /// 获取当前思考过程（UI 层可用）
+  Map<String, dynamic> get currentThoughtProcess =>
+      Map.unmodifiable(_currentThoughtProcess);
+
   /// 获取情绪状态（用于 UI 显示）
   Map<String, dynamic> get emotion => _emotionEngine.emotionMap;
 
   /// 获取亲密度
   double get intimacy => persona.intimacy;
 
+  /// 获取记忆库条目数量（从持久化存储读取）
+  int get memoryCount => _memoryManager.count;
+
+  /// 获取已加载的对话消息数量
+  int get chatCount => messages.length;
+
+  /// 获取数据库中的总对话消息数量（异步获取后缓存）
+  int _totalChatCount = 0;
+  int get totalChatCount => _totalChatCount;
+  
+  /// 异步刷新总消息数
+  Future<void> refreshTotalChatCount() async {
+    _totalChatCount = await chatHistory.getTotalCount();
+    notifyListeners();
+  }
+
   /// 待发送消息队列（主动消息）
   final List<ChatMessage> _pendingMessages = [];
   List<ChatMessage> get pendingMessages => List.unmodifiable(_pendingMessages);
+  
+  // ======== 内心独白模型设置 ========
+  String get monologueModel => 
+      prefs.getString(AppConfig.monologueModelKey) ?? AppConfig.defaultMonologueModel;
+  
+  Future<void> updateMonologueModel(String model) async {
+    await prefs.setString(AppConfig.monologueModelKey, model);
+    notifyListeners();
+    print('[AppEngine] Monologue model updated to: $model');
+  }
+  
+  // ======== 头像设置 ========
+  String? get userAvatarPath => prefs.getString(AppConfig.userAvatarKey);
+  String? get aiAvatarPath => prefs.getString(AppConfig.aiAvatarKey);
+  
+  Future<void> updateUserAvatar(String? path) async {
+    if (path != null && path.isNotEmpty) {
+      await prefs.setString(AppConfig.userAvatarKey, path);
+    } else {
+      await prefs.remove(AppConfig.userAvatarKey);
+    }
+    notifyListeners();
+  }
+  
+  Future<void> updateAiAvatar(String? path) async {
+    if (path != null && path.isNotEmpty) {
+      await prefs.setString(AppConfig.aiAvatarKey, path);
+    } else {
+      await prefs.remove(AppConfig.aiAvatarKey);
+    }
+    notifyListeners();
+  }
 
   Future<void> init() async {
     await SettingsLoader.loadAll();
@@ -97,9 +157,12 @@ class AppEngine extends ChangeNotifier {
         prefs.getString(AppConfig.modelKey) ?? AppConfig.defaultModel;
     llm = LLMService(key, model: savedModel);
 
-    // 初始化向后兼容服务
+    // 初始化数据库
+    final dbHelper = DatabaseHelper();
+
+    // 初始化服务
     persona = PersonaService(prefs);
-    chatHistory = ChatHistoryService(prefs);
+    chatHistory = ChatHistoryService(dbHelper);
 
     // 初始化新架构组件
     _emotionEngine = EmotionEngine(prefs);
@@ -110,8 +173,9 @@ class AppEngine extends ChangeNotifier {
     // 初始化用户画像服务（认知引擎核心）
     _profileService = ProfileService(prefs);
 
-    // 初始化核心事实存储并注入 LLM 服务（启用混合提取）
-    final factStore = FactStore(prefs);
+    // 初始化核心事实存储 (SQLite) 并注入 LLM 服务（启用混合提取）
+    final factStore = FactStore(dbHelper);
+    await factStore.init();
     factStore.setLLMService(llm);
 
     _conversationEngine = ConversationEngine(
@@ -125,9 +189,10 @@ class AppEngine extends ChangeNotifier {
 
     // 注入 FactStore
     _conversationEngine.setFactStore(factStore);
+    
+    // 注入内心独白模型获取回调
+    _conversationEngine.monologueModelGetter = () => monologueModel;
 
-    // 设置主动消息回调
-    _conversationEngine.onProactiveMessage = _handleProactiveMessage;
     // 设置待发送消息回调 - 主动消息会先进入队列
     _conversationEngine.onPendingMessage = addPendingMessage;
 
@@ -177,7 +242,7 @@ class AppEngine extends ChangeNotifier {
       notifyListeners();
     };
 
-    // 【修复】设置虚拟时间戳消息回调（错过的问候）
+    // 修复：设置虚拟时间戳消息回调（错过的问候）
     _startupGreetingService!.onMissedGreetingMessage = (message) {
       // 按时间戳插入到正确位置，而不是追加到末尾
       final insertIndex = messages.indexWhere(
@@ -218,6 +283,9 @@ class AppEngine extends ChangeNotifier {
     messages = recentMessages;
     _oldestLoadedIndex = totalCount - recentMessages.length;
     hasMoreHistory = _oldestLoadedIndex > 0;
+    
+    // 缓存总消息数用于侧栏显示
+    _totalChatCount = totalCount;
   }
 
   Future<void> loadMoreHistory() async {
@@ -276,7 +344,7 @@ class AppEngine extends ChangeNotifier {
         prefs.getString(AppConfig.modelKey) ?? AppConfig.defaultModel;
     llm = LLMService(newKey, model: currentModelId);
 
-    // 【CRITICAL FIX】停止旧引擎，避免 Timer 泄漏
+    // 关键修复：停止旧引擎，避免 Timer 泄漏
     _conversationEngine.stop();
 
     // 更新 ConversationEngine 中的 LLMService（保留所有依赖）
@@ -286,15 +354,20 @@ class AppEngine extends ChangeNotifier {
       personaPolicy: _personaPolicy,
       emotionEngine: _emotionEngine,
       generationPolicy: _generationPolicy,
-      profileService: _profileService, // 【FIX】保留认知引擎
+      profileService: _profileService, // 保留认知引擎
     );
     
     // 【CRITICAL FIX】重新注入 FactStore（否则核心事实丢失）
-    final factStore = FactStore(prefs);
+    // 【CRITICAL FIX】重新注入 FactStore（否则核心事实丢失）
+    final dbHelper = DatabaseHelper();
+    final factStore = FactStore(dbHelper);
+    await factStore.init();
     factStore.setLLMService(llm);
     _conversationEngine.setFactStore(factStore);
     
-    _conversationEngine.onProactiveMessage = _handleProactiveMessage;
+    // 注入内心独白模型获取回调
+    _conversationEngine.monologueModelGetter = () => monologueModel;
+    
     _conversationEngine.onPendingMessage = addPendingMessage;
     await _conversationEngine.start();
 
@@ -371,11 +444,18 @@ class AppEngine extends ChangeNotifier {
         lastInteraction: persona.lastInteraction,
       );
 
-      // 委托给 ConversationEngine 处理
+      // 委托给 ConversationEngine 处理 (增加流式独白回调)
       final result = await _conversationEngine.processUserMessage(
         text,
         messages,
+        onMonologueChunk: (chunk) {
+          _streamingMonologue = chunk;
+          notifyListeners(); 
+        },
       );
+
+      // 捕获并缓存认知状态
+      _currentThoughtProcess = result.cognitiveState ?? {};
 
       // 更新 token 统计
       if (result.tokensUsed > 0) {

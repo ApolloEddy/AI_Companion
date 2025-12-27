@@ -7,6 +7,17 @@ language_style:
   formality: 0.3
   # 幽默程度 (0=严肃, 1=幽默)
   humor: 0.5
+  
+  # 【P2-1 新增】阈值配置
+  thresholds:
+    # 口语化阈值（低于此值完全口语化）
+    casual_below: 0.3
+    # 正式阈值（高于此值稍微客气）
+    formal_above: 0.6
+    # 严肃阈值（低于此值正经诚恳）
+    serious_below: 0.3
+    # 幽默阈值（高于此值多开玩笑）
+    humorous_above: 0.6
 
 # 回复长度控制
 response_length:

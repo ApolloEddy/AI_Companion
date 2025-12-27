@@ -74,6 +74,19 @@ class SettingsLoader {
   static double get intimacyHighThreshold => 
       _getDouble(_personaSettings, ['intimacy_effects', 'high_threshold'], 0.7);
   
+  // 【P2-1 新增】表达阈值配置
+  static double get formalityCasualBelow => 
+      _getDouble(_personaSettings, ['language_style', 'thresholds', 'casual_below'], 0.3);
+  
+  static double get formalityFormalAbove => 
+      _getDouble(_personaSettings, ['language_style', 'thresholds', 'formal_above'], 0.6);
+  
+  static double get humorSeriousBelow => 
+      _getDouble(_personaSettings, ['language_style', 'thresholds', 'serious_below'], 0.3);
+  
+  static double get humorHumorousAbove => 
+      _getDouble(_personaSettings, ['language_style', 'thresholds', 'humorous_above'], 0.6);
+  
   static Map<String, dynamic> getExpressionMode(String mode) {
     final modes = _personaSettings?['expression']?['modes'];
     if (modes == null || modes is! Map) return _defaultExpressionMode;

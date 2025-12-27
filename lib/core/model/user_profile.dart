@@ -69,13 +69,23 @@ class UserProfile {
     final lines = <String>[];
     lines.add('用户身份：$nickname');
     lines.add('职业：$occupation');
-    if (major != null) lines.add('专业：$major');
+    if (major != null && major!.isNotEmpty) lines.add('专业：$major');
     
-    final importantContexts = lifeContexts
-        .where((c) => c.importance > 0.7)
-        .map((c) => c.content);
-    if (importantContexts.isNotEmpty) {
-      lines.add('核心背景：${importantContexts.join('；')}');
+    // 【去重 + 优化】仅取最重要且不重复的前 3 条背景，防止 Prompt 爆炸
+    final uniqueContexts = <String>{};
+    final sortedContexts = lifeContexts.toList()
+      ..sort((a, b) => b.importance.compareTo(a.importance)); // 按重要性降序
+
+    for (final context in sortedContexts) {
+      final cleanContent = context.content.trim();
+      if (cleanContent.isNotEmpty && !uniqueContexts.contains(cleanContent)) {
+        uniqueContexts.add(cleanContent);
+      }
+      if (uniqueContexts.length >= 3) break; // 最多保留 3 条核心背景
+    }
+
+    if (uniqueContexts.isNotEmpty) {
+      lines.add('核心背景：${uniqueContexts.join('；')}');
     }
     
     return lines.join('\n');
@@ -106,8 +116,17 @@ class UserProfile {
     );
   }
 
-  /// 添加生活背景
+  /// 添加生活背景 (内含去重逻辑)
   UserProfile addLifeContext(LifeContext context) {
+    final newContent = context.content.trim().toLowerCase();
+    
+    // 如果已经存在相似内容，不再重复添加
+    final exists = lifeContexts.any((c) => 
+      c.content.trim().toLowerCase() == newContent
+    );
+    
+    if (exists) return this;
+
     return copyWith(
       lifeContexts: [...lifeContexts, context],
     );

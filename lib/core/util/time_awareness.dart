@@ -123,4 +123,98 @@ class TimeAwareness {
     
     return buffer.toString();
   }
+
+  /// 【新增】生成时间叙述（分析间隔+上下文，而非简单时间戳）
+  /// 
+  /// 示例输出："清晨时分的工作日。我们已经3天没说话了。久别重逢的情境。"
+  /// 
+  /// [lastInteraction] 上次交互时间，null 表示首次联系
+  /// [now] 当前时间
+  static String getTemporalNarrative(DateTime? lastInteraction, DateTime now) {
+    // 1. 获取当前时间上下文和间隔
+    final context = getTimeContext();
+    final gap = calculateGap(lastInteraction);
+    
+    // 2. 构建时间描述
+    final timeOfDay = _describeTimeOfDay(now);
+    final dayType = _describeDayType(now);
+    
+    // 3. 构建间隔描述
+    final gapNarrative = _describeGap(gap);
+    
+    // 4. 推断情境含义
+    final contextMeaning = _inferContextMeaning(context, gap);
+    
+    // 5. 组合成完整叙述
+    final parts = <String>[];
+    parts.add('$timeOfDay$dayType');
+    if (gapNarrative.isNotEmpty) parts.add(gapNarrative);
+    if (contextMeaning.isNotEmpty) parts.add(contextMeaning);
+    
+    return parts.join('。') + '。';
+  }
+
+  /// 描述一天中的时段
+  static String _describeTimeOfDay(DateTime now) {
+    final hour = now.hour;
+    if (hour >= 5 && hour < 9) return '清晨时分';
+    if (hour >= 9 && hour < 12) return '上午';
+    if (hour >= 12 && hour < 14) return '午间';
+    if (hour >= 14 && hour < 18) return '下午';
+    if (hour >= 18 && hour < 22) return '傍晚';
+    if (hour >= 22 || hour < 1) return '深夜';
+    return '凌晨';
+  }
+
+  /// 描述星期类型
+  static String _describeDayType(DateTime now) {
+    if (now.weekday >= 6) return '的周末';
+    return '的工作日';
+  }
+
+  /// 描述时间间隔
+  static String _describeGap(Map<String, dynamic> gap) {
+    final label = gap['label'] ?? '';
+    
+    if (label == 'first_contact') return '这是我们的初次相遇';
+    if (label == 'immediate' || label == 'recent') return '';
+    
+    final minutes = gap['minutes'] as int? ?? 0;
+    if (minutes < 60) return '';
+    if (minutes < 180) return '距离上次聊天过去了一会儿';
+    if (minutes < 1440) return '距离上次聊天过去了几个小时';
+    
+    final days = (minutes / 1440).round();
+    if (days == 1) return '昨天我们聊过';
+    if (days <= 3) return '我们已经${days}天没说话了';
+    if (days <= 7) return '快一周没见面了';
+    if (days <= 30) return '我们有一段时间没联系了';
+    return '我们很久没见面了';
+  }
+
+  /// 推断情境含义
+  static String _inferContextMeaning(
+      Map<String, dynamic> context, Map<String, dynamic> gap) {
+    final isLate = context['isLate'] == true;
+    final isWeekend = context['isWeekend'] == true;
+    final gapLabel = gap['label'] ?? '';
+    
+    final meanings = <String>[];
+    
+    // 时间段情境
+    if (isLate && isWeekend) {
+      meanings.add('周末深夜，可能想找人陪聊');
+    } else if (isLate) {
+      meanings.add('深夜时分，可能无法入睡');
+    }
+    
+    // 间隔情境
+    if (gapLabel == 'day_gap' || gapLabel == 'week_gap' || gapLabel == 'long_gap') {
+      meanings.add('久别重逢的情境');
+    } else if (gapLabel == 'long_absence') {
+      meanings.add('阔别已久终于再见');
+    }
+    
+    return meanings.isEmpty ? '' : meanings.join('，');
+  }
 }

@@ -1,117 +1,86 @@
-import 'dart:convert';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 import '../model/chat_message.dart';
-import '../config.dart';
+import '../service/database_helper.dart';
 
 /// 聊天历史服务 - 管理消息持久化和分页加载
 class ChatHistoryService {
-  final SharedPreferences prefs;
+  final DatabaseHelper _dbHelper;
   
   // 每页消息数量
   static const int pageSize = 50;
   
-  // 内存中的完整历史（懒加载）
-  List<ChatMessage>? _allMessages;
-  
-  ChatHistoryService(this.prefs);
+  ChatHistoryService(this._dbHelper);
   
   /// 加载最近的 N 条消息（用于初始显示）
   Future<List<ChatMessage>> loadRecentMessages({int count = 50}) async {
-    final all = await _loadAllMessages();
-    if (all.length <= count) {
-      return List.from(all);
-    }
-    return all.sublist(all.length - count);
+    final db = await _dbHelper.database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'messages',
+      orderBy: 'time ASC', // 确保时间顺序
+      limit: count,
+      offset: (await getTotalCount()) > count ? (await getTotalCount()) - count : 0,
+    );
+    
+    // 或者简单的：
+    final List<Map<String, dynamic>> tail = await db.rawQuery(
+      'SELECT * FROM (SELECT * FROM messages ORDER BY time DESC LIMIT ?) ORDER BY time ASC',
+      [count],
+    );
+
+    return tail.map((e) => ChatMessage.fromJson(e)).toList();
   }
   
   /// 加载更早的消息（向前分页）
-  /// [beforeIndex] - 当前最早消息的索引
-  /// 返回更早的消息列表
   Future<List<ChatMessage>> loadOlderMessages(int currentOldestIndex, {int count = 30}) async {
-    final all = await _loadAllMessages();
+    // 这里的 currentOldestIndex 在 SQL 下需要基于时间或 ID 偏移
+    // 简化实现：基于时间排序获取之前的记录
+    final db = await _dbHelper.database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'messages',
+      orderBy: 'time DESC',
+      limit: count,
+      offset: (await getTotalCount()) - currentOldestIndex, // 简单偏移
+    );
     
-    if (currentOldestIndex <= 0) {
-      return []; // 没有更早的消息了
-    }
-    
-    final startIndex = (currentOldestIndex - count).clamp(0, currentOldestIndex);
-    return all.sublist(startIndex, currentOldestIndex);
+    return maps.map((e) => ChatMessage.fromJson(e)).toList().reversed.toList();
   }
   
   /// 检查是否有更早的消息
-  Future<bool> hasOlderMessages(int currentOldestIndex) async {
-    return currentOldestIndex > 0;
+  Future<bool> hasOlderMessages(int currentLoadedCount) async {
+    final total = await getTotalCount();
+    return currentLoadedCount < total;
   }
   
   /// 获取总消息数
   Future<int> getTotalCount() async {
-    final all = await _loadAllMessages();
-    return all.length;
+    final db = await _dbHelper.database;
+    final List<Map<String, dynamic>> x = await db.rawQuery('SELECT COUNT(*) as count FROM messages');
+    return Sqflite.firstIntValue(x) ?? 0;
   }
   
   /// 添加新消息
   Future<void> addMessage(ChatMessage message) async {
-    final all = await _loadAllMessages();
-    all.add(message);
-    await _saveAllMessages(all);
+    await _dbHelper.insert('messages', message.toJson());
   }
   
   /// 批量添加消息
   Future<void> addMessages(List<ChatMessage> messages) async {
-    final all = await _loadAllMessages();
-    all.addAll(messages);
-    await _saveAllMessages(all);
+    final db = await _dbHelper.database;
+    await db.transaction((txn) async {
+      for (final msg in messages) {
+        await txn.insert('messages', msg.toJson(), conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+    });
   }
   
   /// 清空所有历史
   Future<void> clearAll() async {
-    _allMessages = [];
-    await prefs.remove(AppConfig.chatHistoryKey);
+    await _dbHelper.clearTable('messages');
   }
   
-  /// 获取指定消息在总历史中的索引
-  int getGlobalIndex(ChatMessage message) {
-    if (_allMessages == null) return -1;
-    return _allMessages!.indexWhere((m) => m.id == message.id);
-  }
-  
-  // ========== Private Methods ==========
-  
-  Future<List<ChatMessage>> _loadAllMessages() async {
-    if (_allMessages != null) {
-      return _allMessages!;
-    }
-    
-    final jsonStr = prefs.getString(AppConfig.chatHistoryKey);
-    if (jsonStr == null || jsonStr.isEmpty) {
-      _allMessages = [];
-      return _allMessages!;
-    }
-    
-    try {
-      final List<dynamic> jsonList = jsonDecode(jsonStr);
-      _allMessages = jsonList
-          .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } catch (e) {
-      print('Failed to load chat history: $e');
-      _allMessages = [];
-    }
-    
-    return _allMessages!;
-  }
-  
-  Future<void> _saveAllMessages(List<ChatMessage> messages) async {
-    _allMessages = messages;
-    
-    // 限制最大存储数量（防止无限增长）
-    const maxStoredMessages = 1000;
-    if (messages.length > maxStoredMessages) {
-      messages = messages.sublist(messages.length - maxStoredMessages);
-      _allMessages = messages;
-    }
-    
-    final jsonList = messages.map((m) => m.toJson()).toList();
-    await prefs.setString(AppConfig.chatHistoryKey, jsonEncode(jsonList));
+  /// 获取指定消息在总历史中的索引 (SQL 下建议基于 ID 查找)
+  Future<int> getGlobalIndex(String messageId) async {
+    // 这是一个代价较高的操作，通常不建议在 SQL 下频繁按索引定位
+    return -1; 
   }
 }

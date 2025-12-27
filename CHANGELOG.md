@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.3.0] - 2025-12-27
+### Added
+- **温暖舒适主题 (Cozy Edition)**: 夜间模式从冷青色赛博朋克风格转为温暖琥珀色舒适风格。
+- **用户画像防抖保存**: 设置页用户画像编辑器新增 2 秒防抖自动保存和显式保存按钮。
+- **日间模式对比度增强**: 主文字使用 `#1A1A1A` 接近纯黑，符合无障碍标准。
+
+### Changed
+- **雷达图/折线图配色**: 从冷青色 (`#00BCD4`) 改为温暖琥珀色 (`#FFB74D`)。
+- **版本标识更新**: 设置页版本信息改为 "Cozy Edition"。
+
+### Fixed
+- **[Critical] SparklinePainter 崩溃**: 恢复空数据检查，防止 `data.last` 引发 RangeError。
+- **[Critical] API Key 更新依赖丢失**: 修复 `updateApiKey()` 重建引擎时未注入 FactStore 和 profileService 的问题。
+- **[Critical] Timer 内存泄漏**: 更新 API Key 前调用 `stop()` 停止旧引擎定时器。
+- **MemoryManager 迁移错误处理**: 为异步数据迁移添加 `catchError` 错误处理。
+
 ## [2.2.0] - 2025-12-27
 ### Added
 - **UIAdapter 适配层**: 新增自适应布局适配器，自动协调手机/桌面端的字号、气泡比例与边距。

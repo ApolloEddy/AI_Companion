@@ -96,13 +96,16 @@ class MemoryManager {
           )
           .toList();
 
-      // 异步保存为新格式（不阻塞加载）
+      // 异步保存为新格式（不阻塞加载）+ 错误处理
       _save().then((_) {
         print('[MemoryManager] Migration complete, saved as v2 format');
         // 清除旧数据以保持存储整洁
         prefs.remove(AppConfig.memoryKey);
+      }).catchError((e) {
+        print('[MemoryManager] Migration save failed: $e');
       });
       return;
+
     }
 
     // 无数据

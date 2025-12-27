@@ -56,7 +56,7 @@ class ModernSideBar extends StatelessWidget {
                     padding: const EdgeInsets.all(20),
                     children: [
                       // 【Research-Grade】人格雷达图
-                      _buildSectionTitle('人格特征雷达 (PERSONA)'),
+                      _buildSectionTitle('人格特征雷达 (PERSONA)', isDark: isDark),
                       _buildPersonalityRadar(
                         formality: formality,
                         humor: humor,
@@ -69,27 +69,28 @@ class ModernSideBar extends StatelessWidget {
                       const SizedBox(height: 24),
                       
                       // 【Research-Grade】情绪趋势
-                      _buildSectionTitle('情绪趋势 (EMOTION)'),
+                      _buildSectionTitle('情绪趋势 (EMOTION)', isDark: isDark),
                       _buildEmotionTrendSparkline(arousal, valence, isDark),
                       
                       const SizedBox(height: 24),
                       
                       // 亲密度进度条
-                      _buildSectionTitle('亲密度 (INTIMACY)'),
+                      _buildSectionTitle('亲密度 (INTIMACY)', isDark: isDark),
                       _buildIntimacyBar(intimacy, isDark),
                       
                       const SizedBox(height: 24),
                       
                       // 人格调节滑块
-                      _buildSectionTitle('人格实验室 (LAB)'),
+                      _buildSectionTitle('人格实验室 (LAB)', isDark: isDark),
                       _buildPersonalitySliders(engine, isDark),
                       
                       const SizedBox(height: 24),
                       
                       // 核心状态网格
-                      _buildSectionTitle('核心状态 (CORTEX)'),
+                      _buildSectionTitle('核心状态 (CORTEX)', isDark: isDark),
                       _buildStatusGrid(engine, isDark),
                     ],
+
                   ),
                 ),
               ],
@@ -184,20 +185,25 @@ class ModernSideBar extends StatelessWidget {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
+  Widget _buildSectionTitle(String title, {bool isDark = true}) {
+    // 浅色模式用深绿，深色模式用琥珀
+    final color = isDark 
+        ? const Color(0xFFFFB74D).withValues(alpha: 0.9) 
+        : const Color(0xFF1B5E20); // 深森林绿
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Text(
         title,
         style: TextStyle(
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          color: Colors.cyan.withValues(alpha: 0.7),
-          letterSpacing: 1.5,
+          fontSize: 12, // 增大字号
+          fontWeight: FontWeight.w800,
+          color: color,
+          letterSpacing: 1.2,
         ),
       ),
     );
   }
+
 
   /// 【Research-Grade】人格雷达图 - 五边形可视化
   Widget _buildPersonalityRadar({
@@ -211,10 +217,10 @@ class ModernSideBar extends StatelessWidget {
     return Container(
       height: 180,
       decoration: BoxDecoration(
-        color: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05),
+        color: isDark ? const Color(0xFF252229) : Colors.grey.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDark ? Colors.cyan.withValues(alpha: 0.2) : Colors.cyan.withValues(alpha: 0.1),
+          color: isDark ? const Color(0xFFFFB74D).withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.2),
         ),
       ),
       child: CustomPaint(
@@ -246,10 +252,10 @@ class ModernSideBar extends StatelessWidget {
     return Container(
       height: 80,
       decoration: BoxDecoration(
-        color: isDark ? Colors.black.withValues(alpha: 0.3) : Colors.black.withValues(alpha: 0.05),
+        color: isDark ? const Color(0xFF252229) : Colors.grey.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDark ? Colors.cyan.withValues(alpha: 0.2) : Colors.cyan.withValues(alpha: 0.1),
+          color: isDark ? const Color(0xFFFFB74D).withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.2),
         ),
       ),
       child: RepaintBoundary(
@@ -470,9 +476,10 @@ class RadarChartPainter extends CustomPainter {
     final sides = values.length;
     final angle = 2 * pi / sides;
 
-    // 绘制网格
+    // 绘制网格 - 温暖色系
+    final warmAccent = isDark ? const Color(0xFFFFB74D) : const Color(0xFF8D6E63);
     final gridPaint = Paint()
-      ..color = (isDark ? Colors.cyan : Colors.blueGrey).withValues(alpha: 0.2)
+      ..color = warmAccent.withValues(alpha: 0.25)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
 
@@ -499,13 +506,13 @@ class RadarChartPainter extends CustomPainter {
       canvas.drawLine(center, Offset(x, y), gridPaint);
     }
 
-    // 绘制数据区域
+    // 绘制数据区域 - 温暖琥珀色
     final dataPath = Path();
     final dataPaint = Paint()
-      ..color = Colors.cyan.withValues(alpha: 0.3)
+      ..color = const Color(0xFFFFB74D).withValues(alpha: 0.35)
       ..style = PaintingStyle.fill;
     final dataStrokePaint = Paint()
-      ..color = Colors.cyan
+      ..color = const Color(0xFFFFB74D)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
@@ -524,9 +531,9 @@ class RadarChartPainter extends CustomPainter {
     canvas.drawPath(dataPath, dataPaint);
     canvas.drawPath(dataPath, dataStrokePaint);
 
-    // 绘制数据点
+    // 绘制数据点 - 温暖色
     final dotPaint = Paint()
-      ..color = Colors.cyanAccent
+      ..color = const Color(0xFFFFCC80)
       ..style = PaintingStyle.fill;
     for (var i = 0; i < sides; i++) {
       final value = values[i].clamp(0.0, 1.0);
@@ -578,10 +585,13 @@ class SparklinePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    // 【CRITICAL FIX】空数据安全检查 - 防止 data.last 崩溃
     if (data.isEmpty) return;
-
+    
+    // 温暖琥珀色系
+    final warmAmber = const Color(0xFFFFB74D);
     final paint = Paint()
-      ..color = Colors.cyan
+      ..color = warmAmber
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.round;
@@ -591,8 +601,8 @@ class SparklinePainter extends CustomPainter {
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          Colors.cyan.withValues(alpha: 0.3),
-          Colors.cyan.withValues(alpha: 0.0),
+          warmAmber.withValues(alpha: 0.35),
+          warmAmber.withValues(alpha: 0.0),
         ],
       ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
 
@@ -620,17 +630,17 @@ class SparklinePainter extends CustomPainter {
     canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, paint);
 
-    // 绘制发光点
+    // 绘制发光点 - 温暖色
     final dotPaint = Paint()
-      ..color = Colors.cyanAccent
+      ..color = const Color(0xFFFFCC80)
       ..style = PaintingStyle.fill;
     final lastX = (data.length - 1) * step;
     final lastY = midY - data.last * amplitude;
     canvas.drawCircle(Offset(lastX, lastY), 4, dotPaint);
     
-    // 发光效果
+    // 发光效果 - 温暖光晕
     final glowPaint = Paint()
-      ..color = Colors.cyan.withValues(alpha: 0.3)
+      ..color = const Color(0xFFFFB74D).withValues(alpha: 0.35)
       ..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(lastX, lastY), 8, glowPaint);
 

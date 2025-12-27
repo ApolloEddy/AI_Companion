@@ -276,20 +276,31 @@ class AppEngine extends ChangeNotifier {
         prefs.getString(AppConfig.modelKey) ?? AppConfig.defaultModel;
     llm = LLMService(newKey, model: currentModelId);
 
-    // 更新 ConversationEngine 中的 LLMService
+    // 【CRITICAL FIX】停止旧引擎，避免 Timer 泄漏
+    _conversationEngine.stop();
+
+    // 更新 ConversationEngine 中的 LLMService（保留所有依赖）
     _conversationEngine = ConversationEngine(
       llmService: llm,
       memoryManager: _memoryManager,
       personaPolicy: _personaPolicy,
       emotionEngine: _emotionEngine,
       generationPolicy: _generationPolicy,
+      profileService: _profileService, // 【FIX】保留认知引擎
     );
+    
+    // 【CRITICAL FIX】重新注入 FactStore（否则核心事实丢失）
+    final factStore = FactStore(prefs);
+    factStore.setLLMService(llm);
+    _conversationEngine.setFactStore(factStore);
+    
     _conversationEngine.onProactiveMessage = _handleProactiveMessage;
     _conversationEngine.onPendingMessage = addPendingMessage;
     await _conversationEngine.start();
 
     notifyListeners();
   }
+
 
   /// 获取当前使用的模型
   String get currentModel => llm.currentModel;

@@ -166,10 +166,10 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.cyan.withValues(alpha: 0.2),
+              color: const Color(0xFFFFB74D).withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Icon(Icons.psychology, color: Colors.cyan),
+            child: const Icon(Icons.psychology, color: Color(0xFFFFB74D)),
           ),
           const SizedBox(width: 12),
           Column(
@@ -323,8 +323,8 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
             child: ElevatedButton(
               onPressed: _save,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.cyan,
-                foregroundColor: Colors.white,
+                backgroundColor: const Color(0xFFFFB74D),
+                foregroundColor: Colors.black87,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

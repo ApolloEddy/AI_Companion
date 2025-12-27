@@ -1,6 +1,6 @@
-# AI Companion: Research-Grade Ethereal OS
+# AI Companion: Cozy Edition
 
-> ![Status](https://img.shields.io/badge/Status-Research--Grade-blueviolet?style=for-the-badge)
+> ![Status](https://img.shields.io/badge/Status-Cozy--Edition-orange?style=for-the-badge)
 > ![Flutter](https://img.shields.io/badge/Flutter-v3.24+-02569B?style=for-the-badge&logo=flutter)
 > ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
@@ -8,12 +8,13 @@
 
 ---
 
-## 🌌 核心哲学：视觉与灵魂的共鸣
+## 🌌 核心哲学：温暖与智能的共鸣
 
-本项目在设计上追求 **"Ethereal HUD" (飘渺平显)** 风格，专为深色模式优化。
+本项目在设计上追求 **"Cozy Companion" (温暖伴侣)** 风格，专为深色模式优化。
 
-*   **光效美学**：使用 HSL 空间计算，将 AI 的**亲密度（Intimacy）**设定为背景基调，将**实时情绪（Emotion）**设定为动态扰动，实现视觉层面的“察言观色”。
-*   **交互深度**：每一条消息的生成参数（Temperature, Max Tokens）都由 AI 的当前的心理状态动态驱动，而非硬编码。
+*   **温暖美学**：使用琥珀色（Amber `#FFB74D`）作为主色调，营造舒适温馨的视觉体验。
+*   **光效美学**：使用 HSL 空间计算，将 AI 的**亲密度（Intimacy）**设定为背景基调，将**实时情绪（Emotion）**设定为动态扰动。
+*   **交互深度**：每一条消息的生成参数（Temperature, Max Tokens）都由 AI 的当前心理状态动态驱动，而非硬编码。
 
 ---
 

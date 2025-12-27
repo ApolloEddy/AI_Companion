@@ -20,12 +20,13 @@ class UIAdapter {
   bool get isLarge => screenWidth > 900;
   bool get isStandard => !isCompact && !isLarge;
 
-  // --- 字体大小协调 ---
+  // --- 字体大小协调 (增大版) ---
   
-  double get titleFontSize => isLarge ? 20.0 : (isCompact ? 17.0 : 18.0);
-  double get bodyFontSize => isLarge ? 16.0 : (isCompact ? 14.5 : 15.0);
-  double get smallFontSize => isLarge ? 13.0 : (isCompact ? 11.0 : 12.0);
-  double get tinyFontSize => isCompact ? 10.0 : 11.0;
+  double get titleFontSize => isLarge ? 22.0 : (isCompact ? 18.0 : 20.0);
+  double get bodyFontSize => isLarge ? 17.0 : (isCompact ? 15.0 : 16.0);
+  double get smallFontSize => isLarge ? 14.0 : (isCompact ? 12.0 : 13.0);
+  double get tinyFontSize => isCompact ? 11.0 : 12.0;
+
 
   // --- 聊天气泡协调 ---
   

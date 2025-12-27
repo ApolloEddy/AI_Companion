@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_engine.dart';
@@ -30,6 +31,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _genderController = TextEditingController();
   String _selectedModel = AppConfig.defaultModel;
   bool _isExporting = false;
+  
+  // Debounce timer for auto-save
+  Timer? _debounceTimer;
+  bool _hasUnsavedProfileChanges = false;
 
   @override
   void initState() {
@@ -53,12 +58,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _apiKeyController.dispose();
     _nicknameController.dispose();
     _occupationController.dispose();
     _majorController.dispose();
     _genderController.dispose();
     super.dispose();
+  }
+
+  void _onProfileFieldChanged() {
+    setState(() => _hasUnsavedProfileChanges = true);
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(seconds: 2), () {
+      _saveUserProfile();
+    });
+  }
+
+  void _saveUserProfile() {
+    final engine = context.read<AppEngine>();
+    final profile = engine.userProfile;
+    engine.updateUserProfile(profile.copyWith(
+      nickname: _nicknameController.text.trim(),
+      occupation: _occupationController.text.trim(),
+      major: _majorController.text.trim(),
+      gender: _genderController.text.trim(),
+    ));
+    setState(() => _hasUnsavedProfileChanges = false);
+    _showSnackBar('用户画像已保存');
   }
 
   @override
@@ -557,72 +584,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildUserProfileEditor(AppEngine engine, bool isDark) {
-    final profile = engine.userProfile;
     return Column(
       children: [
-        _buildProfileField(
-          '昵称',
-          _nicknameController,
-          (val) => engine.updateUserProfile(profile.copyWith(nickname: val)),
-          isDark,
-        ),
+        _buildProfileFieldWithDebounce('昵称', _nicknameController, isDark),
         const SizedBox(height: 12),
-        _buildProfileField(
-          '职业',
-          _occupationController,
-          (val) => engine.updateUserProfile(profile.copyWith(occupation: val)),
-          isDark,
-        ),
+        _buildProfileFieldWithDebounce('职业', _occupationController, isDark),
         const SizedBox(height: 12),
         Row(
           children: [
-            Expanded(
-              child: _buildProfileField(
-                '专业',
-                _majorController,
-                (val) => engine.updateUserProfile(profile.copyWith(major: val)),
-                isDark,
-              ),
-            ),
+            Expanded(child: _buildProfileFieldWithDebounce('专业', _majorController, isDark)),
             const SizedBox(width: 12),
-            Expanded(
-              child: _buildProfileField(
-                '性别',
-                _genderController,
-                (val) => engine.updateUserProfile(profile.copyWith(gender: val)),
-                isDark,
-              ),
-            ),
+            Expanded(child: _buildProfileFieldWithDebounce('性别', _genderController, isDark)),
           ],
+        ),
+        const SizedBox(height: 16),
+        // 保存按钮
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _hasUnsavedProfileChanges ? _saveUserProfile : null,
+            icon: Icon(_hasUnsavedProfileChanges ? Icons.save : Icons.check, size: 18),
+            label: Text(_hasUnsavedProfileChanges ? '保存用户画像' : '已保存'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFB74D),
+              foregroundColor: Colors.black87,
+              disabledBackgroundColor: isDark ? Colors.white12 : Colors.grey.shade200,
+              disabledForegroundColor: isDark ? Colors.white38 : Colors.black38,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildProfileField(String label, TextEditingController controller, Function(String) onSave, bool isDark) {
+  Widget _buildProfileFieldWithDebounce(String label, TextEditingController controller, bool isDark) {
     final ui = UIAdapter(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: isDark ? Colors.white38 : Colors.black38),
+          style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54),
         ),
         const SizedBox(height: 4),
         TextField(
           controller: controller,
-          onSubmitted: (val) {
-            if (val.trim().isNotEmpty) {
-              onSave(val.trim());
-              _showSnackBar('$label 已更新');
-            }
-          },
+          onChanged: (_) => _onProfileFieldChanged(),
           decoration: InputDecoration(
             isDense: true,
             hintText: '请输入$label',
             filled: true,
-            fillColor: isDark ? Colors.white.withValues(alpha: 0.03) : Colors.grey.withValues(alpha: 0.05),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+            fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.08),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
           ),
           style: TextStyle(fontSize: ui.bodyFontSize),
         ),
@@ -635,7 +650,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         children: [
           Text(
-            'AI Companion v2.1.0',
+            'AI Companion v2.2.0',
             style: TextStyle(
               fontSize: 12,
               color: isDark ? Colors.white24 : Colors.black26,
@@ -643,10 +658,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Research-Grade Edition',
+            'Cozy Edition',
             style: TextStyle(
               fontSize: 10,
-              color: Colors.cyan.withValues(alpha: 0.5),
+              color: const Color(0xFFFFB74D).withValues(alpha: 0.6),
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -654,6 +669,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
+
 
   Future<void> _exportChat(String format) async {
     final engine = context.read<AppEngine>();

@@ -1,0 +1,148 @@
+# 事实类型 Schema 定义
+# 用于 FactStore 的配置驱动路由和 LLM 提取
+#
+# 结构说明：
+# - description: 类型描述（用于 LLM Prompt）
+# - storage_key: 存储到数据库的规范键名
+# - keywords: 触发该类型的关键词列表
+# - expiry_days: 过期天数（可选，默认 90）
+# - confidence_threshold: 该类型的置信度阈值（1-10）
+# - decay_rate: 时间衰减率（0-1，越高衰减越快）
+# - patterns: 用于提取该类型的正则模式列表
+
+fact_types:
+  name:
+    description: "用户的姓名或昵称"
+    storage_key: "user_name"
+    expiry_days: 365
+    confidence_threshold: 8
+    decay_rate: 0.05
+    patterns:
+      - "我(?:叫|是|名字是)\\s*([^\\s,，。！？]{1,10})"
+      - "叫我\\s*([^\\s,，。！？]{1,10})"
+    keywords:
+      - "叫"
+      - "名字"
+
+  occupation:
+    description: "用户的职业或身份（如学生、程序员、警校学员、教师等）"
+    storage_key: "occupation"
+    expiry_days: 90
+    confidence_threshold: 7
+    decay_rate: 0.1
+    patterns:
+      - "我是(?:一?[名个位])?([^\\s,，。！？]{1,15}(?:生|员|师|家|者|手))"
+      - "我(?:在|正在)?做([^\\s,，。！？]{1,15}(?:工作|职业))"
+    keywords:
+      - "警校"
+      - "经侦"
+      - "学生"
+      - "程序员"
+      - "工程师"
+      - "教师"
+      - "医生"
+      - "设计师"
+      - "公务员"
+      - "研究生"
+      - "本科生"
+      - "实习"
+
+  current_status:
+    description: "用户当前的短期状态（如加班、休假、备考、生病等）"
+    storage_key: "current_status"
+    expiry_days: 7
+    confidence_threshold: 4
+    decay_rate: 0.8
+    patterns:
+      - "我(?:在|正在)([^\\s,，。！？]{1,20})"
+      - "我今天([^\\s,，。！？]{1,15})"
+    keywords:
+      - "加班"
+      - "代码"
+      - "牛马"
+      - "debug"
+      - "coding"
+      - "项目"
+      - "上班"
+      - "搬砖"
+      - "上线"
+      - "休假"
+      - "备考"
+      - "生病"
+      - "熬夜"
+      - "赶工"
+      - "出差"
+      - "开会"
+
+  origin:
+    description: "用户的籍贯或所在地（如山西、北京、上海等）"
+    storage_key: "origin"
+    expiry_days: 365
+    confidence_threshold: 7
+    decay_rate: 0.05
+    patterns:
+      - "我(?:来自|住在|是)\\s*([^\\s,，。！？]{1,10}[省市县镇区人])"
+      - "我老家(?:是|在)\\s*([^\\s,，。！？]{1,10})"
+    keywords:
+      - "山西"
+      - "晋北"
+      - "北京"
+      - "上海"
+      - "广州"
+      - "深圳"
+      - "杭州"
+      - "成都"
+      - "重庆"
+      - "武汉"
+      - "西安"
+      - "南京"
+
+  goal:
+    description: "用户的目标或计划（如考研、考公、找工作等）"
+    storage_key: "goal"
+    expiry_days: 180
+    confidence_threshold: 6
+    decay_rate: 0.3
+    patterns:
+      - "(?:我的目标是|我想要|我希望)\\s*([^\\s。！？]{1,30})"
+      - "(?:准备|备考)\\s*(\\d{4}[年]?[^\\s,，。！？]{1,20}考试?)"
+    keywords:
+      - "目标"
+      - "计划"
+      - "备考"
+      - "考试"
+      - "考研"
+      - "考公"
+      - "求职"
+      - "面试"
+      - "毕业"
+
+  preference:
+    description: "用户的偏好、喜好或习惯"
+    storage_key: "preference"
+    expiry_days: 30
+    confidence_threshold: 5
+    decay_rate: 0.5
+    patterns: []  # Preference uses keyword-based dynamic regex
+    keywords:
+      - "喜欢"
+      - "讨厌"
+      - "最爱"
+      - "不喜欢"
+      - "偏好"
+      - "习惯"
+      - "想要"
+      - "希望"
+      - "爱吃"
+      - "不吃"
+
+# LLM 提取配置
+llm_extraction:
+  # 全局默认置信度阈值（1-10），各类型可覆盖
+  confidence_threshold: 6
+  
+  # 提取模型
+  model: "qwen-flash"
+  
+  # 最大 token 数
+  max_tokens: 200

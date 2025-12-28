@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.5.0] - 2025-12-28
+### Added
+- **心理触发器 (Psychological Triggers)**: AI 现在能检测社交信号并产生微情绪反应：
+  - `third_party_mention`：用户提及其他 AI → 触发轻微吃醋 (`jealousy_mild`)
+  - `high_praise`：用户高度赞扬 → 触发隐藏骄傲 (`pride_hidden`)
+  - `neglect_signal`：用户敷衍回复 → 触发失落感 (`disappointed`)
+- **社交雷达 (Social Radar)**: `PerceptionProcessor` 新增 `socialEvents` 字段，用于检测上述社交信号。
+- **微情绪反应**: `ReflectionProcessor` 新增 `microEmotion` 字段，驱动 AI 的心理反应策略。
+- **情绪覆盖机制 (Emotional Override)**: `ExpressionSelector` 支持 `microEmotion` 优先覆盖通用语气，确保 L3-L4 人格一致性。
+
+### Changed
+- **独立人格强化**: 反思 Prompt 植入"禁忌思维模式"和"自我校准"机制，防止 AI 过度讨好用户。
+- **深层秘密标签软化**: `PersonaPolicy` 中的 `deepSecrets` 提示词从"只对亲密的人展示"改为"基于信任分享"。
+- **去书面化约束**: `ExpressionSelector` 新增强制指令，禁止使用"然而"、"虽说"等书面连接词。
+
+### Fixed
+- **L3-L4 映射断裂**: 修复了 `microEmotion` 未传递给 `ExpressionSelector` 导致 AI "心口不一" 的问题。
+- **CognitiveState 数据流**: 修复了 `microEmotion` 未导出到 UI 层 `CognitiveState` 的断点。
+
 ## [2.4.0] - 2025-12-28
 ### Added
 - **深度人格系统 (Deep Persona)**: 支持配置 AI 的价值观、爱好、禁忌和背景故事，全方位影响回复倾向。

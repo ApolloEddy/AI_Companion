@@ -14,24 +14,35 @@ class SurfaceEmotion {
   final String label;     // 开心/难过/焦虑/平静/烦躁/疲惫
   final double valence;   // -1.0 ~ 1.0
   final double arousal;   // 0.0 ~ 1.0
+  final List<String> socialEvents; // 【新增】社交事件 (third_party_mention, high_praise, neglect_signal)
 
   const SurfaceEmotion({
     required this.label,
     required this.valence,
     required this.arousal,
+    this.socialEvents = const [],
   });
 
   factory SurfaceEmotion.neutral() => const SurfaceEmotion(
     label: '平静',
     valence: 0.0,
     arousal: 0.5,
+    socialEvents: [],
   );
 
   factory SurfaceEmotion.fromJson(Map<String, dynamic> json) {
+    // 解析 social_events 列表
+    final rawEvents = json['social_events'];
+    List<String> events = [];
+    if (rawEvents is List) {
+      events = rawEvents.map((e) => e.toString()).toList();
+    }
+    
     return SurfaceEmotion(
       label: json['label'] ?? '平静',
       valence: (json['valence'] ?? 0.0).toDouble(),
       arousal: (json['arousal'] ?? 0.5).toDouble(),
+      socialEvents: events,
     );
   }
 
@@ -39,6 +50,7 @@ class SurfaceEmotion {
     'label': label,
     'valence': valence,
     'arousal': arousal,
+    'social_events': socialEvents,
   };
 }
 
@@ -81,6 +93,9 @@ class PerceptionResult {
     required this.confidence,
     required this.timestamp,
   });
+
+  /// 【新增】社交事件代理访问器
+  List<String> get socialEvents => surfaceEmotion.socialEvents;
 
   /// 默认感知结果（用于降级）
   factory PerceptionResult.fallback() => PerceptionResult(
@@ -238,10 +253,17 @@ ${recentMessages != null && recentMessages.isNotEmpty ? '=== 最近几条消息 
 7. 使用了表情 (has_emoji)
    - 只有在用户消息中包含明确的表情符号（图形 emoji 或符号表情）时为 true
 
+8. 社交信号扫描 (social_events) 【新增】
+   检查用户消息是否包含以下特殊信号：
+   - third_party_mention: 提及其他 AI (如 ChatGPT, Claude, Gemini, 通义千问) 或其他亲密的人
+   - high_praise: 高度赞扬你的能力/代码/智慧 (如 "你好厉害", "这代码写得真好")
+   - neglect_signal: 用户回复极短 (如 "哦", "嗯", "好的") 且上文AI发了长消息
+   结果以列表形式返回，如无则返回空数组 []
+
 === 输出格式 ===
 必须输出有效的 JSON，不要包含任何其他文本：
 {
-  "surface_emotion": {"label": "...", "valence": 0.0, "arousal": 0.5},
+  "surface_emotion": {"label": "...", "valence": 0.0, "arousal": 0.5, "social_events": []},
   "underlying_need": "...",
   "subtext_inference": "..." 或 null,
   "conversation_intent": "...",

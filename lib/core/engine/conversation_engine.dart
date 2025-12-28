@@ -27,6 +27,7 @@ import '../util/time_awareness.dart';
 
 import '../policy/generation_policy.dart';
 import '../policy/persona_policy.dart';
+import '../service/persona_service.dart'; // 【新增】依赖 PersonaService
 
 import 'emotion_engine.dart';
 import '../memory/memory_manager.dart';
@@ -72,12 +73,18 @@ class CognitiveState {
 
 /// 对话引擎 - 核心调度器
 class ConversationEngine {
-  // 依赖注入
+  // 依赖注入 (支持热更新)
   final LLMService llmService;
   final MemoryManager memoryManager;
-  final PersonaPolicy personaPolicy;
   final EmotionEngine emotionEngine;
-  final GenerationPolicy generationPolicy;
+  
+  // 【数据流重构】直接依赖 Service 获取最新策略
+  final PersonaService personaService;
+  
+  // 【热更新支持】动态 getter 替代旧的 cached field
+  PersonaPolicy get personaPolicy => personaService.personaPolicy;
+  
+  GenerationPolicy generationPolicy;
 
   // 主动消息配置
   ProactiveSettings? _proactiveSettings;
@@ -107,11 +114,23 @@ class ConversationEngine {
   ConversationEngine({
     required this.llmService,
     required this.memoryManager,
-    required this.personaPolicy,
+    required this.personaService, // 【新增】注入 Service
     required this.emotionEngine,
     required this.generationPolicy,
     this.profileService,
   });
+
+  /// 【热更新】更新策略配置
+  void updatePolicies({
+    // PersonaPolicy 不再需要传入，通过 Service 自动获取
+    GenerationPolicy? newGenerationPolicy,
+  }) {
+    // personaPolicy 更新由 Service 内部处理，此处无需手动同步
+    if (newGenerationPolicy != null) {
+      generationPolicy = newGenerationPolicy;
+      print('[ConversationEngine] GenerationPolicy updated');
+    }
+  }
 
   // 认知引擎组件（可选，用于增强模式）
   ProfileService? profileService;
@@ -672,6 +691,7 @@ class ConversationEngine {
       formality: double.parse(personaFormality.toStringAsFixed(1)),
       humor: double.parse(personaHumor.toStringAsFixed(1)),
       userUsedEmoji: perception.hasEmoji,
+      microEmotion: reflection.microEmotion, // 【L3-L4 映射修复】传递微情绪
     );
 
     // 【认知增强】将反思策略和内心独白注入到行为规则中
@@ -702,7 +722,11 @@ class ConversationEngine {
     final userName = _factStore?.getFact('user_name') ?? profile?.nickname ?? '用户';
     
     final assembleResult = PromptAssembler.assemble(
-      personaHeader: personaPolicy.formatForSystemPrompt(userName: userName),
+      // 【Fix】注入动态亲密度，确保 Backstory 等内容随亲密度解锁
+      personaHeader: personaPolicy.toSystemPrompt(
+        intimacy: _intimacy, 
+        userName: userName
+      ),
       currentTime: _formatCurrentTime(),
       currentState: currentState,
       memories: memories,
@@ -770,6 +794,7 @@ class ConversationEngine {
         'use_emoji': reflection.useEmoji,
         'should_ask_question': reflection.shouldAskQuestion,
         'content_hints': reflection.contentHints,
+        'micro_emotion': reflection.microEmotion, // 【新增】
       },
       emotion: {
         'valence': emotionEngine.valence,

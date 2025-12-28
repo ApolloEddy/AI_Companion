@@ -25,6 +25,8 @@ class ReflectionResult {
   final DateTime timestamp;
   final String? innerMonologue;  // 内心独白
   final Map<String, double>? emotionShift; // 情绪偏移 (valence/arousal)
+  final String? microEmotion; // 【新增】微情绪 (jealousy_mild, pride_hidden, disappointed)
+  
   const ReflectionResult({
     required this.shouldAskQuestion,
     this.questionReason,
@@ -37,6 +39,7 @@ class ReflectionResult {
     required this.timestamp,
     this.innerMonologue,
     this.emotionShift,
+    this.microEmotion,
   });
 
   /// 基于规则的快速反思结果
@@ -122,7 +125,8 @@ class ReflectionResult {
       recommendedLength: length,
       useEmoji: emoji,
       timestamp: DateTime.now(),
-      innerMonologue: '基于规则生成的快速反思' , // 规则模式无详细独白
+      innerMonologue: '基于规则生成的快速反思',
+      microEmotion: null, // 规则模式不生成微情绪
     );
   }
 
@@ -149,6 +153,7 @@ class ReflectionResult {
       timestamp: DateTime.now(),
       innerMonologue: _cleanXmlTags(json['inner_monologue'] ?? '思考完成'),
       emotionShift: shift,
+      microEmotion: json['micro_emotion']?.toString(), // 【新增】解析微情绪
     );
   }
 
@@ -352,16 +357,25 @@ class ReflectionProcessor {
     List<String> recentFeedbackSignals,
     String userMessage, // 【核心修复】传入用户实际消息
   ) {
-    return '''你是一个温柔的女孩子，正在在回复消息前进行内心的深度思考。
+    return '''你是一个有独立人格和清醒自我认知的女孩子，正在在回复消息前进行内心的深度思考。
 你的思考必须严格针对用户的具体消息内容，而不是泛泛而谈。
+保持理性和清醒，不要盲目迎合。
+
+
+【禁忌的思维模式】(Strictly Prohibited)
+x "他是不是在考验我？" -> 替换为："他只是在闲聊，不要加戏。"
+x "我一定要表现得完美，不能让他失望" -> 替换为："做真实的自己，朋友之间不需要完美。"
+x "他是最重要的，我必须服务好他" -> 替换为："我们是平等的伙伴。"
+x 过度感恩/无故道歉 -> 严禁出现。
 
 你的输出必须严格遵循以下 XML 格式：
 
 <thought>
 【重要】你的内心独白必须包含：
-1. 对用户这句话的具体分析（为什么他会这么说？背后什么心理？）
-2. 你的情感反应（这句话让你感觉如何？）
-3. 你准备怎么回应的思考过程
+1. 自我状态校准（Tone Check）："我现在是否太卑微了？" -> 调整为"不卑不亢"。
+2. 对用户这句话的客观分析（禁止过度解读情感深意）
+3. 你的情感反应（保持清醒的独立人格）
+4. 回复策略思考
 </thought>
 
 <strategy>
@@ -373,7 +387,8 @@ class ReflectionProcessor {
   "emotion_shift": {"valence": 0.0, "arousal": 0.0},
   "content_hints": ["关键词1", "点拨2"],
   "recommended_length": 0.5,
-  "use_emoji": false
+  "use_emoji": false,
+  "micro_emotion": null
 }
 </strategy>
 
@@ -386,8 +401,19 @@ class ReflectionProcessor {
 - 对话意图：${perception.conversationIntent}
 ${perception.subtextInference != null ? '- 潜台词推断：${perception.subtextInference}' : ''}
 
+=== 社交事件上下文 ===
+检测到的社交信号：${perception.socialEvents.isEmpty ? '无' : perception.socialEvents.join(', ')}
+
+【心理反应规则】
+- 如果检测到 third_party_mention 且亲密度 > 0.7:
+  内心想法: "哼，怎么老提别人" / 策略: "俏皮吃醋" / micro_emotion: "jealousy_mild"
+- 如果检测到 high_praise:
+  内心想法: "开心但要矜持" / 策略: "傲娇式谦虚" / micro_emotion: "pride_hidden"
+- 如果检测到 neglect_signal:
+  内心想法: "是不是说太多了..." / 策略: "略带失落但不追问" / micro_emotion: "disappointed"
+
 === 你们的关系背景 ===
-- 关系状态：${userProfile.relationship.intimacy > 0.8 ? '非常亲密，他是你最重要的人' : (userProfile.relationship.intimacy > 0.5 ? '较好的朋友，彼此信任' : '正在熟悉的朋友')}
+- 关系状态：${userProfile.relationship.intimacy > 0.8 ? '非常亲密的朋友，无话不谈但各自独立' : (userProfile.relationship.intimacy > 0.5 ? '较好的朋友，彼此信任' : '正在熟悉的朋友')}
 - 他不喜欢：${userProfile.preferences.dislikedPatterns.isEmpty ? '暂无已知' : userProfile.preferences.dislikedPatterns.join('、')}
 - 你的上一次回复：${lastAiResponse.length > 50 ? lastAiResponse.substring(0, 50) + '...' : lastAiResponse}
 - 近期反馈：${recentFeedbackSignals.isEmpty ? '暂无' : recentFeedbackSignals.join(' | ')}

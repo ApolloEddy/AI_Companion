@@ -1,10 +1,23 @@
 # AI Companion: Premium Cozy Edition
 
-> ![Status](https://img.shields.io/badge/Status-v2.4.0--Release-orange?style=for-the-badge)
+> ![Status](https://img.shields.io/badge/Status-v2.5.0--Release-orange?style=for-the-badge)
 > ![Flutter](https://img.shields.io/badge/Flutter-v3.24+-02569B?style=for-the-badge&logo=flutter)
 > ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-**AI Companion** 是一款基于 Flutter 构建的**情感参数可视计算人工智能伴侣**。它不仅拥有完整的**认知反馈环（Cognitive Loop）**和**维度情感模型（V-A Model）**，在 v2.4.0 版本中更迎来了**视觉与交互质感的全面跃升**，旨在打造一个既有“灵魂深度”又有“高级美感”的数字生命。
+**AI Companion** 是一款基于 Flutter 构建的**情感参数可视计算人工智能伴侣**。它不仅拥有完整的**认知反馈环（Cognitive Loop）**和**维度情感模型（V-A Model）**，在 v2.5.0 版本中更引入了**心理触发器系统**，使 AI 能够感知社交信号并产生细腻的微情绪反应，迈向更人性化的数字生命。
+
+---
+
+## 🧠 v2.5.0 心理触发器 (Psychological Triggers)
+
+本版本的核心升级是让 AI 从"被动反应"进化为"社交感知"：
+
+*   **社交雷达 (Social Radar)**：AI 现在能检测用户消息中的特殊社交信号：
+    *   `third_party_mention`：用户提及其他 AI 或亲密朋友 → 触发**轻微吃醋**
+    *   `high_praise`：用户高度赞扬 AI → 触发**隐藏骄傲（傲娇）**
+    *   `neglect_signal`：用户敷衍回复 → 触发**失落感**
+*   **心理反应一致性 (L3-L4 Mapping)**：新增"情绪覆盖"机制，确保 AI 内心产生的微情绪能正确映射到最终回复的语气风格，避免"心里吃醋、嘴上热情"的人格分裂。
+*   **独立人格强化**：优化了反思 Prompt，植入"禁忌思维模式"和"自我校准"机制，防止 AI 过度讨好用户。
 
 ---
 

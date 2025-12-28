@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_engine.dart';
@@ -187,14 +188,19 @@ class _ModernSideBarState extends State<ModernSideBar> {
             child: CircleAvatar(
               radius: 28,
               backgroundColor: isDark ? Colors.grey[900] : Colors.grey[200],
-              child: Text(
-                personaName[0],
-                style: TextStyle(
-                  fontSize: 24, 
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFD87C00)
-                ),
-              ),
+              backgroundImage: engine.aiAvatarPath != null && engine.aiAvatarPath!.isNotEmpty
+                  ?  FileImage(File(engine.aiAvatarPath!))
+                  : null,
+              child: (engine.aiAvatarPath == null || engine.aiAvatarPath!.isEmpty)
+                  ? Text(
+                      personaName[0],
+                      style: TextStyle(
+                        fontSize: 24, 
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFD87C00)
+                      ),
+                    )
+                  : null,
             ),
           ),
           const SizedBox(width: 16),

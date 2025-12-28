@@ -33,20 +33,22 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,  // Phase 2: 升级版本号
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    // 事实表 (Fact Store)
+    // 事实表 (Fact Store) - Phase 2: 添加 status 列
     await db.execute('''
       CREATE TABLE facts (
         key TEXT PRIMARY KEY,
         value TEXT,
         source INTEGER DEFAULT 1,
         timestamp TEXT,
-        importance REAL DEFAULT 0.5
+        importance REAL DEFAULT 0.5,
+        status INTEGER DEFAULT 0
       )
     ''');
 
@@ -62,6 +64,15 @@ class DatabaseHelper {
         cognitive_state TEXT
       )
     ''');
+  }
+  
+  /// Phase 2: 数据库升级迁移
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // 添加 status 列：0=active, 1=verified, 2=rejected
+      await db.execute('ALTER TABLE facts ADD COLUMN status INTEGER DEFAULT 0');
+      print('[DatabaseHelper] Migrated to version 2: added status column');
+    }
   }
 
   // 通用辅助方法

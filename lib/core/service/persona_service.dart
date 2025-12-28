@@ -1,19 +1,117 @@
+// PersonaService - 人格状态仓储服务
+//
+// 【重构说明】
+// 实现 Repository 模式，分离工厂配置 (YAML) 与运行时状态 (Persistence)
+//
+// 加载逻辑：
+// 1. Cold Boot: SharedPreferences 为空 -> 从 YAML 模板加载 -> 立即持久化
+// 2. Hot Boot: SharedPreferences 有数据 -> 从持久化加载
+//
+// 职责：
+// - 管理 PersonaPolicy 的生命周期
+// - 管理情绪/亲密度的运行时状态
+// - 提供持久化和更新接口
+
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../settings_loader.dart';
+import '../policy/persona_policy.dart';
 
-/// 人格状态服务 - 使用动态 YAML 配置
+/// 人格状态服务 - Repository 模式
 class PersonaService {
+  static const String _personaPolicyKey = 'runtime_persona_policy';
+  
   final SharedPreferences prefs;
   late Map<String, dynamic> state;
+  
+  // 【新增】人格策略实例
+  PersonaPolicy? _personaPolicy;
+  bool _isInitialized = false;
 
   PersonaService(this.prefs) {
-    _load();
+    _loadState();
     _applyEmotionDecay();
   }
+  
+  /// 获取当前人格策略
+  PersonaPolicy get personaPolicy {
+    if (_personaPolicy == null) {
+      throw StateError('PersonaService not initialized. Call init() first.');
+    }
+    return _personaPolicy!;
+  }
+  
+  /// 是否已初始化
+  bool get isInitialized => _isInitialized;
 
-  void _load() {
+  // ========== 初始化逻辑 ==========
+
+  /// 异步初始化 - 加载人格策略
+  /// 
+  /// Cold Boot: 从 YAML 模板加载
+  /// Hot Boot: 从 SharedPreferences 加载
+  Future<void> init() async {
+    if (_isInitialized) return;
+    
+    final jsonStr = prefs.getString(_personaPolicyKey);
+    
+    if (jsonStr == null || jsonStr.isEmpty) {
+      // Cold Boot: 从 YAML 模板加载
+      print('[PersonaService] Cold boot - loading from YAML template');
+      final template = await SettingsLoader.loadPersonaTemplate();
+      _personaPolicy = PersonaPolicy.fromJson(template);
+      await _savePersonaPolicy();
+    } else {
+      // Hot Boot: 从持久化加载
+      print('[PersonaService] Hot boot - loading from SharedPreferences');
+      try {
+        final json = jsonDecode(jsonStr) as Map<String, dynamic>;
+        _personaPolicy = PersonaPolicy.fromJson(json);
+      } catch (e) {
+        print('[PersonaService] Failed to parse persona, falling back to template: $e');
+        final template = await SettingsLoader.loadPersonaTemplate();
+        _personaPolicy = PersonaPolicy.fromJson(template);
+        await _savePersonaPolicy();
+      }
+    }
+    
+    _isInitialized = true;
+    print('[PersonaService] Initialized with persona: ${_personaPolicy?.name}');
+  }
+
+  /// 更新人格策略并持久化
+  Future<void> updatePersonaPolicy(PersonaPolicy newPolicy) async {
+    _personaPolicy = newPolicy;
+    await _savePersonaPolicy();
+    print('[PersonaService] PersonaPolicy updated and saved');
+  }
+
+  /// 从配置 Map 更新人格
+  Future<void> updatePersonaConfig(Map<String, dynamic> config) async {
+    _personaPolicy = PersonaPolicy.fromJson(config);
+    await _savePersonaPolicy();
+    print('[PersonaService] PersonaPolicy updated from config');
+  }
+
+  /// 持久化人格策略
+  Future<void> _savePersonaPolicy() async {
+    if (_personaPolicy == null) return;
+    final jsonStr = jsonEncode(_personaPolicy!.toJson());
+    await prefs.setString(_personaPolicyKey, jsonStr);
+  }
+
+  /// 重置为工厂默认值
+  Future<void> resetToFactory() async {
+    print('[PersonaService] Resetting to factory defaults');
+    final template = await SettingsLoader.loadPersonaTemplate();
+    _personaPolicy = PersonaPolicy.fromJson(template);
+    await _savePersonaPolicy();
+  }
+
+  // ========== 情绪/亲密度状态管理 (保留原有逻辑) ==========
+
+  void _loadState() {
     final str = prefs.getString(AppConfig.personaKey);
     if (str != null && str.isNotEmpty) {
       try {

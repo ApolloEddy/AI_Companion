@@ -23,6 +23,22 @@ class ExpressionSelector {
     return 'detailed';
   }
 
+  /// 微情绪覆盖模板 (L3 -> L4 Override)
+  static const Map<String, Map<String, String>> _microEmotionGuides = {
+    'jealousy_mild': {
+      'tone': '俏皮吃醋',
+      'guide': '用半开玩笑的口吻表达占有欲，可以稍微哼一下，但不要真的生气。'
+    },
+    'pride_hidden': {
+      'tone': '傲娇',
+      'guide': '表面上不在意，但言语中流露出得意。用"哼，这不算什么"之类的句式。'
+    },
+    'disappointed': {
+      'tone': '失落',
+      'guide': '回复简短，语气低沉，不要主动开启新话题。'
+    }
+  };
+
   /// 生成表达指引
   /// 
   /// [formality] 可选，动态传入的庄重度值（0-1），不传则使用 YAML 配置
@@ -34,6 +50,7 @@ class ExpressionSelector {
     double? formality,
     double? humor,
     bool userUsedEmoji = false,
+    String? microEmotion, // 【新增】微情绪覆盖
   }) {
     final mode = selectMode(valence, arousal, intimacy: intimacy);
     final modeConfig = SettingsLoader.getExpressionMode(mode);
@@ -88,7 +105,7 @@ class ExpressionSelector {
     } else if (effectiveFormality < SettingsLoader.formalityFormalAbove) {
       formalityGuide = '自然聊天，不用太正式';
     } else {
-      formalityGuide = '稍微客气一点';
+      formalityGuide = '礼貌但保持口语化，不要打官腔';
     }
     
     // 【FIX】使用动态传入的 humor
@@ -104,7 +121,15 @@ class ExpressionSelector {
     }
     
     final description = modeConfig['description']?.toString() ?? '温暖关怀';
-    final tone = modeConfig['tone']?.toString() ?? '柔和、体贴';
+    var tone = modeConfig['tone']?.toString() ?? '柔和、体贴';
+    var extraGuide = '';
+
+    // 【核心修复】微情绪覆盖逻辑
+    if (microEmotion != null && _microEmotionGuides.containsKey(microEmotion)) {
+      final override = _microEmotionGuides[microEmotion]!;
+      tone = '${override['tone']} (当前心理状态)';
+      extraGuide = '\n- 【强制指引】${override['guide']}';
+    }
     
     return '''
 当前状态：$description
@@ -117,7 +142,9 @@ class ExpressionSelector {
 【自然表达要点】
 - 回复长度不固定，根据内容自然决定
 - 不要每次都是"感叹+评论+问题"的套路
-- 有时只需要简单回应，不必深入展开''';
+- 有时只需要简单回应，不必深入展开
+    
+- 【严禁文绉绉】禁止使用"然而"、"虽说"、"因此"等书面连接词，禁止使用翻译腔，就像现实中打字聊天一样自然。$extraGuide''';
   }
 }
 

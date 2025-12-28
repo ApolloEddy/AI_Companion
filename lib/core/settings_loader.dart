@@ -8,6 +8,7 @@ class SettingsLoader {
   static Map<String, dynamic>? _timeSettings;
   static Map<String, dynamic>? _responseSettings;
   static Map<String, dynamic>? _memorySettings;
+  static Map<String, dynamic>? _factSchemaSettings;
   
   static bool _isLoaded = false;
   
@@ -19,8 +20,18 @@ class SettingsLoader {
     _timeSettings = await _loadYaml('assets/settings/time_settings.yaml');
     _responseSettings = await _loadYaml('assets/settings/response_settings.yaml');
     _memorySettings = await _loadYaml('assets/settings/memory_settings.yaml');
+    _factSchemaSettings = await _loadYaml('assets/settings/fact_schema.yaml');
     
     _isLoaded = true;
+  }
+  
+  /// 加载人格工厂模板 (用于首次启动)
+  /// 
+  /// 返回 default_persona.yaml 中的 persona 配置
+  /// 此方法独立于 loadAll，可单独调用
+  static Future<Map<String, dynamic>> loadPersonaTemplate() async {
+    final yaml = await _loadYaml('assets/settings/default_persona.yaml');
+    return yaml['persona'] as Map<String, dynamic>? ?? {};
   }
   
   static Future<Map<String, dynamic>> _loadYaml(String path) async {
@@ -249,6 +260,152 @@ class SettingsLoader {
     }
     // 默认偏好关键词
     return ['喜欢', '讨厌', '最爱', '不喜欢', '偏好', '习惯', '希望', '想要'];
+  }
+  
+  // ========== Fact Schema Settings ==========
+  
+  /// 获取所有事实类型定义
+  static Map<String, dynamic> get factTypes {
+    final types = _factSchemaSettings?['fact_types'];
+    if (types is Map) return Map<String, dynamic>.from(types);
+    return {};
+  }
+  
+  /// 获取特定类型的关键词列表
+  static List<String> getFactKeywords(String typeKey) {
+    final typeData = factTypes[typeKey];
+    if (typeData is Map && typeData['keywords'] is List) {
+      return (typeData['keywords'] as List).map((e) => e.toString()).toList();
+    }
+    return [];
+  }
+  
+  /// 获取所有类型的关键词映射 {keyword -> storage_key}
+  /// 按关键词长度降序排序，确保长词优先匹配
+  static Map<String, String> get keywordToStorageKey {
+    final result = <String, String>{};
+    final entries = <MapEntry<String, String>>[];
+    
+    for (final entry in factTypes.entries) {
+      final typeData = entry.value;
+      if (typeData is Map) {
+        final storageKey = typeData['storage_key']?.toString() ?? entry.key;
+        final keywords = typeData['keywords'];
+        if (keywords is List) {
+          for (final kw in keywords) {
+            entries.add(MapEntry(kw.toString(), storageKey));
+          }
+        }
+      }
+    }
+    
+    // 按关键词长度降序排序
+    entries.sort((a, b) => b.key.length.compareTo(a.key.length));
+    for (final e in entries) {
+      result[e.key] = e.value;
+    }
+    
+    return result;
+  }
+  
+  /// 获取类型描述（用于 LLM Prompt）
+  static String getFactDescription(String typeKey) {
+    final typeData = factTypes[typeKey];
+    if (typeData is Map) {
+      return typeData['description']?.toString() ?? typeKey;
+    }
+    return typeKey;
+  }
+  
+  /// 获取类型过期天数
+  static int getFactExpiryDays(String typeKey) {
+    final typeData = factTypes[typeKey];
+    if (typeData is Map && typeData['expiry_days'] is int) {
+      return typeData['expiry_days'] as int;
+    }
+    return 90; // 默认 90 天
+  }
+  
+  /// 获取 LLM 提取置信度阈值
+  static int get llmConfidenceThreshold =>
+      _getInt(_factSchemaSettings, ['llm_extraction', 'confidence_threshold'], 6);
+  
+  /// 获取所有类型的完整描述（用于 LLM Prompt 注入）
+  static String get factTypeDescriptionsForPrompt {
+    final buffer = StringBuffer();
+    for (final entry in factTypes.entries) {
+      final typeData = entry.value;
+      if (typeData is Map) {
+        final desc = typeData['description']?.toString() ?? entry.key;
+        buffer.writeln('- ${entry.key}: $desc');
+      }
+    }
+    return buffer.toString();
+  }
+  
+  /// 获取特定类型的置信度阈值（默认使用全局阈值）
+  static int getFactConfidenceThreshold(String typeKey) {
+    final typeData = factTypes[typeKey];
+    if (typeData is Map && typeData['confidence_threshold'] is int) {
+      return typeData['confidence_threshold'] as int;
+    }
+    return llmConfidenceThreshold; // 回退到全局阈值
+  }
+  
+  /// 获取特定类型的衰减率（0-1，默认 0.1）
+  static double getFactDecayRate(String typeKey) {
+    final typeData = factTypes[typeKey];
+    if (typeData is Map) {
+      final rate = typeData['decay_rate'];
+      if (rate is double) return rate;
+      if (rate is int) return rate.toDouble();
+    }
+    return 0.1; // 默认衰减率
+  }
+  
+  /// 获取特定类型的提取正则模式列表
+  static List<String> getFactPatterns(String typeKey) {
+    final typeData = factTypes[typeKey];
+    if (typeData is Map && typeData['patterns'] is List) {
+      return (typeData['patterns'] as List).map((e) => e.toString()).toList();
+    }
+    return [];
+  }
+  
+  /// 获取所有类型的正则模式（用于动态构建提取器）
+  static Map<String, List<RegExp>> get allFactPatterns {
+    final result = <String, List<RegExp>>{};
+    for (final entry in factTypes.entries) {
+      final typeData = entry.value;
+      if (typeData is Map) {
+        final storageKey = typeData['storage_key']?.toString() ?? entry.key;
+        final patterns = typeData['patterns'];
+        if (patterns is List && patterns.isNotEmpty) {
+          result[storageKey] = patterns
+              .map((p) {
+                try {
+                  return RegExp(p.toString());
+                } catch (_) {
+                  return null;
+                }
+              })
+              .whereType<RegExp>()
+              .toList();
+        }
+      }
+    }
+    return result;
+  }
+  
+  /// 通过 storage_key 反查类型名
+  static String? getTypeKeyByStorageKey(String storageKey) {
+    for (final entry in factTypes.entries) {
+      final typeData = entry.value;
+      if (typeData is Map && typeData['storage_key'] == storageKey) {
+        return entry.key;
+      }
+    }
+    return null;
   }
   
   // ========== Helper Methods ==========

@@ -51,6 +51,10 @@ class AppEngine extends ChangeNotifier {
   late MemoryManager _memoryManager;
   late PersonaPolicy _personaPolicy;
   late GenerationPolicy _generationPolicy;
+  
+  // Phase 2: FactStore 引用（用于 MemoryManagerScreen）
+  late FactStore _factStore;
+  FactStore get factStore => _factStore;
 
   // 向后兼容：保留旧服务引用
   late PersonaService persona;
@@ -62,6 +66,7 @@ class AppEngine extends ChangeNotifier {
   StartupGreetingService? _startupGreetingService;
 
   bool isInitialized = false;
+
 
   Map<String, dynamic> personaConfig = {
     'name': '小悠',
@@ -162,33 +167,38 @@ class AppEngine extends ChangeNotifier {
 
     // 初始化服务
     persona = PersonaService(prefs);
+    await persona.init(); // 【重构】异步初始化人格策略 (Cold/Hot Boot)
     chatHistory = ChatHistoryService(dbHelper);
 
     // 初始化新架构组件
     _emotionEngine = EmotionEngine(prefs);
     _memoryManager = MemoryManager(prefs);
-    _personaPolicy = PersonaPolicy(personaConfig);
+    
+    // 【重构】从 PersonaService 获取人格策略，而不是硬编码
+    _personaPolicy = persona.personaPolicy;
+    personaConfig = _personaPolicy.toJson(); // 同步到 UI 层配置
+    
     _generationPolicy = GenerationPolicy.fromSettings();
 
     // 初始化用户画像服务（认知引擎核心）
     _profileService = ProfileService(prefs);
 
     // 初始化核心事实存储 (SQLite) 并注入 LLM 服务（启用混合提取）
-    final factStore = FactStore(dbHelper);
-    await factStore.init();
-    factStore.setLLMService(llm);
+    _factStore = FactStore(dbHelper);
+    await _factStore.init();
+    _factStore.setLLMService(llm);
 
     _conversationEngine = ConversationEngine(
       llmService: llm,
       memoryManager: _memoryManager,
-      personaPolicy: _personaPolicy,
+      personaService: persona, // 【重构】注入 PersonaService
       emotionEngine: _emotionEngine,
       generationPolicy: _generationPolicy,
       profileService: _profileService, // 启用认知增强
     );
 
     // 注入 FactStore
-    _conversationEngine.setFactStore(factStore);
+    _conversationEngine.setFactStore(_factStore);
     
     // 注入内心独白模型获取回调
     _conversationEngine.monologueModelGetter = () => monologueModel;
@@ -239,6 +249,8 @@ class AppEngine extends ChangeNotifier {
     _startupGreetingService!.onGreetingMessage = (message) {
       messages.add(message);
       chatHistory.addMessage(message);
+      // 【Fix】实时更新总消息数
+      _totalChatCount++;
       notifyListeners();
     };
 
@@ -254,6 +266,8 @@ class AppEngine extends ChangeNotifier {
         messages.insert(insertIndex, message);
       }
       chatHistory.addMessage(message);
+      // 【Fix】实时更新总消息数
+      _totalChatCount++;
       notifyListeners();
     };
 
@@ -265,6 +279,8 @@ class AppEngine extends ChangeNotifier {
   void _handleProactiveMessage(ChatMessage message) {
     messages.add(message);
     chatHistory.addMessage(message);
+    // 【Fix】实时更新总消息数
+    _totalChatCount++;
     notifyListeners();
   }
 
@@ -334,6 +350,14 @@ class AppEngine extends ChangeNotifier {
   Future<void> updatePersonaConfig(Map<String, dynamic> newConfig) async {
     personaConfig = {...personaConfig, ...newConfig};
     _personaPolicy = PersonaPolicy(personaConfig);
+    
+    // 【重构】通过 PersonaService 持久化到运行时状态
+    await persona.updatePersonaPolicy(_personaPolicy);
+    
+    // 【热更新】通知对话引擎更新策略 (仅需更新 GenerationPolicy，PersonaPolicy 自动同步)
+    _conversationEngine.updatePolicies();
+    
+    // 保留旧的保存逻辑以确保兼容性
     await _savePersonaConfig();
     notifyListeners();
   }
@@ -351,19 +375,18 @@ class AppEngine extends ChangeNotifier {
     _conversationEngine = ConversationEngine(
       llmService: llm,
       memoryManager: _memoryManager,
-      personaPolicy: _personaPolicy,
+      personaService: persona, // 【重构】注入 PersonaService
       emotionEngine: _emotionEngine,
       generationPolicy: _generationPolicy,
       profileService: _profileService, // 保留认知引擎
     );
     
-    // 【CRITICAL FIX】重新注入 FactStore（否则核心事实丢失）
-    // 【CRITICAL FIX】重新注入 FactStore（否则核心事实丢失）
+    // 重新初始化 FactStore（否则核心事实丢失）
     final dbHelper = DatabaseHelper();
-    final factStore = FactStore(dbHelper);
-    await factStore.init();
-    factStore.setLLMService(llm);
-    _conversationEngine.setFactStore(factStore);
+    _factStore = FactStore(dbHelper);
+    await _factStore.init();
+    _factStore.setLLMService(llm);
+    _conversationEngine.setFactStore(_factStore);
     
     // 注入内心独白模型获取回调
     _conversationEngine.monologueModelGetter = () => monologueModel;
@@ -418,6 +441,8 @@ class AppEngine extends ChangeNotifier {
       time: DateTime.now(),
     );
     messages.add(userMsg);
+    // 【Fix】实时更新总消息数
+    _totalChatCount++;
     notifyListeners(); // 立即显示用户消息
 
     // 异步保存历史
@@ -470,6 +495,8 @@ class AppEngine extends ChangeNotifier {
         }
         messages.add(delayed.message);
         await chatHistory.addMessage(delayed.message);
+        // 【Fix】实时更新总消息数
+        _totalChatCount++;
         notifyListeners(); // 每条消息单独通知 UI 更新
       }
     } catch (e) {

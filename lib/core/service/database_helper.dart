@@ -33,7 +33,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,  // Phase 2: 升级版本号
+      version: 3,  // Phase 3: 升级版本号 (添加 memory_entries 表)
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -64,14 +64,44 @@ class DatabaseHelper {
         cognitive_state TEXT
       )
     ''');
+    
+    // 记忆表 (Memory Entries) - Phase 3: 解决大规模记忆存储瓶颈
+    await db.execute('''
+      CREATE TABLE memory_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        content TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        importance REAL DEFAULT 0.5
+      )
+    ''');
+    
+    // 创建时间索引以加速按时间检索
+    await db.execute('''
+      CREATE INDEX idx_memory_timestamp ON memory_entries(timestamp DESC)
+    ''');
   }
   
-  /// Phase 2: 数据库升级迁移
+  /// Phase 2/3: 数据库升级迁移
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       // 添加 status 列：0=active, 1=verified, 2=rejected
       await db.execute('ALTER TABLE facts ADD COLUMN status INTEGER DEFAULT 0');
       print('[DatabaseHelper] Migrated to version 2: added status column');
+    }
+    if (oldVersion < 3) {
+      // Phase 3: 添加 memory_entries 表
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS memory_entries (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          content TEXT NOT NULL,
+          timestamp TEXT NOT NULL,
+          importance REAL DEFAULT 0.5
+        )
+      ''');
+      await db.execute('''
+        CREATE INDEX IF NOT EXISTS idx_memory_timestamp ON memory_entries(timestamp DESC)
+      ''');
+      print('[DatabaseHelper] Migrated to version 3: added memory_entries table');
     }
   }
 

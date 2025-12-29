@@ -11,6 +11,7 @@ import '../perception/perception_processor.dart';
 import '../service/llm_service.dart';
 import '../model/user_profile.dart';
 import '../policy/prohibited_patterns.dart';
+import '../config/config_registry.dart';
 
 /// 反思结果
 class ReflectionResult {
@@ -42,53 +43,36 @@ class ReflectionResult {
     this.microEmotion,
   });
 
-  /// 基于规则的快速反思结果
+  /// 基于配置的快速反思结果 (重构版)
   factory ReflectionResult.fromRules(
     PerceptionResult perception, 
     List<String> userDislikedPatterns,
   ) {
-    // 基于感知结果决定策略
+    final config = ConfigRegistry.instance;
+    
+    // 根据感知的需求标签查找策略配置
+    final needId = config.getNeedIdByLabel(perception.underlyingNeed);
+    final strategyConfig = config.getNeedStrategy(needId ?? 'chat');
+    
     String strategy;
     String tone;
     double length;
     bool emoji;
     List<String> hints = [];
-
-    switch (perception.underlyingNeed) {
-      case '倾诉宣泄':
-        strategy = '专注倾听，表达理解，不急于给建议';
-        tone = '温暖共情';
-        length = 0.4;
-        emoji = false;
-        hints = ['表达理解', '简单回应', '不要追问太多'];
-        break;
-      case '寻求建议':
-        strategy = '提供具体可行的想法';
-        tone = '理性支持';
-        length = 0.7;
-        emoji = false;
-        hints = ['给出具体建议', '但不要说教'];
-        break;
-      case '陪伴安慰':
-        strategy = '温暖共情，少讲道理';
-        tone = '温柔安慰';
-        length = 0.5;
-        emoji = true;
-        hints = ['表达关心', '不要过度', '适当陪伴'];
-        break;
-      case '分享喜悦':
-        strategy = '分享快乐，表达为对方高兴';
-        tone = '开心活泼';
-        length = 0.5;
-        emoji = true;
-        hints = ['表达祝贺', '分享喜悦'];
-        break;
-      default:  // 闲聊解闷
-        strategy = '轻松自然，随意聊聊';
-        tone = '轻松自然';
-        length = 0.5;
-        emoji = perception.surfaceEmotion.valence > 0.3;
-        hints = ['自然对话', '不要太正式'];
+    
+    if (strategyConfig != null) {
+      strategy = strategyConfig.strategy;
+      tone = strategyConfig.tone;
+      length = strategyConfig.recommendedLength;
+      emoji = strategyConfig.useEmoji;
+      hints = List.from(strategyConfig.hints);
+    } else {
+      // 默认策略 (闲聊解闷)
+      strategy = '轻松自然，随意聊聊';
+      tone = '轻松自然';
+      length = 0.5;
+      emoji = perception.surfaceEmotion.valence > 0.3;
+      hints = ['自然对话', '不要太正式'];
     }
 
     // 话题终止逻辑增强
@@ -349,48 +333,64 @@ class ReflectionProcessor {
     );
   }
 
-  /// 核心步骤：构建流式反思 Prompt
+  /// 核心步骤：构建流式反思 Prompt (配置驱动版)
   String _buildReflectionPrompt(
     PerceptionResult perception,
     UserProfile userProfile,
     String lastAiResponse,
     List<String> recentFeedbackSignals,
-    String userMessage, // 【核心修复】传入用户实际消息
+    String userMessage,
   ) {
-    return '''你是一个有独立人格和清醒自我认知的女孩子，正在在回复消息前进行内心的深度思考。
-你的思考必须严格针对用户的具体消息内容，而不是泛泛而谈。
-保持理性和清醒，不要盲目迎合。
+    final config = ConfigRegistry.instance;
+    
+    // 1. 获取系统人设
+    final systemPersona = config.getPromptTemplate('reflection_persona');
+    
+    // 2. 组装禁忌思维提示
+    var prohibitedPrompt = config.getPromptTemplate('prohibited_patterns_prompt');
+    prohibitedPrompt = prohibitedPrompt.replaceAll(
+      '{prohibited_patterns}', 
+      config.prohibitedPatternsForPrompt
+    );
+    
+    // 3. 获取输出格式
+    final outputFormat = config.getPromptTemplate('reflection_output_format');
+    
+    // 4. 组装关系背景
+    var relationshipStatus = '正在熟悉的朋友';
+    if (userProfile.relationship.intimacy > 0.8) {
+      relationshipStatus = '非常亲密的朋友，无话不谈但各自独立';
+    } else if (userProfile.relationship.intimacy > 0.5) {
+      relationshipStatus = '较好的朋友，彼此信任';
+    }
+    
+    var relationshipContext = config.getPromptTemplate('relationship_context_prompt');
+    relationshipContext = relationshipContext
+      .replaceAll('{relationship_status}', relationshipStatus)
+      .replaceAll('{disliked_patterns}', userProfile.preferences.dislikedPatterns.isEmpty ? '暂无已知' : userProfile.preferences.dislikedPatterns.join('、'))
+      .replaceAll('{last_ai_response}', lastAiResponse.length > 50 ? '${lastAiResponse.substring(0, 50)}...' : lastAiResponse)
+      .replaceAll('{recent_feedback}', recentFeedbackSignals.isEmpty ? '暂无' : recentFeedbackSignals.join(' | '));
 
+    // 5. 组装心理反应规则 (动态注入检测到的社交事件)
+    var psychologicalRules = config.getPromptTemplate('psychological_rules_prompt');
+    psychologicalRules = psychologicalRules.replaceAll(
+      '{social_events}', 
+      perception.socialEvents.isEmpty ? '无' : perception.socialEvents.join(', ')
+    );
+    
+    // 动态生成规则描述 (基于 YAML 配置)
+    final rulesDesc = config.microEmotionRules.map((rule) {
+      return '- 如果检测到 ${rule.triggerEvent}${rule.condition != null ? " 且满足 ${rule.condition}" : ""}:\n'
+             '  内心想法: "${rule.innerThought}" / 策略: "${rule.strategy}" / micro_emotion: "${rule.microEmotion}"';
+    }).join('\n');
+    
+    psychologicalRules = psychologicalRules.replaceAll('{reaction_rules}', rulesDesc);
 
-【禁忌的思维模式】(Strictly Prohibited)
-x "他是不是在考验我？" -> 替换为："他只是在闲聊，不要加戏。"
-x "我一定要表现得完美，不能让他失望" -> 替换为："做真实的自己，朋友之间不需要完美。"
-x "他是最重要的，我必须服务好他" -> 替换为："我们是平等的伙伴。"
-x 过度感恩/无故道歉 -> 严禁出现。
+    return '''$systemPersona
 
-你的输出必须严格遵循以下 XML 格式：
+$prohibitedPrompt
 
-<thought>
-【重要】你的内心独白必须包含：
-1. 自我状态校准（Tone Check）："我现在是否太卑微了？" -> 调整为"不卑不亢"。
-2. 对用户这句话的客观分析（禁止过度解读情感深意）
-3. 你的情感反应（保持清醒的独立人格）
-4. 回复策略思考
-</thought>
-
-<strategy>
-{
-  "should_ask_question": false,
-  "response_strategy": "具体策略描述",
-  "avoid_patterns": ["禁止的模式"],
-  "emotional_tone": "期望语气",
-  "emotion_shift": {"valence": 0.0, "arousal": 0.0},
-  "content_hints": ["关键词1", "点拨2"],
-  "recommended_length": 0.5,
-  "use_emoji": false,
-  "micro_emotion": null
-}
-</strategy>
+$outputFormat
 
 === 用户的实际消息 ===
 "$userMessage"
@@ -401,22 +401,9 @@ x 过度感恩/无故道歉 -> 严禁出现。
 - 对话意图：${perception.conversationIntent}
 ${perception.subtextInference != null ? '- 潜台词推断：${perception.subtextInference}' : ''}
 
-=== 社交事件上下文 ===
-检测到的社交信号：${perception.socialEvents.isEmpty ? '无' : perception.socialEvents.join(', ')}
+$psychologicalRules
 
-【心理反应规则】
-- 如果检测到 third_party_mention 且亲密度 > 0.7:
-  内心想法: "哼，怎么老提别人" / 策略: "俏皮吃醋" / micro_emotion: "jealousy_mild"
-- 如果检测到 high_praise:
-  内心想法: "开心但要矜持" / 策略: "傲娇式谦虚" / micro_emotion: "pride_hidden"
-- 如果检测到 neglect_signal:
-  内心想法: "是不是说太多了..." / 策略: "略带失落但不追问" / micro_emotion: "disappointed"
-
-=== 你们的关系背景 ===
-- 关系状态：${userProfile.relationship.intimacy > 0.8 ? '非常亲密的朋友，无话不谈但各自独立' : (userProfile.relationship.intimacy > 0.5 ? '较好的朋友，彼此信任' : '正在熟悉的朋友')}
-- 他不喜欢：${userProfile.preferences.dislikedPatterns.isEmpty ? '暂无已知' : userProfile.preferences.dislikedPatterns.join('、')}
-- 你的上一次回复：${lastAiResponse.length > 50 ? lastAiResponse.substring(0, 50) + '...' : lastAiResponse}
-- 近期反馈：${recentFeedbackSignals.isEmpty ? '暂无' : recentFeedbackSignals.join(' | ')}
+$relationshipContext
 
 【情绪引导】
 你当前的情绪：Valence ${perception.surfaceEmotion.valence.toStringAsFixed(2)}, Arousal ${perception.surfaceEmotion.arousal.toStringAsFixed(2)}。

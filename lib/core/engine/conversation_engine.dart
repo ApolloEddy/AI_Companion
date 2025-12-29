@@ -45,6 +45,7 @@ import '../policy/prohibited_patterns.dart';
 
 import '../prompt/prompt_assembler.dart';
 import '../prompt/prompt_snapshot.dart';
+import '../util/input_sanitizer.dart';
 
 /// 主动消息回调
 typedef ProactiveMessageCallback = void Function(ChatMessage message);
@@ -435,16 +436,19 @@ class ConversationEngine {
     if (onMonologueChunk != null) {
       onMonologueChunk(''); // 发送空串表示重置
     }
+    
+    // 【Phase 3】安全清洗用户输入，防止 Prompt 注入
+    final sanitizedText = InputSanitizer.sanitize(text);
 
     // ======== Step 1: 感知阶段 (Perception) ========
     // 分析用户意图、情绪、潜台词
     print('[Pipeline] Step 1: Perception phase');
-    final perception = await _runPerceptionPhase(text, currentMessages);
+    final perception = await _runPerceptionPhase(sanitizedText, currentMessages);
     
     // ======== Step 2: 状态加载阶段 (State Loading) ========
     // 更新情绪引擎，获取相关记忆
     print('[Pipeline] Step 2: State Loading phase');
-    final stateData = await _runStateLoadingPhase(text, perception);
+    final stateData = await _runStateLoadingPhase(sanitizedText, perception);
     
     // ======== Step 3: 决策阶段 (Decision Making) ========
     // 反思处理，生成响应策略
@@ -452,7 +456,7 @@ class ConversationEngine {
     final reflection = await _runDecisionPhase(
       perception, 
       currentMessages,
-      text, // 传递用户实际消息
+      sanitizedText, // 传递清洗后的消息
       onMonologueChunk: onMonologueChunk,
     );
 
@@ -465,7 +469,7 @@ class ConversationEngine {
     // 注入策略到 Prompt，调用 LLM 生成响应
     print('[Pipeline] Step 4: Execution phase');
     final result = await _runExecutionPhase(
-      text,
+      sanitizedText,
       currentMessages,
       perception,
       reflection,

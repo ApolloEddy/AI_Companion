@@ -8,6 +8,7 @@
 import 'dart:convert';
 import '../service/llm_service.dart';
 import '../model/user_profile.dart';
+import '../config/config_registry.dart';
 
 /// 表层情绪
 class SurfaceEmotion {
@@ -186,7 +187,7 @@ class PerceptionProcessor {
     }
   }
 
-  /// 构建感知 Prompt
+  /// 构建感知 Prompt (动态配置版)
   String _buildPerceptionPrompt({
     required String userMessage,
     required UserProfile userProfile,
@@ -196,6 +197,24 @@ class PerceptionProcessor {
     List<String>? recentMessages,
   }) {
     final timeContext = _getTimeContext(currentTime);
+    final config = ConfigRegistry.instance;
+    
+    // 动态获取标签列表
+    final emotionLabels = config.emotionLabelsForPrompt;
+    final needOptions = config.needOptionsForPrompt;
+    final intentOptions = config.intentOptionsForPrompt;
+    final socialEventDescs = config.socialEventDescriptionsForPrompt;
+    
+    // 构建可选内容块
+    final lastAiResponseSection = lastAiResponse != null 
+        ? '=== 上一条 AI 回复 ===\n"$lastAiResponse"\n' 
+        : '';
+    final recentMessagesSection = recentMessages != null && recentMessages.isNotEmpty 
+        ? '=== 最近几条消息 ===\n${recentMessages.take(3).join('\n')}\n' 
+        : '';
+    final lifeContextsLine = userProfile.lifeContexts.isNotEmpty 
+        ? '核心背景：${userProfile.lifeContexts.map((c) => c.content).join('；')}' 
+        : '';
     
     return '''
 【第一阶段：深度感知】
@@ -210,38 +229,28 @@ class PerceptionProcessor {
 
 === 用户背景 ===
 身份：${userProfile.nickname}，${userProfile.occupation}
-${userProfile.lifeContexts.isNotEmpty ? '核心背景：${userProfile.lifeContexts.map((c) => c.content).join('；')}' : ''}
+$lifeContextsLine
 最近情绪趋势：$recentEmotionTrend
 
 === 用户消息 ===
 "$userMessage"
 
-${lastAiResponse != null ? '=== 上一条 AI 回复 ===\n"$lastAiResponse"\n' : ''}
-${recentMessages != null && recentMessages.isNotEmpty ? '=== 最近几条消息 ===\n${recentMessages.take(3).join('\n')}\n' : ''}
-
+$lastAiResponseSection$recentMessagesSection
 === 分析维度 ===
 1. 表层情绪 (surface_emotion)
-   - label: 开心/难过/焦虑/平静/烦躁/疲惫/兴奋 之一
+   - label: $emotionLabels 之一
    - valence: -1.0(极度消极) ~ 1.0(极度积极)
    - arousal: 0.0(低能量) ~ 1.0(高能量)
 
 2. 深层需求 (underlying_need)
    从以下选项中选择最匹配的一个：
-   - 倾诉宣泄：用户想说出心里话，需要被听见
-   - 寻求建议：用户希望得到具体的想法或方案
-   - 陪伴安慰：用户需要温暖的情感支持
-   - 闲聊解闷：用户只是想随便聊聊，打发时间
-   - 分享喜悦：用户想分享好消息或开心的事
+     $needOptions
 
 3. 潜台词推断 (subtext_inference)
    用户没有直说但可能想表达的内容（如果有的话）
 
 4. 对话意图 (conversation_intent)
-   - 开启新话题
-   - 延续上文
-   - 结束对话
-   - 情绪释放
-   - 测试AI理解
+     $intentOptions
 
 5. 时间敏感性 (time_sensitivity)
    - is_time_related: 只有在【物理时间】与当前话题强相关时才为 true (如深夜失眠、早起打卡)
@@ -253,11 +262,9 @@ ${recentMessages != null && recentMessages.isNotEmpty ? '=== 最近几条消息 
 7. 使用了表情 (has_emoji)
    - 只有在用户消息中包含明确的表情符号（图形 emoji 或符号表情）时为 true
 
-8. 社交信号扫描 (social_events) 【新增】
+8. 社交信号扫描 (social_events)
    检查用户消息是否包含以下特殊信号：
-   - third_party_mention: 提及其他 AI (如 ChatGPT, Claude, Gemini, 通义千问) 或其他亲密的人
-   - high_praise: 高度赞扬你的能力/代码/智慧 (如 "你好厉害", "这代码写得真好")
-   - neglect_signal: 用户回复极短 (如 "哦", "嗯", "好的") 且上文AI发了长消息
+     $socialEventDescs
    结果以列表形式返回，如无则返回空数组 []
 
 === 输出格式 ===

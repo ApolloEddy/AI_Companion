@@ -1,5 +1,6 @@
 import '../settings_loader.dart';
 import '../policy/behavior_matrix.dart';
+import '../config/config_registry.dart';
 
 /// 表达选择器 - 使用动态 YAML 配置
 class ExpressionSelector {
@@ -23,21 +24,13 @@ class ExpressionSelector {
     return 'detailed';
   }
 
-  /// 微情绪覆盖模板 (L3 -> L4 Override)
-  static const Map<String, Map<String, String>> _microEmotionGuides = {
-    'jealousy_mild': {
-      'tone': '俏皮吃醋',
-      'guide': '用半开玩笑的口吻表达占有欲，可以稍微哼一下，但不要真的生气。'
-    },
-    'pride_hidden': {
-      'tone': '傲娇',
-      'guide': '表面上不在意，但言语中流露出得意。用"哼，这不算什么"之类的句式。'
-    },
-    'disappointed': {
-      'tone': '失落',
-      'guide': '回复简短，语气低沉，不要主动开启新话题。'
-    }
-  };
+  /// 微情绪覆盖模板 - 从 ConfigRegistry 动态获取
+  static Map<String, String>? _getMicroEmotionGuide(String? microEmotion) {
+    if (microEmotion == null) return null;
+    final template = ConfigRegistry.instance.getMicroEmotionTemplate(microEmotion);
+    if (template == null) return null;
+    return {'tone': template.tone, 'guide': template.guide};
+  }
 
   /// 生成表达指引
   /// 
@@ -124,11 +117,11 @@ class ExpressionSelector {
     var tone = modeConfig['tone']?.toString() ?? '柔和、体贴';
     var extraGuide = '';
 
-    // 【核心修复】微情绪覆盖逻辑
-    if (microEmotion != null && _microEmotionGuides.containsKey(microEmotion)) {
-      final override = _microEmotionGuides[microEmotion]!;
-      tone = '${override['tone']} (当前心理状态)';
-      extraGuide = '\n- 【强制指引】${override['guide']}';
+    // 【核心修复】微情绪覆盖逻辑 (配置驱动版)
+    final microGuide = _getMicroEmotionGuide(microEmotion);
+    if (microGuide != null) {
+      tone = '${microGuide['tone']} (当前心理状态)';
+      extraGuide = '\n- 【强制指引】${microGuide['guide']}';
     }
     
     return '''

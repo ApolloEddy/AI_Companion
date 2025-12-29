@@ -29,6 +29,9 @@ import 'service/persona_service.dart';
 import 'service/profile_service.dart';
 import 'service/startup_greeting_service.dart';
 
+// 配置系统
+import 'config/config_registry.dart';
+
 class AppEngine extends ChangeNotifier {
   List<ChatMessage> messages = [];
   bool isLoading = false;
@@ -150,6 +153,9 @@ class AppEngine extends ChangeNotifier {
 
   Future<void> init() async {
     await SettingsLoader.loadAll();
+    
+    // 【新架构】加载配置注册表
+    await ConfigRegistry.instance.loadAll();
 
     prefs = await SharedPreferences.getInstance();
 
@@ -172,7 +178,8 @@ class AppEngine extends ChangeNotifier {
 
     // 初始化新架构组件
     _emotionEngine = EmotionEngine(prefs);
-    _memoryManager = MemoryManager(prefs);
+    _memoryManager = MemoryManager(dbHelper);
+    await _memoryManager.init(); // 【Phase 3】异步初始化 SQLite 存储
     
     // 【重构】从 PersonaService 获取人格策略，而不是硬编码
     _personaPolicy = persona.personaPolicy;

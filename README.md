@@ -1,10 +1,24 @@
 # AI Companion: Premium Cozy Edition
 
-> ![Status](https://img.shields.io/badge/Status-v2.5.0--Release-orange?style=for-the-badge)
+> ![Status](https://img.shields.io/badge/Status-v2.6.0--Release-orange?style=for-the-badge)
 > ![Flutter](https://img.shields.io/badge/Flutter-v3.24+-02569B?style=for-the-badge&logo=flutter)
 > ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-**AI Companion** 是一款基于 Flutter 构建的**情感参数可视计算人工智能伴侣**。它不仅拥有完整的**认知反馈环（Cognitive Loop）**和**维度情感模型（V-A Model）**，在 v2.5.0 版本中更引入了**心理触发器系统**，使 AI 能够感知社交信号并产生细腻的微情绪反应，迈向更人性化的数字生命。
+**AI Companion** 是一款基于 Flutter 构建的**情感参数可视计算人工智能伴侣**。它不仅拥有完整的**认知反馈环（Cognitive Loop）**和**维度情感模型（V-A Model）**，在 v2.6.0 版本中更引入了**Prompt Architecture 2.0**，实现配置驱动的 Prompt 生成与尾部注入策略，让 AI 表达更加自然流畅。
+
+---
+
+## 🧬 v2.6.0 Prompt Architecture 2.0
+
+本版本的核心升级是对 Prompt 构建逻辑的彻底重构：
+
+*   **配置化 Prompt**: `prompt_templates.yaml` 集中管理语气模式、回复格式和禁忌语，无需修改代码即可调整 AI 风格。
+*   **尾部注入 (Tail Injection)**: 策略和内心独白从 System Prompt 移至 User Message 末尾，利用 LLM 的 **Recency Bias** 强化执行力，确保 AI "言行一致"。
+*   **自然语言情绪**: Valence/Arousal 数值现在被翻译为"你现在感到愉悦"这样的描述，让 Prompt 更具可读性。
+*   **时间感知语气**: 深夜 (23:00-05:00) 时 AI 语气自动变得更柔和低沉。
+*   **AI 身份编辑器**: 设置新增"AI 身份设定"卡片，允许用户完整定义 AI 的名字、性别和年龄。
+*   **Big Five 雷达图**: 侧栏新增五因素人格可视化（只读），直观展示 AI 的人格画像。
+*   **UI 交互升级**: 所有 SnackBar 反馈升级为带对钩动画的弹窗；用户画像改为手动保存模式。
 
 ---
 

@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.6.0] - 2025-12-29 (Prompt Architecture 2.0)
+### Added
+- **Prompt Architecture 2.0**: 全面重构 Prompt 构建逻辑，实现配置驱动与拟人化增强：
+  - **配置化模板**: `prompt_templates.yaml` 集中管理语气模式、回复格式和禁忌语。
+  - **Few-Shot 接口**: `PromptAssembler` 预留 `{few_shots}` 插槽，为未来高质量示例注入做准备。
+  - **尾部注入 (Tail Injection)**: 策略和内心独白从 System Prompt 移至 User Message 末尾，利用 Recency Bias 强化执行。
+  - **自然语言情绪**: `EmotionEngine.getEmotionDescription()` 将 Valence/Arousal 转译为"你现在感到愉悦"等描述。
+  - **时间感知语气**: `ExpressionSelector` 根据当前时段（深夜/清晨）自动调节语气。
+- **AI 身份编辑器**: 设置页新增"AI 身份设定 (IDENTITY)"卡片，允许用户自定义 AI 名字、性别和年龄。
+- **Big Five 雷达图**: 侧栏新增五因素人格可视化雷达图（只读），替代原设置页滑块调节。
+- **成功弹窗反馈**: 所有 SnackBar 反馈升级为带对钩动画的 Success Popup，提升交互质感。
+
+### Changed
+- **设置页 Big Five 移除**: 不再允许用户直接调节人格参数；Big Five 仅作为可视化展示在侧栏。
+- **手动保存模式**: 用户画像不再自动保存，改为退出设置页时或点击保存按钮时触发。
+- **L1 Prompt 瘦身**: `PersonaPolicy.toSystemPrompt` 移除冗余"表达风格"段落，精简 Big Five 和亲密度描述，节省约 30% Token。
+- **L5 格式泛化**: `ResponseFormatter.getSplitInstruction` 从 YAML 配置读取，移除硬编码示例。
+
+### Fixed
+- **AI 性别无法定义**: 修复了设置页缺少 AI CoreIdentity 编辑入口的问题 (`updateAiCoreIdentity` in AppEngine)。
+- **重复方法定义**: 修复 `SettingsScreen` 中 `_onProfileFieldChanged` 重复定义导致的编译错误。
+- **Deprecated API**: 将 `withOpacity` 替换为 `withValues(alpha: ...)` 以消除 Flutter SDK 弃用警告。
+
 ## [2.5.0] - 2025-12-28
 ### Added
 - **心理触发器 (Psychological Triggers)**: AI 现在能检测社交信号并产生微情绪反应：

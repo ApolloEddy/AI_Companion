@@ -23,6 +23,8 @@ class PromptAssembler {
 - 时间：{current_time}
 - 状态：{current_state}
 
+{few_shots}
+
 【表达与行为指引】
 {expression_guide}
 
@@ -40,6 +42,7 @@ class PromptAssembler {
     required String responseFormat,    // 来自 ResponseFormatter
     required String behaviorRules,     // 来自 PersonaPolicy.getBehaviorConstraints()
     String coreFacts = '',             // 来自 FactStore.formatForSystemPrompt()
+    String fewShots = '',              // 【新增】Few-Shot 示例预留接口
   }) {
     final systemPrompt = _systemTemplate
         .replaceAll('{persona_header}', personaHeader)
@@ -47,6 +50,7 @@ class PromptAssembler {
         .replaceAll('{current_time}', currentTime)
         .replaceAll('{current_state}', currentState)
         .replaceAll('{memories}', memories.isNotEmpty ? memories : '（暂无记忆）')
+        .replaceAll('{few_shots}', fewShots)
         .replaceAll('{expression_guide}', expressionGuide)
         .replaceAll('{response_format}', responseFormat)
         .replaceAll('{behavior_rules}', behaviorRules);
@@ -62,6 +66,7 @@ class PromptAssembler {
         'expressionGuide': expressionGuide,
         'responseFormat': responseFormat,
         'behaviorRules': behaviorRules,
+        'fewShots': fewShots,
       },
     );
   }

@@ -168,6 +168,12 @@ class _ModernSideBarState extends State<ModernSideBar> {
                       // 核心状态网格（置底）
                       _buildSectionTitle('核心状态', isDark: isDark),
                       _buildStatusGrid(engine, isDark),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // 【新增】Big Five 人格雷达图
+                      _buildSectionTitle('五因素人格模型', isDark: isDark),
+                      _buildBigFiveRadar(engine, isDark),
                     ],
                   ),
                 ),
@@ -292,17 +298,11 @@ class _ModernSideBarState extends State<ModernSideBar> {
   }
 
 
-  /// 【Research-Grade】人格雷达图 - 五边形可视化
-  Widget _buildPersonalityRadar({
-    required double formality,
-    required double humor,
-    required double intimacy,
-    required double valence,
-    required double arousal,
-    required bool isDark,
-  }) {
+  /// 【Research-Grade】Big Five 人格雷达图 - 五边形可视化
+  Widget _buildBigFiveRadar(AppEngine engine, bool isDark) {
+    final traits = engine.personalityEngine.traits;
     return Container(
-      height: 180,
+      height: 200,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF252229) : Colors.grey.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
@@ -311,16 +311,16 @@ class _ModernSideBarState extends State<ModernSideBar> {
         ),
       ),
       child: CustomPaint(
-        size: const Size(double.infinity, 180),
+        size: const Size(double.infinity, 200),
         painter: RadarChartPainter(
           values: [
-            formality,
-            humor,
-            intimacy,
-            (valence + 1) / 2, // 归一化 -1~1 到 0~1
-            arousal,
+            traits.openness,
+            traits.conscientiousness,
+            traits.extraversion,
+            traits.agreeableness,
+            traits.neuroticism,
           ],
-          labels: ['庄重', '幽默', '亲密', '正向', '活力'],
+          labels: ['开放', '尽责', '外向', '宜人', '神质'],
           isDark: isDark,
         ),
       ),

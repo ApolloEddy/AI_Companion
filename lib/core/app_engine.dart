@@ -9,7 +9,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'model/chat_message.dart';
-import 'model/big_five_personality.dart'; // 【新增】Big Five 模型
+// import 'model/big_five_personality.dart'; // Unused
 import 'config.dart';
 import 'settings_loader.dart';
 import 'service/llm_service.dart';
@@ -358,7 +358,7 @@ class AppEngine extends ChangeNotifier {
 
   Future<void> updatePersonaConfig(Map<String, dynamic> newConfig) async {
     personaConfig = {...personaConfig, ...newConfig};
-    _personaPolicy = PersonaPolicy(personaConfig);
+    _personaPolicy = PersonaPolicy.fromJson(personaConfig); // 【Fix】使用 fromJson 确保正确解析
     
     // 【重构】通过 PersonaService 持久化到运行时状态
     await persona.updatePersonaPolicy(_personaPolicy);
@@ -369,6 +369,18 @@ class AppEngine extends ChangeNotifier {
     // 保留旧的保存逻辑以确保兼容性
     await _savePersonaConfig();
     notifyListeners();
+  }
+  
+  /// 更新 AI 核心身份 (姓名, 性别, 年龄)
+  Future<void> updateAiCoreIdentity({String? name, String? gender, String? age}) async {
+    final Map<String, dynamic> updates = {};
+    if (name != null) updates['name'] = name;
+    if (gender != null) updates['gender'] = gender;
+    if (age != null) updates['age'] = age;
+    
+    if (updates.isNotEmpty) {
+      await updatePersonaConfig(updates);
+    }
   }
 
   Future<void> updateApiKey(String newKey) async {

@@ -128,17 +128,32 @@ class ProfileService {
   /// 更新基本信息
   Future<void> updateBasicInfo({
     String? nickname,
+    String? callSign,  // 【新增】
     String? occupation,
     String? major,
     int? age,
+    DateTime? birthday, // 【新增】
     String? gender,
   }) async {
     _cachedProfile = profile.copyWith(
       nickname: nickname,
+      callSign: callSign,
       occupation: occupation,
       major: major,
       age: age,
+      birthday: birthday,
       gender: gender,
+    );
+    await _save();
+  }
+  
+  /// 更新关系目标
+  Future<void> updateRelationshipGoal(String goal) async {
+    final newPrefs = profile.preferences.toJson();
+    newPrefs['relationshipGoal'] = goal;
+    
+    _cachedProfile = profile.copyWith(
+      preferences: DialoguePreferences.fromJson(newPrefs),
     );
     await _save();
   }

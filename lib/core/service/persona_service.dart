@@ -190,11 +190,10 @@ class PersonaService {
     state['interactions'] = (state['interactions'] ?? 0) + 1;
     state['lastInteraction'] = DateTime.now().toIso8601String();
     
-    // 亲密度增长 - 使用 SettingsLoader 配置
-    double currentIntimacy = (state['intimacy'] ?? 0.1).toDouble();
-    double growth = SettingsLoader.intimacyGrowthRate;
-    if (userMessage.length > 20) growth += 0.003;
-    state['intimacy'] = (currentIntimacy + growth).clamp(0.0, 1.0);
+    // 【重构】亲密度增长逻辑已委托给 IntimacyEngine
+    // 此处不再直接修改 state['intimacy']
+    // 亲密度由 ConversationEngine 调用 IntimacyEngine.updateIntimacy() 管理
+    // 保持 state['intimacy'] 同步由外部调用 updateIntimacy() 完成
     
     // 情绪波动 - 使用 SettingsLoader 配置
     var em = state['emotion'];
@@ -221,6 +220,7 @@ class PersonaService {
     _updateLabels();
     await save();
   }
+
 
   void _updateLabels() {
     var em = state['emotion'];

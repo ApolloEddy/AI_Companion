@@ -25,57 +25,76 @@ class AmbientBackground extends StatelessWidget {
     // 【Research-Grade】 亲密度决定基调颜色
     final baseColor = _getBaseColorByIntimacy();
     
-    // 【Research-Grade】 情绪决定偏移和对比
-    final colors = _applyEmotionDynamics(baseColor);
+    // 【Research-Grade】 情绪决定强调色和混合逻辑
+    final accentColor = _getAccentColorByEmotion();
     
+    // 动态生成三色渐变
+    final colors = [
+      baseColor,
+      Color.lerp(baseColor, accentColor, 0.5)!,
+      accentColor.withValues(alpha: 0.8),
+    ];
+    
+    // 唤起度影响渐变方向 (0.5平缓 -> 1.0激进)
+    final alignEnd = Alignment(
+      1.0, 
+      1.0 + (arousal - 0.5) * 2 // 动态调整 Y 轴倾斜
+    );
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 2000),
       curve: Curves.easeInOut,
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+          end: alignEnd,
           colors: colors,
+          stops: const [0.0, 0.6, 1.0], // 非线性分布增加层次感
         ),
       ),
     );
   }
 
-  /// 亲密度决定背景基调
+  /// 亲密度决定背景基调 - 更具质感的配色
   Color _getBaseColorByIntimacy() {
     if (isDarkMode) {
-      if (intimacy > 0.7) return const Color(0xFF2D1B28); // 暖紫黑
-      if (intimacy > 0.4) return const Color(0xFF1B1B2D); // 深蓝蓝
-      return const Color(0xFF0D1117); // 极其冷淡的深色
+      if (intimacy > 0.8) return const Color(0xFF2D1B2E); // 深度亲密：深紫红
+      if (intimacy > 0.4) return const Color(0xFF1A1F35); // 熟悉：深海蓝
+      return const Color(0xFF101216); // 陌生：曜石黑
     } else {
-      if (intimacy > 0.7) return const Color(0xFFFFF5F8); // 温润淡粉
-      if (intimacy > 0.4) return const Color(0xFFF5F8FF); // 清新淡蓝
-      return const Color(0xFFF6F8FA); // 灰白
+      if (intimacy > 0.8) return const Color(0xFFFFF0F5); // 深度亲密：樱花白
+      if (intimacy > 0.4) return const Color(0xFFF0F7FF); // 熟悉：云雾蓝
+      return const Color(0xFFF9FAFB); // 陌生：纸张白
     }
   }
 
-  /// 融合情绪动态
-  List<Color> _applyEmotionDynamics(Color base) {
-    final hsl = HSLColor.fromColor(base);
+  /// 情绪决定强调色 (Shift)
+  Color _getAccentColorByEmotion() {
+    // 根据 Valence 选择色相倾向
+    // Valence < 0 (负面): 偏冷/暗 (Blue, Violet, Grey)
+    // Valence > 0 (正面): 偏暖/亮 (Orange, Yellow, Cyan)
     
-    // 效价 (Valence) 决定色相偏移
-    // 正面(+): 移向黄色/橙色；负面(-): 移向蓝色/紫色
-    double hueShift = valence * 20.0; // 最大偏移 20 度
+    HSLColor baseHsl;
     
-    // 唤起度 (Arousal) 决定对比和饱和度
-    double saturationShift = (arousal - 0.5) * 0.2;
-    double lightnessShift = (arousal - 0.5) * 0.05;
-
-    final primary = hsl.withHue((hsl.hue + hueShift).clamp(0.0, 360.0))
-        .withSaturation((hsl.saturation + saturationShift).clamp(0.0, 1.0))
-        .withLightness((hsl.lightness + lightnessShift).clamp(0.0, 1.0))
-        .toColor();
-
-    final secondary = hsl.withHue((hsl.hue - hueShift).clamp(0.0, 360.0))
-        .withSaturation((hsl.saturation - saturationShift).clamp(0.0, 1.0))
-        .withLightness((hsl.lightness - lightnessShift).clamp(0.0, 1.0))
-        .toColor();
-
-    return [primary, secondary];
+    if (valence > 0.5) {
+      baseHsl = HSLColor.fromColor(Colors.orangeAccent); // 兴奋/快乐
+    } else if (valence > 0) {
+      baseHsl = HSLColor.fromColor(Colors.cyanAccent);   // 平静/愉悦
+    } else if (valence > -0.5) {
+      baseHsl = HSLColor.fromColor(Colors.blueGrey);     // 低落/无聊
+    } else {
+      baseHsl = HSLColor.fromColor(Colors.deepPurpleAccent); // 焦虑/痛苦
+    }
+    
+    // 根据 Arousal 调整饱和度和亮度
+    // Arousal 高 -> 饱和度高
+    // Arousal 低 -> 饱和度低，亮度适中
+    
+    final saturation = (0.3 + arousal * 0.4).clamp(0.0, 1.0); // 0.3 - 0.7
+    final lightness = isDarkMode 
+        ? (0.15 + arousal * 0.15).clamp(0.0, 0.4) // 暗色模式下保持低亮度
+        : (0.85 + arousal * 0.1).clamp(0.8, 0.95); // 亮色模式下保持高亮度
+        
+    return baseHsl.withSaturation(saturation).withLightness(lightness).toColor();
   }
 }

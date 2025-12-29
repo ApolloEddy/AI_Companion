@@ -5,6 +5,7 @@ import 'package:yaml/yaml.dart';
 class SettingsLoader {
   static Map<String, dynamic>? _personaSettings;
   static Map<String, dynamic>? _emotionSettings;
+  static Map<String, dynamic>? _intimacySettings; // 【新增】
   static Map<String, dynamic>? _timeSettings;
   static Map<String, dynamic>? _responseSettings;
   static Map<String, dynamic>? _memorySettings;
@@ -17,10 +18,12 @@ class SettingsLoader {
     
     _personaSettings = await _loadYaml('assets/settings/persona_settings.yaml');
     _emotionSettings = await _loadYaml('assets/settings/emotion_settings.yaml');
+    _intimacySettings = await _loadYaml('assets/settings/intimacy_settings.yaml'); // 【新增】
     _timeSettings = await _loadYaml('assets/settings/time_settings.yaml');
     _responseSettings = await _loadYaml('assets/settings/response_settings.yaml');
     _memorySettings = await _loadYaml('assets/settings/memory_settings.yaml');
     _factSchemaSettings = await _loadYaml('assets/settings/fact_schema.yaml');
+    
     
     _isLoaded = true;
   }
@@ -80,10 +83,10 @@ class SettingsLoader {
       _getDouble(_personaSettings, ['response_length', 'detailed_threshold'], 0.6);
   
   static double get intimacyLowThreshold => 
-      _getDouble(_personaSettings, ['intimacy_effects', 'low_threshold'], 0.3);
+      _getDouble(_intimacySettings, ['thresholds', 'low'], 0.3);
   
   static double get intimacyHighThreshold => 
-      _getDouble(_personaSettings, ['intimacy_effects', 'high_threshold'], 0.7);
+      _getDouble(_intimacySettings, ['thresholds', 'high'], 0.7);
   
   // 【P2-1 新增】表达阈值配置
   static double get formalityCasualBelow => 

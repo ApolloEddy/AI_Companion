@@ -30,6 +30,7 @@ import '../policy/persona_policy.dart';
 import '../service/persona_service.dart'; // 【新增】依赖 PersonaService
 
 import 'emotion_engine.dart';
+import 'intimacy_engine.dart'; // 【新增】亲密度连续态模型
 import '../memory/memory_manager.dart';
 import 'proactive_settings.dart';
 import '../memory/fact_store.dart';
@@ -78,6 +79,7 @@ class ConversationEngine {
   final LLMService llmService;
   final MemoryManager memoryManager;
   final EmotionEngine emotionEngine;
+  final IntimacyEngine intimacyEngine; // 【新增】亲密度连续态模型
   
   // 【数据流重构】直接依赖 Service 获取最新策略
   final PersonaService personaService;
@@ -93,13 +95,14 @@ class ConversationEngine {
   // 定时器
   Timer? _emotionDecayTimer;
   Timer? _proactiveCheckTimer;
+  Timer? _intimacyRegressionTimer; // 【新增】亲密度回归定时器
 
   // 状态
   DateTime? _lastProactiveMessage;
   bool _isRunning = false;
 
-  // 亲密度（由外部管理，这里只读取）
-  double _intimacy = 0.1;
+  // 亲密度（【重构】改从 IntimacyEngine 读取）
+  double get _intimacy => intimacyEngine.intimacy;
   int _interactionCount = 0;
   DateTime? _lastInteraction;
 
@@ -117,6 +120,7 @@ class ConversationEngine {
     required this.memoryManager,
     required this.personaService, // 【新增】注入 Service
     required this.emotionEngine,
+    required this.intimacyEngine, // 【新增】注入亲密度引擎
     required this.generationPolicy,
     this.profileService,
   });
@@ -156,10 +160,14 @@ class ConversationEngine {
 
     // 启动时先应用一次衰减
     emotionEngine.applyDecaySinceLastUpdate();
+    
+    // 【新增】启动时应用亲密度回归
+    intimacyEngine.applyRegressionSinceLastUpdate();
 
     // 启动定时器
     _startEmotionDecayTimer();
     _startProactiveMessageTimer();
+    _startIntimacyRegressionTimer(); // 【新增】亲密度回归定时器
 
     // 初始化认知引擎组件（如果有 ProfileService）
     if (profileService != null) {
@@ -174,8 +182,10 @@ class ConversationEngine {
     _isRunning = false;
     _emotionDecayTimer?.cancel();
     _proactiveCheckTimer?.cancel();
+    _intimacyRegressionTimer?.cancel(); // 【新增】取消亲密度回归定时器
     _emotionDecayTimer = null;
     _proactiveCheckTimer = null;
+    _intimacyRegressionTimer = null;
     _asyncReflectionEngine?.stop();
 
     print('[ConversationEngine] stopped');
@@ -203,13 +213,16 @@ class ConversationEngine {
     print('[ConversationEngine] FactStore initialized');
   }
 
-  /// 更新状态（由外部传入）
+  /// 【重构】更新状态（由外部传入）
+  /// 注意：intimacy 参数仅用于同步到 PersonaService，实际值由 IntimacyEngine 管理
   void updateState({
-    required double intimacy,
+    required double intimacy, // 保持接口兼容，但实际亲密度由 IntimacyEngine 管理
     required int interactionCount,
     DateTime? lastInteraction,
   }) {
-    _intimacy = intimacy;
+    // 【重构】_intimacy 现在是 getter，不再直接赋值
+    // 亲密度由 IntimacyEngine 内部管理，此处仅同步到 PersonaService
+    personaService.updateIntimacy(intimacyEngine.intimacy);
     _interactionCount = interactionCount;
     _lastInteraction = lastInteraction;
   }
@@ -233,6 +246,28 @@ class ConversationEngine {
     });
 
     print('[ConversationEngine] emotion decay timer started (interval: 5 min)');
+  }
+
+  /// 【新增】启动亲密度回归定时器
+  ///
+  /// 每 30 分钟检查并应用亲密度自然回归
+  void _startIntimacyRegressionTimer() {
+    const interval = Duration(minutes: 30);
+    _intimacyRegressionTimer = Timer.periodic(interval, (_) {
+      if (!_isRunning) return;
+
+      intimacyEngine.applyNaturalRegression();
+      // 同步亲密度到 PersonaService
+      personaService.updateIntimacy(intimacyEngine.intimacy);
+      
+      print(
+        '[ConversationEngine] intimacy regression tick: '
+        'intimacy=${intimacyEngine.intimacy.toStringAsFixed(3)}, '
+        'efficiency=${intimacyEngine.currentState.growthEfficiency.toStringAsFixed(1)}%',
+      );
+    });
+
+    print('[ConversationEngine] intimacy regression timer started (interval: 30 min)');
   }
 
   // ========== 主动消息触发 ==========
@@ -535,6 +570,17 @@ class ConversationEngine {
       final newArousal = emotionEngine.arousal + perception.surfaceEmotion.arousal * 0.3;
       await emotionEngine.setEmotion(arousal: newArousal.clamp(0.0, 1.0));
     }
+    
+    // 【新增】更新亲密度 - 使用感知阶段得到的交互质量
+    // InteractionQuality 从 perception 的 confidence 和情绪推导
+    final interactionQuality = 0.8 + perception.confidence * 0.4 + 
+                               perception.surfaceEmotion.valence * 0.1;
+    await intimacyEngine.updateIntimacy(
+      interactionQuality: interactionQuality.clamp(0.5, 1.5),
+      emotionValence: emotionEngine.valence,
+    );
+    // 同步亲密度到 PersonaService
+    personaService.updateIntimacy(intimacyEngine.intimacy);
 
     // 【FactStore】从用户消息中提取核心事实
     if (_factStore != null) {

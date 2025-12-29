@@ -20,6 +20,7 @@ import 'model/user_profile.dart';
 import 'policy/generation_policy.dart';
 import 'policy/persona_policy.dart';
 import 'engine/emotion_engine.dart';
+import 'engine/intimacy_engine.dart'; // 【新增】亲密度连续态模型
 import 'memory/memory_manager.dart'; // Moved to memory
 import 'engine/conversation_engine.dart';
 import 'memory/fact_store.dart'; // Moved to memory
@@ -51,6 +52,7 @@ class AppEngine extends ChangeNotifier {
   // 新架构组件
   late ConversationEngine _conversationEngine;
   late EmotionEngine _emotionEngine;
+  late IntimacyEngine _intimacyEngine; // 【新增】亲密度连续态模型
   late MemoryManager _memoryManager;
   late PersonaPolicy _personaPolicy;
   late GenerationPolicy _generationPolicy;
@@ -58,6 +60,9 @@ class AppEngine extends ChangeNotifier {
   // Phase 2: FactStore 引用（用于 MemoryManagerScreen）
   late FactStore _factStore;
   FactStore get factStore => _factStore;
+  
+  // 【新增】暴露 IntimacyEngine 给 UI 层（用于稳定性监视器）
+  IntimacyEngine get intimacyEngine => _intimacyEngine;
 
   // 向后兼容：保留旧服务引用
   late PersonaService persona;
@@ -97,7 +102,7 @@ class AppEngine extends ChangeNotifier {
   Map<String, dynamic> get emotion => _emotionEngine.emotionMap;
 
   /// 获取亲密度
-  double get intimacy => persona.intimacy;
+  double get intimacy => _intimacyEngine.intimacy;
 
   /// 获取记忆库条目数量（从持久化存储读取）
   int get memoryCount => _memoryManager.count;
@@ -178,6 +183,7 @@ class AppEngine extends ChangeNotifier {
 
     // 初始化新架构组件
     _emotionEngine = EmotionEngine(prefs);
+    _intimacyEngine = IntimacyEngine(prefs); // 【新增】初始化亲密度连续态模型
     _memoryManager = MemoryManager(dbHelper);
     await _memoryManager.init(); // 【Phase 3】异步初始化 SQLite 存储
     
@@ -200,6 +206,7 @@ class AppEngine extends ChangeNotifier {
       memoryManager: _memoryManager,
       personaService: persona, // 【重构】注入 PersonaService
       emotionEngine: _emotionEngine,
+      intimacyEngine: _intimacyEngine, // 【新增】注入亲密度引擎
       generationPolicy: _generationPolicy,
       profileService: _profileService, // 启用认知增强
     );
@@ -213,19 +220,11 @@ class AppEngine extends ChangeNotifier {
     // 设置待发送消息回调 - 主动消息会先进入队列
     _conversationEngine.onPendingMessage = addPendingMessage;
 
-    // 启动对话引擎（启动 Timer）
+    // 启动对话引擎（启动 Timer，包含亲密度衰减/回归定时器）
     await _conversationEngine.start();
-
-    // 【Research-Grade】实现亲密度衰减逻辑
-    if (persona.lastInteraction != null) {
-      final hours = DateTime.now().difference(persona.lastInteraction!).inHours;
-      if (hours >= 24) {
-        final decayAmount = (hours / 24) * 0.05;
-        final newIntimacy = (persona.intimacy - decayAmount).clamp(0.1, 1.0);
-        persona.updateIntimacy(newIntimacy);
-        print('[AppEngine] Intimacy decayed by $decayAmount due to $hours hours of absence. New intimacy: $newIntimacy');
-      }
-    }
+    
+    // 【重构】亲密度衰减逻辑已移至 IntimacyEngine.applyNaturalRegression
+    // 由 ConversationEngine 的定时器自动调用，此处无需手动处理
 
     await _loadChatHistory();
 
@@ -384,6 +383,7 @@ class AppEngine extends ChangeNotifier {
       memoryManager: _memoryManager,
       personaService: persona, // 【重构】注入 PersonaService
       emotionEngine: _emotionEngine,
+      intimacyEngine: _intimacyEngine, // 【修复】注入亲密度引擎
       generationPolicy: _generationPolicy,
       profileService: _profileService, // 保留认知引擎
     );

@@ -1,0 +1,47 @@
+# 亲密度系统配置
+# 这些参数控制亲密度的增长、冷却和回归行为
+
+# 增长配置
+growth:
+  # 基础增长系数
+  base_coefficient: 0.02
+  # 递减幂次 (控制边际递减的曲线形状)
+  diminishing_power: 0.5
+  # 单次交互最大增长量
+  max_growth_per_interaction: 0.05
+
+# 冷却配置
+cooling:
+  # 每小时冷却因子衰减
+  factor_per_hour: 0.05
+  # 最小时间因子 (防止完全停止增长)
+  min_factor: 0.2
+  # 负面事件对增长系数的削减乘数
+  negative_event_multiplier: 0.1
+  # 基础冷却时间 (小时)
+  base_cooling_hours: 2
+  # 严重程度对冷却时间的额外影响 (小时)
+  severity_cooling_hours: 6
+
+# 回归配置
+regression:
+  # 每小时自然回归率
+  base_rate_per_hour: 0.001
+  # 负面事件严重程度对回归的加成乘数
+  negative_severity_multiplier: 0.5
+  # 最低亲密度 (不会回归到此值以下)
+  min_intimacy: 0.05
+
+# Prompt 风格参数
+prompt_style:
+  # 主动概率范围
+  proactivity_min: 0.3
+  proactivity_max: 0.9
+  # 隐喻留白比范围
+  implication_ratio_min: 0.2
+  implication_ratio_max: 0.8
+
+# 阈值定义 (用于策略判定)
+thresholds:
+  low: 0.3
+  high: 0.7

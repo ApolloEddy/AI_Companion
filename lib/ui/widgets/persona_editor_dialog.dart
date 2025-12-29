@@ -19,6 +19,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
   late final TextEditingController _taboosController;
   late final TextEditingController _backstoryController;
   late final TextEditingController _valuesController;
+  late final TextEditingController _deepSecretsController; // 【新增】
   
   double _formality = 0.5;
   double _humor = 0.5;
@@ -43,6 +44,12 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
           ? (config['values'] as List).join('、') 
           : (config['values']?.toString() ?? ''),
     );
+    _deepSecretsController = TextEditingController( // 【新增】
+      text: (config['deepSecrets'] is List) 
+          ? (config['deepSecrets'] as List).join('\n') // 使用换行分隔
+          : (config['deepSecrets']?.toString() ?? ''),
+    );
+
     _formality = (config['formality'] as num?)?.toDouble() ?? 0.5;
     _humor = (config['humor'] as num?)?.toDouble() ?? 0.5;
   }
@@ -57,6 +64,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
     _taboosController.dispose();
     _backstoryController.dispose();
     _valuesController.dispose();
+    _deepSecretsController.dispose();
     super.dispose();
   }
 
@@ -74,6 +82,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
       'taboos': _taboosController.text.trim(),
       'backstory': _backstoryController.text.trim(),
       'values': _valuesController.text.trim().split(RegExp(r'[、,，\s]+')).where((s) => s.isNotEmpty).toList(),
+      'deepSecrets': _deepSecretsController.text.trim().split('\n').where((s) => s.isNotEmpty).toList(), // 【新增】
       'formality': _formality,
       'humor': _humor,
     });
@@ -96,7 +105,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
       backgroundColor: Colors.transparent,
       child: Container(
         width: 400,
-        constraints: const BoxConstraints(maxHeight: 600),
+        constraints: const BoxConstraints(maxHeight: 700), // 增加高度
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -178,6 +187,14 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
                       controller: _valuesController,
                       isDark: isDark,
                       maxLines: 2,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField( // 【新增】深层秘密
+                      label: '深层秘密 (高亲密度解锁)',
+                      hint: '只有在极度亲密（>80%）时才会分享的内心秘密，每行一条',
+                      controller: _deepSecretsController,
+                      isDark: isDark,
+                      maxLines: 3,
                     ),
                     const SizedBox(height: 24),
                     _buildSlider(

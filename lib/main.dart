@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // 【FIX】导入 services
 import 'package:provider/provider.dart';
 import 'core/app_engine.dart';
 import 'core/provider/theme_provider.dart';
@@ -7,6 +8,20 @@ import 'core/provider/bubble_color_provider.dart';
 import 'ui/main_screen.dart';
 
 void main() {
+  // 【FIX】确保绑定初始化
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 【Research-Grade】沉浸式状态栏 - 透明背景，使 AmbientBackground 延伸至顶部
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent, // 透明状态栏
+    statusBarIconBrightness: Brightness.dark, // 默认图标颜色 (会被 AppBar 覆盖)
+    systemNavigationBarColor: Colors.transparent, // 透明导航栏 (如果支持)
+    systemNavigationBarDividerColor: Colors.transparent,
+  ));
+  
+  // 【FIX】强制全屏模式 (可选，视需求而定，这里主要保证状态栏透明)
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
   runApp(const MyApp());
 }
 

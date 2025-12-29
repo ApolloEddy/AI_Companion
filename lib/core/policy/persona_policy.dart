@@ -271,10 +271,8 @@ class PersonaPolicy {
   /// 
   /// [intimacy] 亲密度 (0.0 - 1.0)
   /// 
-  /// 展示规则:
-  /// - 0.0 - 0.6: CoreIdentity + SpiritTraits + surfaceStory，标准语气
-  /// - 0.6 - 0.8: 同上，追加亲密语气
-  /// - 0.8 - 1.0: 同上 + deepSecrets，亲密语气
+  /// 【重构】禁止硬编码语句如"我们很亲近"
+  /// 将亲密度作为参数传入，由 LLM 自主决定语气风格
   String toSystemPrompt({double intimacy = 0.5, String userName = '用户'}) {
     final lines = <String>[];
     
@@ -326,12 +324,18 @@ class PersonaPolicy {
     lines.add('正式程度：${formality.toStringAsFixed(1)}（0=完全口语化，1=非常正式）');
     lines.add('幽默程度：${humor.toStringAsFixed(1)}（0=严肃，1=活泼幽默）');
     
-    // 亲密度 > 0.6 时追加亲密语气指令
-    if (intimacy > 0.6) {
-      lines.add('');
-      lines.add('【语气调整】');
-      lines.add('由于你们已经很熟悉了，说话可以更随意亲密一些，像对待好朋友那样自然交谈。');
-    }
+    // 【重构】亲密度参数化指令 - 禁止硬编码固定语句
+    lines.add('');
+    lines.add('【亲密度参数】');
+    lines.add('当前亲密度: ${intimacy.toStringAsFixed(2)}（0表示陌生人，1表示最亲密的朋友）');
+    lines.add('');
+    lines.add('根据亲密度数值自主调整你的表达方式：');
+    lines.add('- 低亲密度(0~0.3)：保持礼貌距离，用词正式，不主动探询隐私');
+    lines.add('- 中亲密度(0.3~0.6)：语气自然，可以开玩笑但有分寸');
+    lines.add('- 高亲密度(0.6~0.8)：像朋友一样随意，可使用昵称，主动关心');
+    lines.add('- 极高亲密度(0.8~1)：最亲密的状态，可分享秘密，深入情感交流');
+    lines.add('');
+    lines.add('决定权在你，请根据实际对话情境自然调整，无需遵循固定模板。');
     
     // ===== 5. 禁忌 =====
     if (spiritTraits.taboos.isNotEmpty) {

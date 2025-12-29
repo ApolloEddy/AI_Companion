@@ -8,10 +8,13 @@
 /// 用户画像 - 核心身份锚点
 class UserProfile {
   // === 静态身份 (用户手动设置/确认) ===
+  // === 静态身份 (用户手动设置/确认) ===
   final String nickname;
+  final String? callSign;   // 【新增】称呼偏好 (AI 怎么叫用户)
   final String occupation;
   final String? major;
   final int? age;
+  final DateTime? birthday; // 【新增】生日
   final String? gender;
   
   // === 重要背景 (从对话中提取并确认) ===
@@ -28,9 +31,11 @@ class UserProfile {
 
   const UserProfile({
     required this.nickname,
+    this.callSign,
     required this.occupation,
     this.major,
     this.age,
+    this.birthday,
     this.gender,
     this.lifeContexts = const [],
     this.preferences = const DialoguePreferences(),
@@ -68,8 +73,21 @@ class UserProfile {
   String getIdentityAnchor() {
     final lines = <String>[];
     lines.add('用户身份：$nickname');
+    if (callSign != null && callSign!.isNotEmpty) {
+      lines.add('称呼偏好：$callSign');
+    }
     lines.add('职业：$occupation');
     if (major != null && major!.isNotEmpty) lines.add('专业：$major');
+    if (age != null) lines.add('年龄：$age');
+    if (gender != null) lines.add('性别：$gender');
+    if (birthday != null) {
+      lines.add('生日：${birthday!.year}年${birthday!.month}月${birthday!.day}日');
+    }
+    
+    // 关系目标注入
+    if (preferences.relationshipGoal.isNotEmpty) {
+      lines.add('关系期望：${preferences.relationshipGoal}');
+    }
     
     // 【去重 + 优化】仅取最重要且不重复的前 3 条背景，防止 Prompt 爆炸
     final uniqueContexts = <String>{};
@@ -94,9 +112,11 @@ class UserProfile {
   /// 复制并更新
   UserProfile copyWith({
     String? nickname,
+    String? callSign,
     String? occupation,
     String? major,
     int? age,
+    DateTime? birthday,
     String? gender,
     List<LifeContext>? lifeContexts,
     DialoguePreferences? preferences,
@@ -105,9 +125,11 @@ class UserProfile {
   }) {
     return UserProfile(
       nickname: nickname ?? this.nickname,
+      callSign: callSign ?? this.callSign,
       occupation: occupation ?? this.occupation,
       major: major ?? this.major,
       age: age ?? this.age,
+      birthday: birthday ?? this.birthday,
       gender: gender ?? this.gender,
       lifeContexts: lifeContexts ?? this.lifeContexts,
       preferences: preferences ?? this.preferences,
@@ -134,9 +156,11 @@ class UserProfile {
 
   Map<String, dynamic> toJson() => {
     'nickname': nickname,
+    'callSign': callSign,
     'occupation': occupation,
     'major': major,
     'age': age,
+    'birthday': birthday?.toIso8601String(),
     'gender': gender,
     'lifeContexts': lifeContexts.map((c) => c.toJson()).toList(),
     'preferences': preferences.toJson(),
@@ -147,9 +171,11 @@ class UserProfile {
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
       nickname: json['nickname'] ?? 'User',
+      callSign: json['callSign'],
       occupation: json['occupation'] ?? '',
       major: json['major'],
       age: json['age'],
+      birthday: DateTime.tryParse(json['birthday'] ?? ''),
       gender: json['gender'],
       lifeContexts: (json['lifeContexts'] as List?)
           ?.map((e) => LifeContext.fromJson(e))
@@ -209,6 +235,7 @@ class DialoguePreferences {
   final double preferredResponseLength;  // 0.0(简短) ~ 1.0(详细)
   final bool allowProactiveMessages;
   final Set<String> sensitiveTopics;
+  final String relationshipGoal; // 【新增】关系目标 (如 "挚友", "导师", "恋人")
 
   const DialoguePreferences({
     this.dislikedPatterns = const [],
@@ -216,6 +243,7 @@ class DialoguePreferences {
     this.preferredResponseLength = 0.5,
     this.allowProactiveMessages = true,
     this.sensitiveTopics = const {},
+    this.relationshipGoal = '',
   });
 
   /// 添加不喜欢的模式
@@ -227,6 +255,7 @@ class DialoguePreferences {
       preferredResponseLength: preferredResponseLength,
       allowProactiveMessages: allowProactiveMessages,
       sensitiveTopics: sensitiveTopics,
+      relationshipGoal: relationshipGoal,
     );
   }
 
@@ -236,6 +265,7 @@ class DialoguePreferences {
     'preferredResponseLength': preferredResponseLength,
     'allowProactiveMessages': allowProactiveMessages,
     'sensitiveTopics': sensitiveTopics.toList(),
+    'relationshipGoal': relationshipGoal,
   };
 
   factory DialoguePreferences.fromJson(Map<String, dynamic> json) {
@@ -245,6 +275,7 @@ class DialoguePreferences {
       preferredResponseLength: (json['preferredResponseLength'] ?? 0.5).toDouble(),
       allowProactiveMessages: json['allowProactiveMessages'] ?? true,
       sensitiveTopics: ((json['sensitiveTopics'] as List?) ?? []).cast<String>().toSet(),
+      relationshipGoal: json['relationshipGoal'] ?? '',
     );
   }
 }

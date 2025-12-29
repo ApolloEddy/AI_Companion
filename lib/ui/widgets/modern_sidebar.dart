@@ -153,6 +153,18 @@ class _ModernSideBarState extends State<ModernSideBar> {
                       
                       const SizedBox(height: 24),
                       
+                      // 【新增】情绪象限可视化
+                      _buildSectionTitle('情绪象限', isDark: isDark),
+                      _buildEmotionQuadrant(valence: valence, arousal: arousal, isDark: isDark),
+                      
+                      const SizedBox(height: 24),
+                      
+                      // 【新增】关系稳定性监视器
+                      _buildSectionTitle('关系成长效率', isDark: isDark),
+                      _buildStabilityMonitor(engine, isDark),
+                      
+                      const SizedBox(height: 24),
+                      
                       // 核心状态网格（置底）
                       _buildSectionTitle('核心状态', isDark: isDark),
                       _buildStatusGrid(engine, isDark),
@@ -692,6 +704,152 @@ class _ModernSideBarState extends State<ModernSideBar> {
     if (intimacy > 0.7) return Colors.pinkAccent;
     if (intimacy > 0.4) return Colors.purpleAccent;
     return Colors.blueAccent;
+  }
+
+  /// 【新增】情绪象限可视化 - Valence-Arousal 二维坐标系
+  Widget _buildEmotionQuadrant({
+    required double valence,
+    required double arousal,
+    required bool isDark,
+  }) {
+    return Container(
+      height: 180,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252229) : Colors.grey.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFFFFB74D).withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.2),
+        ),
+      ),
+      child: CustomPaint(
+        size: const Size(double.infinity, double.infinity),
+        painter: _EmotionQuadrantPainter(
+          valence: valence,
+          arousal: arousal,
+          isDark: isDark,
+        ),
+      ),
+    );
+  }
+
+  /// 【新增】关系稳定性监视器 - 显示增长效率曲线和冷却状态
+  Widget _buildStabilityMonitor(AppEngine engine, bool isDark) {
+    final intimacyState = engine.intimacyEngine.currentState;
+    final efficiency = intimacyState.growthEfficiency;
+    final isCooling = intimacyState.isCooling;
+    final coolingRemaining = intimacyState.coolingRemainingMinutes;
+    
+    // 获取增长效率曲线数据
+    final curveData = engine.intimacyEngine.getGrowthEfficiencyCurve();
+    
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252229) : Colors.grey.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? const Color(0xFFFFB74D).withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 当前状态行
+          Row(
+            children: [
+              // 当前效率
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '当前效率',
+                      style: TextStyle(fontSize: 10, color: isDark ? Colors.white38 : Colors.black38),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${efficiency.toStringAsFixed(1)}%',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.greenAccent : const Color(0xFF2E7D32),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // 冷却状态
+              if (isCooling) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.hourglass_bottom, size: 14, color: Colors.orange),
+                      const SizedBox(width: 4),
+                      Text(
+                        '冷却中 ${coolingRemaining}分钟',
+                        style: TextStyle(fontSize: 11, color: Colors.orange, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '正常增长中',
+                    style: TextStyle(fontSize: 11, color: isDark ? Colors.greenAccent : const Color(0xFF2E7D32)),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          
+          const SizedBox(height: 16),
+          
+          // 增长效率曲线
+          Text(
+            '边际收益曲线',
+            style: TextStyle(fontSize: 9, color: isDark ? Colors.white30 : Colors.black54, letterSpacing: 0.5),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            height: 60,
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withValues(alpha: 0.02) : Colors.black.withValues(alpha: 0.02),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: CustomPaint(
+              size: const Size(double.infinity, 60),
+              painter: _EfficiencyCurvePainter(
+                curveData: curveData,
+                currentIntimacy: engine.intimacyEngine.intimacy,
+                isDark: isDark,
+              ),
+            ),
+          ),
+          
+          const SizedBox(height: 8),
+          
+          // 说明
+          Text(
+            '亲密度越高，单次交互增长越慢（边际递减）',
+            style: TextStyle(fontSize: 9, color: isDark ? Colors.white24 : Colors.black26),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildPersonalitySliders(AppEngine engine, bool isDark) {
@@ -1325,5 +1483,203 @@ class SparklinePainter extends CustomPainter {
       if ((oldDelegate.data[i] - data[i]).abs() > 0.01) return true;
     }
     return false;
+  }
+}
+
+/// 【新增】情绪象限绘制器 - Valence-Arousal 二维坐标系
+class _EmotionQuadrantPainter extends CustomPainter {
+  final double valence;  // -1 ~ 1 (横轴)
+  final double arousal;  // 0 ~ 1 (纵轴)
+  final bool isDark;
+
+  _EmotionQuadrantPainter({
+    required this.valence,
+    required this.arousal,
+    required this.isDark,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final padding = 20.0;
+    final chartWidth = size.width - padding * 2;
+    final chartHeight = size.height - padding * 2;
+    final centerX = size.width / 2;
+    final centerY = size.height / 2;
+
+    // 背景色
+    final bgColor = isDark ? Colors.white.withValues(alpha: 0.03) : Colors.black.withValues(alpha: 0.02);
+    final paint = Paint()..color = bgColor..style = PaintingStyle.fill;
+    canvas.drawRect(Rect.fromLTWH(padding, padding, chartWidth, chartHeight), paint);
+
+    // 坐标轴
+    final axisPaint = Paint()
+      ..color = isDark ? Colors.white.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.15)
+      ..strokeWidth = 1;
+    // 横轴 (Valence)
+    canvas.drawLine(Offset(padding, centerY), Offset(size.width - padding, centerY), axisPaint);
+    // 纵轴 (Arousal)
+    canvas.drawLine(Offset(centerX, padding), Offset(centerX, size.height - padding), axisPaint);
+
+    // 象限标签
+    final labelStyle = TextStyle(
+      fontSize: 9,
+      color: isDark ? Colors.white.withValues(alpha: 0.4) : Colors.black.withValues(alpha: 0.4),
+    );
+    
+    // 四个象限标签
+    _drawLabel(canvas, '兴奋', Offset(size.width - padding - 30, padding + 10), labelStyle);
+    _drawLabel(canvas, '愉悦', Offset(size.width - padding - 30, size.height - padding - 20), labelStyle);
+    _drawLabel(canvas, '焦躁', Offset(padding + 5, padding + 10), labelStyle);
+    _drawLabel(canvas, '低落', Offset(padding + 5, size.height - padding - 20), labelStyle);
+
+    // 轴标签
+    _drawLabel(canvas, '消极', Offset(padding + 5, centerY - 15), labelStyle);
+    _drawLabel(canvas, '积极', Offset(size.width - padding - 30, centerY - 15), labelStyle);
+    _drawLabel(canvas, '低活力', Offset(centerX + 5, size.height - padding - 5), labelStyle);
+    _drawLabel(canvas, '高活力', Offset(centerX + 5, padding + 5), labelStyle);
+
+    // 当前情绪点
+    final pointX = centerX + (valence * chartWidth / 2);
+    final pointY = centerY - ((arousal - 0.5) * chartHeight); // arousal 0~1 映射
+
+    // 发光效果
+    final glowPaint = Paint()
+      ..color = const Color(0xFFFFB74D).withValues(alpha: 0.3)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 15);
+    canvas.drawCircle(Offset(pointX, pointY), 20, glowPaint);
+
+    // 当前点
+    final pointPaint = Paint()
+      ..color = const Color(0xFFFFB74D)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(pointX, pointY), 8, pointPaint);
+
+    // 内部白点
+    final innerPaint = Paint()
+      ..color = isDark ? Colors.black : Colors.white
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(pointX, pointY), 4, innerPaint);
+  }
+
+  void _drawLabel(Canvas canvas, String text, Offset offset, TextStyle style) {
+    final textSpan = TextSpan(text: text, style: style);
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    textPainter.paint(canvas, offset);
+  }
+
+  @override
+  bool shouldRepaint(covariant _EmotionQuadrantPainter oldDelegate) {
+    return oldDelegate.valence != valence || 
+           oldDelegate.arousal != arousal || 
+           oldDelegate.isDark != isDark;
+  }
+}
+
+/// 【新增】效率曲线绘制器 - 显示边际递减曲线
+class _EfficiencyCurvePainter extends CustomPainter {
+  final List<Map<String, double>> curveData;
+  final double currentIntimacy;
+  final bool isDark;
+
+  _EfficiencyCurvePainter({
+    required this.curveData,
+    required this.currentIntimacy,
+    required this.isDark,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (curveData.isEmpty) return;
+
+    final padding = 4.0;
+    final chartWidth = size.width - padding * 2;
+    final chartHeight = size.height - padding * 2;
+
+    // 绘制曲线
+    final curvePaint = Paint()
+      ..color = isDark ? Colors.greenAccent : const Color(0xFF2E7D32)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final fillPaint = Paint()
+      ..color = (isDark ? Colors.greenAccent : const Color(0xFF2E7D32)).withValues(alpha: 0.15)
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    final fillPath = Path();
+
+    // 找到最大效率值用于归一化
+    double maxEfficiency = 0;
+    for (final item in curveData) {
+      if (item['efficiency']! > maxEfficiency) {
+        maxEfficiency = item['efficiency']!;
+      }
+    }
+    if (maxEfficiency == 0) maxEfficiency = 1;
+
+    for (int i = 0; i < curveData.length; i++) {
+      final item = curveData[i];
+      final x = padding + (item['intimacy']! * chartWidth);
+      final y = padding + chartHeight * (1 - item['efficiency']! / maxEfficiency);
+
+      if (i == 0) {
+        path.moveTo(x, y);
+        fillPath.moveTo(x, size.height - padding);
+        fillPath.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fillPath.lineTo(x, y);
+      }
+    }
+
+    // 完成填充路径
+    fillPath.lineTo(padding + chartWidth, size.height - padding);
+    fillPath.close();
+
+    canvas.drawPath(fillPath, fillPaint);
+    canvas.drawPath(path, curvePaint);
+
+    // 标记当前亲密度位置
+    final currentX = padding + (currentIntimacy.clamp(0, 1) * chartWidth);
+    
+    // 垂直虚线
+    final dashPaint = Paint()
+      ..color = const Color(0xFFFFB74D).withValues(alpha: 0.5)
+      ..strokeWidth = 1;
+    
+    for (double y = padding; y < size.height - padding; y += 4) {
+      canvas.drawLine(
+        Offset(currentX, y), 
+        Offset(currentX, (y + 2).clamp(0, size.height - padding)), 
+        dashPaint
+      );
+    }
+
+    // 当前点标记
+    // 找到对应的效率值
+    double currentEfficiency = 0;
+    for (final item in curveData) {
+      if ((item['intimacy']! - currentIntimacy).abs() < 0.15) {
+        currentEfficiency = item['efficiency']!;
+        break;
+      }
+    }
+    final currentY = padding + chartHeight * (1 - currentEfficiency / maxEfficiency);
+    
+    final pointPaint = Paint()
+      ..color = const Color(0xFFFFB74D)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(currentX, currentY), 5, pointPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _EfficiencyCurvePainter oldDelegate) {
+    return oldDelegate.currentIntimacy != currentIntimacy ||
+           oldDelegate.isDark != isDark;
   }
 }

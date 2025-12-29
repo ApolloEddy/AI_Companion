@@ -29,9 +29,12 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _apiKeyController = TextEditingController();
   final TextEditingController _nicknameController = TextEditingController();
+  final TextEditingController _callSignController = TextEditingController(); // 【新增】
   final TextEditingController _occupationController = TextEditingController();
   final TextEditingController _majorController = TextEditingController();
   final TextEditingController _genderController = TextEditingController();
+  DateTime? _birthday; // 【新增】
+  String _relationshipGoal = ''; // 【新增】
   String _selectedModel = AppConfig.defaultModel;
   bool _isExporting = false;
   
@@ -46,14 +49,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final profile = engine.userProfile;
     
     _nicknameController.text = profile.nickname;
+    _callSignController.text = profile.callSign ?? ''; // 【新增】
     _occupationController.text = profile.occupation;
     _majorController.text = profile.major ?? '';
     _genderController.text = profile.gender ?? '';
+    _birthday = profile.birthday; // 【新增】
+    _relationshipGoal = profile.preferences.relationshipGoal; // 【新增】
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (engine.isInitialized) {
         setState(() {
           _selectedModel = engine.currentModel;
+          // 确保第一次加载也能同步 UI
+          _birthday = engine.userProfile.birthday;
+          _relationshipGoal = engine.userProfile.preferences.relationshipGoal;
         });
       }
     });
@@ -64,6 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _debounceTimer?.cancel();
     _apiKeyController.dispose();
     _nicknameController.dispose();
+    _callSignController.dispose(); // 【新增】
     _occupationController.dispose();
     _majorController.dispose();
     _genderController.dispose();
@@ -81,11 +91,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _saveUserProfile() {
     final engine = context.read<AppEngine>();
     final profile = engine.userProfile;
+    
+    // 构造新的 preferences
+    final newPrefs = profile.preferences.toJson();
+    newPrefs['relationshipGoal'] = _relationshipGoal;
+    
     engine.updateUserProfile(profile.copyWith(
       nickname: _nicknameController.text.trim(),
+      callSign: _callSignController.text.trim(), // 【新增】
       occupation: _occupationController.text.trim(),
       major: _majorController.text.trim(),
       gender: _genderController.text.trim(),
+      birthday: _birthday, // 【新增】
+      preferences: DialoguePreferences.fromJson(newPrefs), // 【新增】
     ));
     setState(() => _hasUnsavedProfileChanges = false);
     _showSnackBar('用户画像已保存');
@@ -678,11 +696,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 12),
         _buildProfileFieldWithDebounce('职业', _occupationController, isDark),
         const SizedBox(height: 12),
-        Row(
-          children: [
             Expanded(child: _buildProfileFieldWithDebounce('专业', _majorController, isDark)),
             const SizedBox(width: 12),
             Expanded(child: _buildProfileFieldWithDebounce('性别', _genderController, isDark)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // 【新增】称呼偏好
+        _buildProfileFieldWithDebounce('称呼偏好 (AI怎么称呼你)', _callSignController, isDark),
+        const SizedBox(height: 12),
+        // 【新增】生日与关系目标
+        Row(
+          children: [
+            Expanded(child: _buildBirthdayPicker(isDark)),
+            const SizedBox(width: 12),
+            Expanded(child: _buildRelationshipGoalSelector(isDark)),
           ],
         ),
         const SizedBox(height: 16),
@@ -700,6 +728,112 @@ class _SettingsScreenState extends State<SettingsScreen> {
               disabledForegroundColor: isDark ? Colors.white38 : Colors.black38,
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 【新增】生日选择器
+  Widget _buildBirthdayPicker(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '生日',
+          style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54),
+        ),
+        const SizedBox(height: 4),
+        GestureDetector(
+          onTap: () async {
+            final now = DateTime.now();
+            final picked = await showDatePicker(
+              context: context,
+              initialDate: _birthday ?? DateTime(2000, 1, 1),
+              firstDate: DateTime(1900),
+              lastDate: now,
+              builder: (context, child) {
+                return Theme(
+                  data: isDark ? ThemeData.dark() : ThemeData.light(),
+                  child: child!,
+                );
+              },
+            );
+            if (picked != null && picked != _birthday) {
+              setState(() => _birthday = picked);
+              _onProfileFieldChanged();
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _birthday != null 
+                      ? '${_birthday!.year}-${_birthday!.month.toString().padLeft(2, '0')}-${_birthday!.day.toString().padLeft(2, '0')}' 
+                      : '选择日期',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+                Icon(Icons.calendar_today, size: 16, color: isDark ? Colors.white38 : Colors.black38),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 【新增】关系目标选择器
+  Widget _buildRelationshipGoalSelector(bool isDark) {
+    final goals = ['朋友', '挚友', '恋人', '导师', '树洞'];
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '关系期望',
+          style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _relationshipGoal.isNotEmpty ? _relationshipGoal : null,
+              hint: Text('选择', style: TextStyle(fontSize: 14, color: isDark ? Colors.white38 : Colors.black38)),
+              isExpanded: true,
+              dropdownColor: isDark ? const Color(0xFF252229) : Colors.white,
+              items: goals.map((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(
+                    value, 
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.white : Colors.black87
+                    )
+                  ),
+                );
+              }).toList(),
+              onChanged: (String? newValue) {
+                if (newValue != null) {
+                  setState(() => _relationshipGoal = newValue);
+                  _onProfileFieldChanged();
+                }
+              },
             ),
           ),
         ),

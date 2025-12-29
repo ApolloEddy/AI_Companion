@@ -1,6 +1,7 @@
 import '../settings_loader.dart';
 import '../policy/behavior_matrix.dart';
 import '../config/config_registry.dart';
+import '../config/prompt_config.dart'; // 【新增】
 
 /// 表达选择器 - 使用动态 YAML 配置
 class ExpressionSelector {
@@ -44,44 +45,46 @@ class ExpressionSelector {
     double? humor,
     bool userUsedEmoji = false,
     String? microEmotion, // 【新增】微情绪覆盖
+    DateTime? currentTime, // 【新增】时间上下文
   }) {
-    final mode = selectMode(valence, arousal, intimacy: intimacy);
-    final modeConfig = SettingsLoader.getExpressionMode(mode);
+    final modeKey = selectMode(valence, arousal, intimacy: intimacy);
+    
+    // 从 PromptConfig 获取动态及配置
+    final config = SettingsLoader.prompt;
+    final modeConfig = config.expressionModes[modeKey] ?? 
+        ExpressionModeConfig(description: '稳健模式', tone: '平和、自然');
+
+    // 1. 基础语气
+    String tone = modeConfig.tone;
+    if (tone.isEmpty) tone = '自然交流';
+
+    // 2. 时间感知修饰 (Time Modifier)
+    // 根据当前时间调整语气（如深夜更温柔，清晨更元气）
+    if (currentTime != null) {
+      final hour = currentTime.hour;
+      if (hour >= 23 || hour < 5) {
+        tone += config.timeModifiers['late_night'] ?? '';
+      } else if (hour >= 5 && hour < 9) {
+        tone += config.timeModifiers['early_morning'] ?? '';
+      }
+    }
+
+    // 3. 微情绪覆盖 (Micro Emotion)
+    // 优先级最高，直接追加到 tone
+    var extraGuide = '';
+    final microGuide = _getMicroEmotionGuide(microEmotion);
+    if (microGuide != null) {
+      tone += '；当前状态：${microGuide['tone']}';
+      extraGuide = '\n- 【强制指引】${microGuide['guide']}';
+    }
+
+    // 4. 长度指引
     final lengthMode = calculateResponseLength(arousal, intimacy);
-    
-    // 更自然的长度指引 - 避免固定数字
-    final lengthGuide = {
-      'short': '言简意赅，一两句话就够了，有时甚至一个词',
-      'medium': '自然表达，该说多少说多少，不用刻意控制',
-      'detailed': '可以多聊几句，但别写作文',
-    };
-    
-    // 安全地获取 emoji_level
-    double emojiLevel = 0.5;
-    final rawEmojiLevel = modeConfig['emoji_level'];
-    if (rawEmojiLevel is double) {
-      emojiLevel = rawEmojiLevel;
-    } else if (rawEmojiLevel is int) {
-      emojiLevel = rawEmojiLevel.toDouble();
-    }
-    
-    // 【重构】默认不使用表情
-    // Emoji 使用条件极为严格：
-    // 1. 用户消息含有emoji (userUsedEmoji == true)
-    // 2. 情绪极端 (|valence| > 0.7)
-    String emojiGuide;
-    if (valence.abs() > 0.7) {
-      // 极端情绪时可适度使用
-      emojiGuide = '情绪强烈，可用一个表情表达此刻心境';
-    } else if (userUsedEmoji) {
-      // 用户用了，可以回一个
-      emojiGuide = '可以顺着用户的语气用一个表情';
-    } else if (emojiLevel < 0.3) {
-      emojiGuide = '不使用表情';
-    } else {
-      // 默认情况：不使用
-      emojiGuide = '平时不用表情，保持自然得体';
-    }
+    final lengthDesc = config.lengthGuides[lengthMode] ?? '自然表达';
+
+    // 5. 样式调整 (亲密度修正)
+    // 【泛化】不再硬编码“昵称”等逻辑，而是通过 tone 动态暗示，或后续在 config 中增加 intimacy_modifiers
+    // 此处保留基本的 Formality/Humor 逻辑，直到完全迁移到 Config
     
     // 【FIX】使用动态传入的 formality，如果没传则用 YAML 配置
     double effectiveFormality = formality ?? SettingsLoader.formality;
@@ -92,7 +95,6 @@ class ExpressionSelector {
     }
     
     String formalityGuide;
-    // 【P2-1 修复】使用 YAML 配置的阈值
     if (effectiveFormality < SettingsLoader.formalityCasualBelow) {
       formalityGuide = '完全口语化，像和好朋友聊天';
     } else if (effectiveFormality < SettingsLoader.formalityFormalAbove) {
@@ -104,7 +106,6 @@ class ExpressionSelector {
     // 【FIX】使用动态传入的 humor
     double effectiveHumor = humor ?? SettingsLoader.humor;
     String humorGuide;
-    // 【P2-1 修复】使用 YAML 配置的阈值
     if (effectiveHumor < SettingsLoader.humorSeriousBelow) {
       humorGuide = '正经诚恳，不开玩笑';
     } else if (effectiveHumor < SettingsLoader.humorHumorousAbove) {
@@ -113,31 +114,35 @@ class ExpressionSelector {
       humorGuide = '可以多开玩笑，活跃气氛';
     }
     
-    final description = modeConfig['description']?.toString() ?? '温暖关怀';
-    var tone = modeConfig['tone']?.toString() ?? '柔和、体贴';
-    var extraGuide = '';
-
-    // 【核心修复】微情绪覆盖逻辑 (配置驱动版)
-    final microGuide = _getMicroEmotionGuide(microEmotion);
-    if (microGuide != null) {
-      tone = '${microGuide['tone']} (当前心理状态)';
-      extraGuide = '\n- 【强制指引】${microGuide['guide']}';
+    // 6. 表情指引 (保留原逻辑，暂未迁移至 Config)
+    String emojiGuide;
+    // ... (Emoji logic kept same for now or moved to config later)
+    // 简化:
+    if (valence.abs() > 0.7) {
+      emojiGuide = '情绪强烈，可用一个表情表达此刻心境';
+    } else if (userUsedEmoji) {
+      emojiGuide = '可以顺着用户的语气用一个表情';
+    } else {
+       // 读取配置中的默认设置
+       final emojiLevel = SettingsLoader.emojiUsage;
+       if (emojiLevel < 0.3) {
+         emojiGuide = '不使用表情';
+       } else {
+         emojiGuide = '平时不用表情，保持自然得体';
+       }
     }
-    
+
     return '''
-当前状态：$description
+当前状态：${modeConfig.description}
 语气：$tone
-长度：${lengthGuide[lengthMode]}
+长度：$lengthDesc
 表情：$emojiGuide
 风格：$formalityGuide
 幽默：$humorGuide
 
 【自然表达要点】
-- 回复长度不固定，根据内容自然决定
-- 不要每次都是"感叹+评论+问题"的套路
-- 有时只需要简单回应，不必深入展开
-    
-- 【严禁文绉绉】禁止使用"然而"、"虽说"、"因此"等书面连接词，禁止使用翻译腔，就像现实中打字聊天一样自然。$extraGuide''';
+${config.globalCaveats}
+$extraGuide''';
   }
 }
 

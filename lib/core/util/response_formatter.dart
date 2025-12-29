@@ -250,33 +250,13 @@ class ResponseFormatter {
   
   static String getSplitInstruction() {
     final separator = SettingsLoader.separator;
-    return '''
-【回复格式】
-像发微信一样聊天，不要写长段落。想分条发就用 "$separator" 分隔，换行也会自动分条。
-
-【重要】回复条数要自然随机：
-- 有时只回一个词："嗯"、"哈哈"、"好的"
-- 有时两三句话
-- 偶尔可以多聊几句，但不要每次都是固定三条或五条
-- 根据话题自然决定，不要刻意凑数
-
-示例A（简短回应）：
-"收到"
-
-示例B（自然两条）：
-"哈哈真的假的$separator也太巧了吧"
-
-示例C（稍多一些）：
-"昨天那个事啊$separator我后来想了想$separator确实是我考虑不周"
-
-示例D（完整表达）：
-"其实我觉得$separator这件事没有对错$separator主要看你自己怎么想$separator我支持你的决定"
-
-【禁止】：
-- 禁止每次都固定发3条或5条
-- 禁止机械地用"嗯$separator然后$separator所以"这种套路
-- 禁止每句话都加表情
-''';
+    final config = SettingsLoader.prompt.responseFormat;
+    
+    // 注入分隔符变量
+    final instruction = config.instruction.replaceAll('{separator}', separator);
+    final example = config.example.replaceAll('{separator}', separator);
+    
+    return '$instruction\n$example';
   }
 }
 

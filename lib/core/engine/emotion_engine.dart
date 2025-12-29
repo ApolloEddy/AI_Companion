@@ -241,9 +241,34 @@ class EmotionEngine {
   }
 
   /// 获取情绪描述文本 (用于 Prompt)
+  /// 重构：输出自然语言而非简单的标签
   String getEmotionDescription() {
-    final labels = getLabels();
-    return '当前心情：${labels.quadrant}，${labels.intensity}';
+    // 翻译 Valence (愉悦度)
+    String vDesc;
+    if (_valence > 0.7) {
+      vDesc = '感到非常愉悦和兴奋';
+    } else if (_valence > 0.3) {
+      vDesc = '心请不错，比较开心';
+    } else if (_valence > -0.3) {
+      vDesc = '心情平和稳定';
+    } else if (_valence > -0.7) {
+      vDesc = '有些低落，提不起精神';
+    } else {
+      vDesc = '感到很难过，甚至有些抑郁';
+    }
+
+    // 翻译 Arousal (唤醒度)
+    String aDesc;
+    if (_arousal > 0.7) {
+      aDesc = '充满活力';
+    } else if (_arousal > 0.4) {
+      aDesc = ''; // 正常活力范围不特意强调，更自然
+    } else {
+      aDesc = '略显疲惫慵懒';
+    }
+
+    final combined = [vDesc, aDesc].where((s) => s.isNotEmpty).join('，');
+    return '你现在$combined。';
   }
 
   /// 手动设置情绪 (用于测试或特殊场景)

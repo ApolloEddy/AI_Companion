@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:yaml/yaml.dart';
+import 'config/prompt_config.dart'; // 【新增】
 
 /// 动态设置加载器 - 从 YAML 文件读取配置
 class SettingsLoader {
@@ -24,6 +25,8 @@ class SettingsLoader {
     _memorySettings = await _loadYaml('assets/settings/memory_settings.yaml');
     _factSchemaSettings = await _loadYaml('assets/settings/fact_schema.yaml');
     
+    // 【新增】加载 Prompt 模板配置
+    _promptConfig = await _loadPromptConfig();
     
     _isLoaded = true;
   }
@@ -441,7 +444,18 @@ class SettingsLoader {
     }
     return value?.toString() ?? defaultValue;
   }
+  // ========== Prompt Settings ==========
+
+  static Future<PromptConfig> _loadPromptConfig() async {
+    return await PromptConfig.load();
+  }
   
+  static PromptConfig? _promptConfig;
+  static PromptConfig get prompt => _promptConfig!;
+
+  // 在 loadAll 中添加:
+  // _promptConfig = await _loadPromptConfig();
+
   static double? _toDouble(dynamic value) {
     if (value is double) return value;
     if (value is int) return value.toDouble();

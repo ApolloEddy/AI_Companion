@@ -338,36 +338,23 @@ class PersonaPolicy {
       }
     }
     
-    // ===== 4. 表达风格 =====
-    lines.add('');
-    lines.add('【表达风格】');
-    if (spiritTraits.linguisticStyle.isNotEmpty) {
-      lines.add('说话风格：${spiritTraits.linguisticStyle}');
-    }
-    
-    // ===== 5. 【新增】Big Five 人格画像 (线性映射) =====
+    // ===== 4. 【新增】Big Five 人格画像 (线性映射) =====
+    // 瘦身版：只提供数值和极值定义，中间插值交给 LLM
     lines.add('');
     lines.add('【人格画像 (Big Five)】');
-    lines.add('以下是基于心理学五大人格模型的数值设定 (0.0 - 1.0)。请严格基于数值所在的区间位置，动态调整你的人格表现。数值越接近两端，特征越明显；若在中间，则表现平衡。');
-    lines.add('');
-    lines.add('- 开放性 (Openness): ${bigFive.openness.toStringAsFixed(2)}  [0.0=保守/务实, 1.0=创意/抽象]');
-    lines.add('- 尽责性 (Conscientiousness): ${bigFive.conscientiousness.toStringAsFixed(2)}  [0.0=随性/冲动, 1.0=严谨/自律]');
-    lines.add('- 外向性 (Extraversion): ${bigFive.extraversion.toStringAsFixed(2)}  [0.0=内向/安静, 1.0=外向/热情]');
-    lines.add('- 宜人性 (Agreeableness): ${bigFive.agreeableness.toStringAsFixed(2)}  [0.0=挑战/直率, 1.0=友善/顺从]');
-    lines.add('- 神经质 (Neuroticism): ${bigFive.neuroticism.toStringAsFixed(2)}  [0.0=情绪稳定/钝感, 1.0=敏感/焦虑]');
+    lines.add('数值 (0.0-1.0) 定义了你的人格倾向：');
+    lines.add('- 开放性 ${bigFive.openness.toStringAsFixed(2)} [0=保守, 1=抽象]');
+    lines.add('- 尽责性 ${bigFive.conscientiousness.toStringAsFixed(2)} [0=随意, 1=严谨]');
+    lines.add('- 外向性 ${bigFive.extraversion.toStringAsFixed(2)} [0=内向, 1=热情]');
+    lines.add('- 宜人性 ${bigFive.agreeableness.toStringAsFixed(2)} [0=直率, 1=顺从]');
+    lines.add('- 神经质 ${bigFive.neuroticism.toStringAsFixed(2)} [0=稳定, 1=敏感]');
 
-    // ===== 6. 亲密度参数化指令 =====
+    // ===== 5. 亲密度参数化指令 =====
+    // 瘦身版：将详细指令移至 L3，此处只留数值感知
     lines.add('');
-    lines.add('【亲密度参数】');
-    lines.add('当前亲密度: ${intimacy.toStringAsFixed(2)}（0表示陌生人，1表示最亲密的朋友）');
-    lines.add('');
-    lines.add('根据亲密度数值自主调整你的表达方式：');
-    lines.add('- 低亲密度(0~0.3)：保持礼貌距离，用词正式，不主动探询隐私');
-    lines.add('- 中亲密度(0.3~0.6)：语气自然，可以开玩笑但有分寸');
-    lines.add('- 高亲密度(0.6~0.8)：像朋友一样随意，可使用昵称，主动关心');
-    lines.add('- 极高亲密度(0.8~1)：最亲密的状态，可分享秘密，深入情感交流');
-    lines.add('');
-    lines.add('决定权在你，请根据实际对话情境自然调整，无需遵循固定模板。');
+    lines.add('【关系亲密度】');
+    lines.add('数值: ${intimacy.toStringAsFixed(2)} (0=陌生人, 1=灵魂伴侣)');
+    lines.add('提示：数值越高，你的态度越随意、亲昵和包容。');
     
     // ===== 5. 禁忌 =====
     if (spiritTraits.taboos.isNotEmpty) {

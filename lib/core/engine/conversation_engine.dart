@@ -743,31 +743,38 @@ class ConversationEngine {
       humor: double.parse(personaHumor.toStringAsFixed(1)),
       userUsedEmoji: perception.hasEmoji,
       microEmotion: reflection.microEmotion, // 【L3-L4 映射修复】传递微情绪
+      currentTime: DateTime.now(), // 【新增】L3 时间感知
     );
 
-    // 【认知增强】将反思策略和内心独白注入到行为规则中
-    String dynamicRules = '';
+    // 【Prompt 2.0】构建尾部注入内容 (Tail Injection)
+    // 不再修改 System Prompt，而是作为临时指令附加在用户消息后
+    String tailInjection = '';
     if (_cognitiveEngineEnabled) {
-      dynamicRules = '\n\n【本次回复策略】\n${reflection.toStrategyGuide()}';
-      
-      // 【核心修复】注入内心独白到 L4 Prompt，打通 L3→L4 数据流
+      String cleanMonologue = '';
       if (reflection.innerMonologue != null && reflection.innerMonologue!.isNotEmpty) {
-        final cleanMonologue = reflection.innerMonologue!
-            .replaceAll(RegExp(r'<[^>]+>'), '') // 清理残留XML
+        cleanMonologue = reflection.innerMonologue!
+            .replaceAll(RegExp(r'<[^>]+>'), '')
             .trim();
-        if (cleanMonologue.length > 20) { // 避免注入无意义内容
-          dynamicRules += '\n\n【你的内心思考】\n$cleanMonologue';
+        // 长度截断避免 Token 浪费
+        if (cleanMonologue.length > 300) {
+          cleanMonologue = cleanMonologue.substring(0, 300) + '...';
         }
       }
       
-      // 如果感知到用户情绪，添加感知上下文
+      String perceptionText = '';
       if (perception.confidence > 0.6) {
-        dynamicRules += '\n\n【用户状态感知】\n${perception.toContextDescription()}';
+        perceptionText = perception.toContextDescription();
       }
+      
+      tailInjection = PromptAssembler.assembleTailInjection(
+        strategy: reflection.toStrategyGuide(),
+        monologue: cleanMonologue,
+        perception: perceptionText,
+      );
     }
 
-    // 组装 Prompt（包含核心事实和动态规则）
-    final behaviorRules = personaPolicy.getBehaviorConstraints() + dynamicRules;
+    // 组装 Prompt（不再包含 dynamicRules，仅基础约束）
+    final behaviorRules = personaPolicy.getBehaviorConstraints();
     
     // 【P0-1 修复】从 FactStore 获取用户名，传递给灵魂锚点
     final userName = _factStore?.getFact('user_name') ?? profile?.nickname ?? '用户';
@@ -796,10 +803,16 @@ class ConversationEngine {
       injectTimestamps: true, // 启用时间注入
     );
 
+    // 【核心逻辑】将尾部注入内容拼接到用户消息后
+    // 这样做能利用 Recency Bias 最大化策略执行效果
+    final effectiveUserContent = tailInjection.isNotEmpty
+        ? '$text\n$tailInjection'
+        : text;
+
     final apiMessages = <Map<String, String>>[
       {'role': 'system', 'content': assembleResult.systemPrompt},
       ...historyMessages,
-      {'role': 'user', 'content': text},
+      {'role': 'user', 'content': effectiveUserContent},
     ];
 
     // 创建快照 (用于调试)

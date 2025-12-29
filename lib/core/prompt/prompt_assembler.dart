@@ -11,6 +11,8 @@ import 'prompt_snapshot.dart';
 class PromptAssembler {
   
   /// System Prompt 模板
+  /// System Prompt 模板 (Architecture 2.0)
+  /// 仅包含静态设定和长期记忆，动态思维和策略移至尾部
   static const String _systemTemplate = '''{persona_header}
 ---
 【核心事实与记忆】
@@ -21,7 +23,7 @@ class PromptAssembler {
 - 时间：{current_time}
 - 状态：{current_state}
 
-【表达与行为行为指引】
+【表达与行为指引】
 {expression_guide}
 
 {behavior_rules}
@@ -29,9 +31,6 @@ class PromptAssembler {
 {response_format}''';
 
   /// 组装 System Prompt
-  /// 
-  /// 所有参数均由调用方决定（ConversationEngine 协调各模块获取）
-  /// 此方法仅做字符串拼接，不访问任何外部服务或配置
   static PromptAssembleResult assemble({
     required String personaHeader,     // 来自 PersonaPolicy.formatForSystemPrompt()
     required String currentTime,       // 来自 _formatCurrentTime()
@@ -65,6 +64,38 @@ class PromptAssembler {
         'behaviorRules': behaviorRules,
       },
     );
+  }
+  
+  /// 组装尾部注入内容 (Tail Injection)
+  /// 
+  /// 包括：
+  /// 1. 当前策略 (Strategy)
+  /// 2. 内心独白 (Monologue)
+  /// 3. 用户感知 (Perception)
+  /// 
+  /// 这些内容紧贴 User Input 之后，利用 Recency Bias 强化执行
+  static String assembleTailInjection({
+    required String strategy,
+    required String monologue,
+    String? perception,
+  }) {
+    final buffer = StringBuffer();
+    buffer.writeln('\n[系统指令]');
+    
+    if (perception != null && perception.isNotEmpty) {
+      buffer.writeln('【用户感知】$perception');
+    }
+    
+    if (monologue.isNotEmpty) {
+      buffer.writeln('【你的思考】$monologue');
+    }
+    
+    if (strategy.isNotEmpty) {
+      buffer.writeln('【执行策略】$strategy');
+    }
+    
+    buffer.writeln('请基于以上思考和策略回复用户：');
+    return buffer.toString();
   }
 
   /// 组装历史消息列表 (用于 API 请求)

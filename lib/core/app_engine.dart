@@ -9,6 +9,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'model/chat_message.dart';
+import 'model/big_five_personality.dart'; // 【新增】Big Five 模型
 import 'config.dart';
 import 'settings_loader.dart';
 import 'service/llm_service.dart';
@@ -21,6 +22,7 @@ import 'policy/generation_policy.dart';
 import 'policy/persona_policy.dart';
 import 'engine/emotion_engine.dart';
 import 'engine/intimacy_engine.dart'; // 【新增】亲密度连续态模型
+import 'engine/personality_engine.dart'; // 【新增】Big Five 人格引擎
 import 'memory/memory_manager.dart'; // Moved to memory
 import 'engine/conversation_engine.dart';
 import 'memory/fact_store.dart'; // Moved to memory
@@ -53,6 +55,7 @@ class AppEngine extends ChangeNotifier {
   late ConversationEngine _conversationEngine;
   late EmotionEngine _emotionEngine;
   late IntimacyEngine _intimacyEngine; // 【新增】亲密度连续态模型
+  late PersonalityEngine _personalityEngine; // 【新增】Big Five 人格引擎
   late MemoryManager _memoryManager;
   late PersonaPolicy _personaPolicy;
   late GenerationPolicy _generationPolicy;
@@ -63,6 +66,9 @@ class AppEngine extends ChangeNotifier {
   
   // 【新增】暴露 IntimacyEngine 给 UI 层（用于稳定性监视器）
   IntimacyEngine get intimacyEngine => _intimacyEngine;
+  
+  // 【新增】暴露 PersonalityEngine 给 UI 层（用于人格展示/编辑）
+  PersonalityEngine get personalityEngine => _personalityEngine;
 
   // 向后兼容：保留旧服务引用
   late PersonaService persona;
@@ -191,6 +197,12 @@ class AppEngine extends ChangeNotifier {
     _personaPolicy = persona.personaPolicy;
     personaConfig = _personaPolicy.toJson(); // 同步到 UI 层配置
     
+    // 【重构】初始化 Big Five 人格引擎 (Source of Truth: PersonaPolicy)
+    // 不再使用独立的 SharedPreferences key，而是直接从 PersonaPolicy 派生
+    _personalityEngine = PersonalityEngine(initialTraits: _personaPolicy.bigFive);
+    // 监听人格变化并更新 PersonaPolicy
+    _personalityEngine.addListener(_onPersonalityChanged);
+
     _generationPolicy = GenerationPolicy.fromSettings();
 
     // 初始化用户画像服务（认知引擎核心）
@@ -279,15 +291,6 @@ class AppEngine extends ChangeNotifier {
 
     // 检查并调度问候
     _startupGreetingService!.checkAndScheduleGreeting();
-  }
-
-  /// 处理主动消息回调
-  void _handleProactiveMessage(ChatMessage message) {
-    messages.add(message);
-    chatHistory.addMessage(message);
-    // 【Fix】实时更新总消息数
-    _totalChatCount++;
-    notifyListeners();
   }
 
   void _loadTokenCount() {
@@ -557,8 +560,23 @@ class AppEngine extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 【新增】人格变化持久化回调
+  void _onPersonalityChanged() {
+    // 1. 更新内存中的策略对象
+    _personaPolicy = _personaPolicy.copyWith({
+      'bigFive': _personalityEngine.traits.toJson(),
+    });
+    
+    // 2. 通过 Service 持久化 (Source of Truth)
+    // 注意：updatePersonaPolicy 是异步的，这里不 await 避免阻塞 UI
+    persona.updatePersonaPolicy(_personaPolicy).then((_) {
+      debugPrint('[AppEngine] Personality saved via PersonaService: ${_personalityEngine.traits}');
+    });
+  }
+
   @override
   void dispose() {
+    _personalityEngine.removeListener(_onPersonalityChanged);
     _conversationEngine.stop();
     super.dispose();
   }

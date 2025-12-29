@@ -731,8 +731,9 @@ class ConversationEngine {
     );
 
     // 获取表达指引（【FIX】传入动态参数并进行取整，避免浮点数干扰）
-    final personaFormality = (personaPolicy.config['formality'] as num?)?.toDouble() ?? 0.5;
-    final personaHumor = (personaPolicy.config['humor'] as num?)?.toDouble() ?? 0.5;
+    // 直接从 personaPolicy 获取推导后的值，确保 Big Five 变化实时反映到表达风格
+    final personaFormality = personaPolicy.formality;
+    final personaHumor = personaPolicy.humor;
     
     final expressionGuide = ExpressionSelector.getExpressionInstructions(
       emotionEngine.valence,

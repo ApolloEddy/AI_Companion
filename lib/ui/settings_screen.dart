@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_engine.dart';
 import '../core/config.dart';
+import '../core/model/user_profile.dart'; // 【Fix】导入 UserProfile
 import '../core/policy/generation_policy.dart';
 import '../core/provider/theme_provider.dart';
 import '../core/provider/bubble_color_provider.dart';
@@ -181,6 +182,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             isDark: isDark,
             children: [
               _buildUserProfileEditor(engine, isDark),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+          
+          // 【新增】Big Five 人格微调 (只读/动态调整)
+          _buildSectionCard(
+            title: '人格模型 (Big Five)',
+            icon: Icons.psychology,
+            isDark: isDark,
+            children: [
+              _buildBigFiveVisualizer(engine, isDark),
             ],
           ),
 
@@ -411,7 +424,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '选择模型 (${_selectedModel})',
+          '选择模型 ($_selectedModel)',
           style: TextStyle(
             fontSize: 13,
             color: isDark ? Colors.white60 : Colors.black54,
@@ -696,6 +709,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 12),
         _buildProfileFieldWithDebounce('职业', _occupationController, isDark),
         const SizedBox(height: 12),
+        Row(
+          children: [
             Expanded(child: _buildProfileFieldWithDebounce('专业', _majorController, isDark)),
             const SizedBox(width: 12),
             Expanded(child: _buildProfileFieldWithDebounce('性别', _genderController, isDark)),
@@ -1140,6 +1155,114 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  // 【新增】Big Five 可视化与调节
+  Widget _buildBigFiveVisualizer(AppEngine engine, bool isDark) {
+    // 监听 PersonalityEngine 的变化
+    return AnimatedBuilder(
+      animation: engine.personalityEngine,
+      builder: (context, child) {
+        final traits = engine.personalityEngine.traits;
+        
+        return Column(
+          children: [
+            _buildTraitSlider('开放性 (Openness)', traits.openness, isDark, (val) {
+              engine.personalityEngine.setTraits(traits.copyWith(openness: val));
+            }, desc: '低: 保守务实 - 高: 创意抽象'),
+            _buildTraitSlider('尽责性 (Conscientiousness)', traits.conscientiousness, isDark, (val) {
+              engine.personalityEngine.setTraits(traits.copyWith(conscientiousness: val));
+            }, desc: '低: 随性散漫 - 高: 严谨自律'),
+            _buildTraitSlider('外向性 (Extraversion)', traits.extraversion, isDark, (val) {
+              engine.personalityEngine.setTraits(traits.copyWith(extraversion: val));
+            }, desc: '低: 内向安静 - 高: 热情活跃'),
+            _buildTraitSlider('宜人性 (Agreeableness)', traits.agreeableness, isDark, (val) {
+              engine.personalityEngine.setTraits(traits.copyWith(agreeableness: val));
+            }, desc: '低: 独立挑战 - 高: 友善顺从'),
+            _buildTraitSlider('神经质 (Neuroticism)', traits.neuroticism, isDark, (val) {
+              engine.personalityEngine.setTraits(traits.copyWith(neuroticism: val));
+            }, desc: '低: 情绪稳定 - 高: 敏感焦虑'),
+            
+            const Divider(height: 24),
+            
+            // 可塑性参数 (只展示，不建议随意修改)
+            _buildTraitSlider('性格可塑性 (Plasticity)', traits.plasticity, isDark, (val) {
+              engine.personalityEngine.setTraits(traits.copyWith(plasticity: val));
+            }, desc: '影响性格随反馈变化的速率', activeColor: Colors.purpleAccent),
+            
+            const SizedBox(height: 8),
+            
+            // 复位按钮
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () {
+                   engine.personalityEngine.reset();
+                   _showSnackBar('人格参数已重置');
+                },
+                icon: const Icon(Icons.settings_backup_restore, size: 16),
+                label: const Text('重置可塑性与人格'),
+                style: TextButton.styleFrom(
+                  foregroundColor: isDark ? Colors.white54 : Colors.black54,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTraitSlider(String label, double value, bool isDark, ValueChanged<double> onChanged, {
+    String? desc,
+    Color? activeColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white : Colors.black87,
+              ),
+            ),
+            Text(
+              value.toStringAsFixed(2),
+              style: TextStyle(
+                fontSize: 12,
+                fontFamily: 'RobotoMono',
+                color: isDark ? Colors.cyanAccent : Colors.cyan,
+              ),
+            ),
+          ],
+        ),
+        if (desc != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(desc, style: TextStyle(fontSize: 10, color: isDark ? Colors.white38 : Colors.black38)),
+          ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            trackHeight: 4,
+            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+            overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+          ),
+          child: Slider(
+            value: value,
+            min: 0.0,
+            max: 1.0,
+            activeColor: activeColor ?? const Color(0xFFFFB74D),
+            inactiveColor: isDark ? Colors.white10 : Colors.grey.withValues(alpha: 0.2),
+            onChanged: onChanged,
+          ),
+        ),
+      ],
     );
   }
 

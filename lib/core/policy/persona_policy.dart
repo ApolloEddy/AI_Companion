@@ -4,13 +4,16 @@
 // - 分层结构: CoreIdentity, SpiritTraits, HistoryBackground
 // - 动态 Prompt: 根据亲密度展示不同深度的人格信息
 // - 纯数据模型: fromJson/toJson 序列化支持
+// - 【Big Five 集成】五大人格模型 (OCEAN)
 //
 // 设计原理：
 // - CoreIdentity: 核心身份（永远展示）
 // - SpiritTraits: 精神特质（永远展示）
 // - HistoryBackground: 历史背景（根据亲密度动态展示）
+// - BigFiveTraits: 五大人格（线性映射到 Prompt）
 
 import '../settings_loader.dart';
+import '../model/big_five_personality.dart';
 
 // ========== 嵌套数据类 ==========
 
@@ -128,20 +131,34 @@ class PersonaPolicy {
   late final CoreIdentity coreIdentity;
   late final SpiritTraits spiritTraits;
   late final HistoryBackground historyBackground;
+  
+  // 【新增】Big Five 人格模型
+  late final BigFiveTraits bigFive;
 
   // 兼容旧字段（派生自嵌套对象或 config）
   late final String character;    // 对应 UI 的 'personality'
   late final String appearance;   // 外貌描述
   late final String interests;
   late final String hobbies;
-  late final double formality;
-  late final double humor;
+  late final double formality;    // 【弃用警告】请使用 bigFive.conscientiousness
+  late final double humor;        // 【弃用警告】请使用 bigFive.openness + extraversion
 
   PersonaPolicy(this.config) {
     // 构建分层对象
     coreIdentity = CoreIdentity.fromJson(config);
     spiritTraits = SpiritTraits.fromJson(config);
     historyBackground = HistoryBackground.fromJson(config);
+    
+    // 【新增】构建 Big Five
+    final bigFiveJson = config['bigFive'] ?? config['big_five'];
+    if (bigFiveJson != null && bigFiveJson is Map<String, dynamic>) {
+      bigFive = BigFiveTraits.fromJson(bigFiveJson);
+    } else {
+      // 如果没有 Big Five 数据，从旧版 formality/humor 迁移
+      final legacyFormality = (config['formality'] as num?)?.toDouble() ?? 0.5;
+      final legacyHumor = (config['humor'] as num?)?.toDouble() ?? 0.5;
+      bigFive = BigFiveTraits.fromLegacy(formality: legacyFormality, humor: legacyHumor);
+    }
 
     // 兼容旧字段
     character = config['personality']?.toString() ?? 
@@ -149,8 +166,12 @@ class PersonaPolicy {
     appearance = config['appearance']?.toString() ?? '';
     interests = config['interests']?.toString() ?? '';
     hobbies = config['hobbies']?.toString() ?? '';
-    formality = (config['formality'] as num?)?.toDouble() ?? 0.5;
-    humor = (config['humor'] as num?)?.toDouble() ?? 0.5;
+    
+    // 【Fix】从 Big Five 反向推导兼容字段，保持 ExpressionSelector 数据一致性
+    // Formality (严谨) 用 Conscientiousness (尽责) 近似
+    // Humor (幽默) 用 Extraversion (外向) + Openness (开放) 的均值近似
+    formality = bigFive.conscientiousness;
+    humor = (bigFive.extraversion + bigFive.openness) / 2.0;
   }
 
   // 便捷访问器（保持向后兼容）
@@ -185,6 +206,8 @@ class PersonaPolicy {
       'surfaceStory': historyBackground.surfaceStory,
       'backstory': historyBackground.surfaceStory, // 兼容旧键名
       'deepSecrets': historyBackground.deepSecrets,
+      // 【新增】Big Five
+      'bigFive': bigFive.toJson(),
       // 兼容字段
       'personality': character,
       'appearance': appearance,
@@ -321,10 +344,19 @@ class PersonaPolicy {
     if (spiritTraits.linguisticStyle.isNotEmpty) {
       lines.add('说话风格：${spiritTraits.linguisticStyle}');
     }
-    lines.add('正式程度：${formality.toStringAsFixed(1)}（0=完全口语化，1=非常正式）');
-    lines.add('幽默程度：${humor.toStringAsFixed(1)}（0=严肃，1=活泼幽默）');
     
-    // 【重构】亲密度参数化指令 - 禁止硬编码固定语句
+    // ===== 5. 【新增】Big Five 人格画像 (线性映射) =====
+    lines.add('');
+    lines.add('【人格画像 (Big Five)】');
+    lines.add('以下是基于心理学五大人格模型的数值设定 (0.0 - 1.0)。请严格基于数值所在的区间位置，动态调整你的人格表现。数值越接近两端，特征越明显；若在中间，则表现平衡。');
+    lines.add('');
+    lines.add('- 开放性 (Openness): ${bigFive.openness.toStringAsFixed(2)}  [0.0=保守/务实, 1.0=创意/抽象]');
+    lines.add('- 尽责性 (Conscientiousness): ${bigFive.conscientiousness.toStringAsFixed(2)}  [0.0=随性/冲动, 1.0=严谨/自律]');
+    lines.add('- 外向性 (Extraversion): ${bigFive.extraversion.toStringAsFixed(2)}  [0.0=内向/安静, 1.0=外向/热情]');
+    lines.add('- 宜人性 (Agreeableness): ${bigFive.agreeableness.toStringAsFixed(2)}  [0.0=挑战/直率, 1.0=友善/顺从]');
+    lines.add('- 神经质 (Neuroticism): ${bigFive.neuroticism.toStringAsFixed(2)}  [0.0=情绪稳定/钝感, 1.0=敏感/焦虑]');
+
+    // ===== 6. 亲密度参数化指令 =====
     lines.add('');
     lines.add('【亲密度参数】');
     lines.add('当前亲密度: ${intimacy.toStringAsFixed(2)}（0表示陌生人，1表示最亲密的朋友）');

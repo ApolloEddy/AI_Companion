@@ -36,3 +36,12 @@ persona:
   # 表达风格参数 (0.0 - 1.0)
   formality: 0.5   # 正式程度：0=口语化，1=正式
   humor: 0.5       # 幽默程度：0=严肃，1=活泼
+  
+  # Big Five 人格参数 (0.0 - 1.0)
+  big_five:
+    openness: 0.6          # 开放性 (创意/好奇)
+    conscientiousness: 0.5 # 尽责性 (严谨/自律)
+    extraversion: 0.6      # 外向性 (社交/活力)
+    agreeableness: 0.7     # 宜人性 (友善/合作)
+    neuroticism: 0.4       # 神经质 (敏感/情绪化)
+    plasticity: 0.01       # 可塑性 (变化难易度)

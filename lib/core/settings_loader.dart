@@ -144,6 +144,34 @@ class SettingsLoader {
   
   static double get highEmotionalIntensity => 
       _getDouble(_emotionSettings, ['thresholds', 'high_emotional_intensity'], 0.6);
+
+  // 【Phase 3 & 4 新增】
+  static double get resentmentDecayFactor => 
+      _getDouble(_emotionSettings, ['decay', 'resentment_decay_factor'], 0.95);
+
+  static double get resentmentIncrease => 
+      _getDouble(_emotionSettings, ['update', 'resentment_increase'], 0.1);
+
+  static double get resentmentSuppressionFactor => 
+      _getDouble(_emotionSettings, ['update', 'resentment_suppression_factor'], 0.8);
+
+  static double get fatigueArousalThreshold => 
+      _getDouble(_emotionSettings, ['update', 'fatigue_arousal_threshold'], 0.8);
+
+  static double get fatigueDampeningFactor => 
+      _getDouble(_emotionSettings, ['update', 'fatigue_dampening_factor'], 0.5);
+
+  static List<String> get negativeKeywords {
+    final list = _emotionSettings?['update']?['negative_keywords'];
+    if (list is List) return list.map((e) => e.toString()).toList();
+    return ['不', '别', '讨厌', '烦', '滚', '闭嘴'];
+  }
+
+  static double get meltdownArousalThreshold => 
+      _getDouble(_emotionSettings, ['thresholds', 'meltdown_arousal'], 0.85);
+
+  static double get meltdownValenceThreshold => 
+      _getDouble(_emotionSettings, ['thresholds', 'meltdown_valence_negative'], -0.75);
   
   // ========== Time Settings ==========
   
@@ -235,6 +263,12 @@ class SettingsLoader {
   
   static double get splitProbabilityBonus => 
       _getDouble(_responseSettings, ['emotion_effects', 'split_probability_bonus'], 0.3);
+
+  static List<String> get meltdownResponses {
+    final list = _responseSettings?['emotion_effects']?['meltdown_responses'];
+    if (list is List) return list.map((e) => e.toString()).toList();
+    return ['......', '我不想说话了'];
+  }
   
   // ========== Memory Settings ==========
   

@@ -457,32 +457,58 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
   }
 
   /// 默认头像（无自定义头像时使用）
+  /// 【UI审计】使用首字母 + 性别颜色 (Male=Blue, Female=Pink, Neutral=Yellow)
   Widget _buildDefaultAvatar({required bool isUser, required bool isDark, required double size}) {
-    final iconSize = size * 0.5;
-    final textSize = size * 0.35;
+    final engine = context.read<AppEngine>();
+    final textSize = size * 0.4;
+    
+    // 获取名字首字母和性别
+    String firstLetter;
+    String? gender;
+    
+    if (isUser) {
+      final userName = engine.userProfile.nickname.isNotEmpty 
+          ? engine.userProfile.nickname 
+          : '用户';
+      firstLetter = userName.isNotEmpty ? userName.substring(0, 1) : 'U';
+      gender = engine.userProfile.gender;
+    } else {
+      final aiName = engine.personaConfig['name']?.toString() ?? 'AI';
+      firstLetter = aiName.isNotEmpty ? aiName.substring(0, 1) : 'A';
+      gender = engine.personaConfig['gender']?.toString();
+    }
+    
+    // 根据性别确定颜色
+    final genderLower = gender?.toLowerCase() ?? '';
+    Color avatarColor;
+    if (genderLower == 'male' || genderLower == 'man' || genderLower == '男' || genderLower == '男性') {
+      avatarColor = Colors.blueAccent;
+    } else if (genderLower == 'female' || genderLower == 'woman' || genderLower == '女' || genderLower == '女性') {
+      avatarColor = Colors.pinkAccent;
+    } else {
+      avatarColor = Colors.amber; // 中性/未知
+    }
+    
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: isDark 
-            ? Colors.white.withOpacity(0.1) 
-            : Colors.white.withOpacity(0.8),
+        color: avatarColor.withOpacity(isDark ? 0.3 : 0.2),
         shape: BoxShape.circle,
         border: Border.all(
-          color: isDark 
-              ? Colors.white.withOpacity(0.15)
-              : Colors.black.withOpacity(0.05),
-          width: 1,
+          color: avatarColor.withOpacity(0.5),
+          width: 1.5,
         ),
       ),
       child: Center(
-        child: isUser 
-            ? Icon(Icons.person, size: iconSize, color: isDark ? Colors.white70 : Colors.grey)
-            : Text('AI', style: TextStyle(
-                fontSize: textSize, 
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white70 : const Color(0xFF07C160),
-              )),
+        child: Text(
+          firstLetter,
+          style: TextStyle(
+            fontSize: textSize,
+            fontWeight: FontWeight.bold,
+            color: avatarColor,
+          ),
+        ),
       ),
     );
   }

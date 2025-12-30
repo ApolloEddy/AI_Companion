@@ -54,11 +54,17 @@ class EmotionEngine {
   // 情绪向量
   double _valence = 0.1;   // 效价 (-1 ~ 1)
   double _arousal = 0.5;   // 唤醒度 (0 ~ 1)
+  double _resentment = 0.0; // 【Phase 3】怨恨值 (0 ~ 1)
   DateTime _lastUpdated = DateTime.now();
 
   // 基准值 (衰减目标)
   static const double _baseValence = 0.0;
   static const double _baseArousal = 0.5;
+
+  // 情绪历史记录
+  List<double> _valenceHistory = [];
+  List<double> _arousalHistory = [];
+  static const int _maxHistoryLength = 30;
 
   final SharedPreferences prefs;
 
@@ -70,7 +76,11 @@ class EmotionEngine {
 
   double get valence => _valence;
   double get arousal => _arousal;
+  double get resentment => _resentment; // 【Phase 3】怨恨值访问器
   DateTime get lastUpdated => _lastUpdated;
+  
+  List<double> get valenceHistory => List.unmodifiable(_valenceHistory);
+  List<double> get arousalHistory => List.unmodifiable(_arousalHistory);
 
   /// 获取当前情绪状态
   EmotionState get currentState => EmotionState(
@@ -97,12 +107,23 @@ class EmotionEngine {
         final data = jsonDecode(str);
         _valence = (data['valence'] ?? 0.1).toDouble();
         _arousal = (data['arousal'] ?? 0.5).toDouble();
+        _resentment = (data['resentment'] ?? 0.0).toDouble(); // 【Phase 3】加载怨恨值
+        
+        // 加载历史记录
+        if (data['valenceHistory'] != null) {
+          _valenceHistory = (data['valenceHistory'] as List).map((e) => (e as num).toDouble()).toList();
+        }
+        if (data['arousalHistory'] != null) {
+          _arousalHistory = (data['arousalHistory'] as List).map((e) => (e as num).toDouble()).toList();
+        }
+        
         final lastStr = data['lastUpdated'];
         if (lastStr != null) {
           _lastUpdated = DateTime.tryParse(lastStr) ?? DateTime.now();
         }
       } catch (e) {
         // 使用默认值
+        print('[EmotionEngine] Load failed: $e');
       }
     }
   }
@@ -111,9 +132,33 @@ class EmotionEngine {
     final data = {
       'valence': _valence,
       'arousal': _arousal,
+      'resentment': _resentment, // 【Phase 3】保存怨恨值
+      'valenceHistory': _valenceHistory,
+      'arousalHistory': _arousalHistory,
       'lastUpdated': _lastUpdated.toIso8601String(),
     };
     await prefs.setString('${AppConfig.personaKey}_emotion', jsonEncode(data));
+  }
+  
+  void _recordHistory() {
+    bool changed = false;
+    
+    // 仅当数值有明显变化时才记录 (阈值 0.01)，或者历史为空
+    if (_valenceHistory.isEmpty || (_valenceHistory.last - _valence).abs() > 0.01) {
+      _valenceHistory.add(_valence);
+      if (_valenceHistory.length > _maxHistoryLength) {
+        _valenceHistory.removeAt(0);
+      }
+      changed = true;
+    }
+    
+    if (_arousalHistory.isEmpty || (_arousalHistory.last - _arousal).abs() > 0.01) {
+      _arousalHistory.add(_arousal);
+      if (_arousalHistory.length > _maxHistoryLength) {
+        _arousalHistory.removeAt(0);
+      }
+      changed = true;
+    }
   }
 
   // ========== 【必须保留】时间衰减计算 ==========
@@ -141,12 +186,16 @@ class EmotionEngine {
     // 应用衰减：向基准值靠拢
     _valence = _valence + (_baseValence - _valence) * valenceDecay;
     _arousal = _arousal + (_baseArousal - _arousal) * arousalDecay;
+    
+    // 【Phase 3】怨恨值自然衰减
+    _resentment = (_resentment * SettingsLoader.resentmentDecayFactor).clamp(0.0, 1.0);
 
     _lastUpdated = DateTime.now();
     
     // 日志输出用于调试
-    print('[EmotionEngine] decay applied: valence=$_valence, arousal=$_arousal');
+    print('[EmotionEngine] decay applied: valence=$_valence, arousal=$_arousal, resentment=$_resentment');
     
+    _recordHistory();
     save();
   }
 
@@ -167,11 +216,37 @@ class EmotionEngine {
   /// - 对话交互通常产生正向情绪
   /// - 高亲密度时情绪变化更平缓（缓冲作用）
   /// - 接近边界时变化减缓（软边界）
-  Future<void> applyInteractionImpact(String message, double intimacy) async {
+  /// - 【Phase 3】怨恨值抑制正面情绪增长
+  /// - 【Phase 3】高唤醒度时情绪衰减（疑劳逻辑）
+  Future<void> applyInteractionImpact(String message, double intimacy, {bool isNegative = false}) async {
     // 使用 SettingsLoader 读取配置
     final intimacyBuffer = 1.0 - intimacy * SettingsLoader.intimacyBufferFactor;
-    final valenceChange = SettingsLoader.baseValenceChange * intimacyBuffer;
-    final arousalChange = SettingsLoader.baseArousalChange * intimacyBuffer;
+    double valenceChange = SettingsLoader.baseValenceChange * intimacyBuffer;
+    double arousalChange = SettingsLoader.baseArousalChange * intimacyBuffer;
+
+    // 【Phase 3】检测负面交互：短消息 + 负面词汇
+    final negativeKeywords = SettingsLoader.negativeKeywords;
+    final detectedNegative = isNegative || 
+        (message.length < 10 && negativeKeywords.any((kw) => message.contains(kw)));
+    
+    if (detectedNegative) {
+      // 增加怨恨值
+      _resentment = (_resentment + SettingsLoader.resentmentIncrease).clamp(0.0, 1.0);
+      print('[EmotionEngine] Negative interaction detected, resentment increased to $_resentment');
+    }
+    
+    // 【Phase 3】怨恨值抑制正面情绪增长
+    // 公式: valenceChange *= (1 - resentment * factor)
+    if (valenceChange > 0) {
+      valenceChange *= (1.0 - _resentment * SettingsLoader.resentmentSuppressionFactor);
+    }
+    
+    // 【Phase 3】疑劳逻辑: 高唤醒度时衰减情绪增量
+    if (_arousal > SettingsLoader.fatigueArousalThreshold) {
+      valenceChange *= SettingsLoader.fatigueDampeningFactor;
+      arousalChange *= SettingsLoader.fatigueDampeningFactor;
+      print('[EmotionEngine] Fatigue logic applied: high arousal ($_arousal), dampening emotional changes');
+    }
 
     // 应用变化
     if (_valence < 0.8) {
@@ -191,6 +266,7 @@ class EmotionEngine {
     }
 
     _lastUpdated = DateTime.now();
+    _recordHistory();
     await save();
   }
 
@@ -205,6 +281,7 @@ class EmotionEngine {
     _arousal = (_arousal + da).clamp(0.0, 1.0);
 
     _lastUpdated = DateTime.now();
+    _recordHistory();
     await save();
     
     print('[EmotionEngine] Reflective shift applied: DV=$dv, DA=$da -> New V=$_valence, A=$_arousal');
@@ -276,6 +353,7 @@ class EmotionEngine {
     if (valence != null) _valence = valence.clamp(-1.0, 1.0);
     if (arousal != null) _arousal = arousal.clamp(0.0, 1.0);
     _lastUpdated = DateTime.now();
+    _recordHistory();
     await save();
   }
 
@@ -283,7 +361,9 @@ class EmotionEngine {
   Future<void> reset() async {
     _valence = 0.1;
     _arousal = 0.5;
+    _resentment = 0.0; // 【Phase 3】重置怨恨值
     _lastUpdated = DateTime.now();
+    _recordHistory();
     await save();
   }
 }

@@ -17,6 +17,7 @@
 // 4. 执行 (Execution) - 注入策略到 Prompt，调用 LLM
 
 import 'dart:async';
+import 'dart:convert'; // 【L3】JSON 解析
 import 'dart:math';
 
 import '../model/chat_message.dart';
@@ -46,6 +47,7 @@ import '../policy/prohibited_patterns.dart';
 
 import '../prompt/prompt_assembler.dart';
 import '../prompt/prompt_snapshot.dart';
+import '../prompt/prompt_builder.dart'; // 【新增】L3/L4 分层 Prompt
 import '../util/input_sanitizer.dart';
 
 /// 主动消息回调
@@ -144,6 +146,11 @@ class ConversationEngine {
   FeedbackAnalyzer? _feedbackAnalyzer;
   AsyncReflectionEngine? _asyncReflectionEngine;
   bool _cognitiveEngineEnabled = false;
+
+  // 【Phase 4】崩溃状态检测 (Meltdown Detection)
+  // 当高唤醒度 + 极负效价时触发
+  bool get isMeltdown => emotionEngine.arousal > SettingsLoader.meltdownArousalThreshold && 
+                         emotionEngine.valence < SettingsLoader.meltdownValenceThreshold;
 
   // 多阶段 Agentic 工作流组件
   FactStore? _factStore;
@@ -612,18 +619,19 @@ class ConversationEngine {
     };
   }
 
-  /// 决策阶段 - 反思处理，生成响应策略
+  /// 决策阶段 - L3 意图生成
   /// 
-  /// 降级逻辑：如果 LLM 调用失败，使用规则基础反思
+  /// 【L3/L4 重构】使用 PromptBuilder.buildL3IntentPrompt 生成 JSON 结构化意图
+  /// 降级逻辑：如果 LLM 调用或 JSON 解析失败，使用规则基础反思
   Future<ReflectionResult> _runDecisionPhase(
     PerceptionResult perception,
     List<ChatMessage> currentMessages,
-    String userMessage, { // 【新增】传入用户实际消息
+    String userMessage, {
     Function(String)? onMonologueChunk,
   }) async {
     // 如果认知引擎未启用，使用规则基础反思
-    if (!_cognitiveEngineEnabled || _reflectionProcessor == null || profileService == null) {
-      print('[Pipeline] Decision: using quick reflect (cognitive engine not enabled)');
+    if (!_cognitiveEngineEnabled || profileService == null) {
+      print('[Pipeline] Decision: using rule-based reflect (cognitive engine not enabled)');
       return ReflectionResult.fromRules(perception, []);
     }
 
@@ -631,52 +639,100 @@ class ConversationEngine {
       final lastAiMessage = currentMessages.isNotEmpty
           ? currentMessages.lastWhere((m) => !m.isUser, orElse: () => currentMessages.last).content
           : '';
-
-      // 获取最近的反馈信号（格式化为字符串）
-      final recentFeedbackSignals = _feedbackAnalyzer?.formatRecentFeedbackForPrompt() ?? [];
       
-      // 获取内心独白模型（从设置）
+      // 获取记忆上下文
+      final recentMemories = memoryManager.getRecentMemories(5);
+      final memories = recentMemories.join('\n');
+      
+      // 获取用户名
+      final userName = _factStore?.getFact('user_name') ?? 
+                       profileService!.profile.nickname;
+      
+      // 【L3】构建意图生成 Prompt
+      final l3Prompt = PromptBuilder.buildL3IntentPrompt(
+        userMessage: userMessage,
+        userName: userName,
+        memories: memories,
+        userProfile: profileService!.profile,
+        valence: emotionEngine.valence,
+        arousal: emotionEngine.arousal,
+        personaName: personaPolicy.name,
+        lastAiResponse: lastAiMessage,
+      );
+      
+      // 【L3】获取内心独白模型
       final monologueModel = monologueModelGetter?.call() ?? 'qwen-max';
-
-      // 如果提供了回调，则进行流式反思
+      
+      // 【L3】调用 LLM 生成 JSON 结构化意图
+      String l3Response = '';
+      
       if (onMonologueChunk != null) {
-        final completer = Completer<ReflectionResult>();
-        String currentMonologue = '';
-        
-        _reflectionProcessor!.streamReflect(
-          perception: perception,
-          userProfile: profileService!.profile,
-          lastAiResponse: lastAiMessage,
-          recentFeedbackSignals: recentFeedbackSignals,
-          resultCompleter: completer,
-          userMessage: userMessage,
-          model: monologueModel, // 使用用户设置的模型
-        ).listen(
-          (chunk) {
-            currentMonologue += chunk;
-            onMonologueChunk(currentMonologue);
-          },
-          onError: (e) => print('[Decision] Monologue stream error: $e'),
+        // 流式调用 - 实时提取 inner_monologue
+        final stream = llmService.streamComplete(
+          systemPrompt: l3Prompt,
+          userMessage: '（请输出 JSON 结果）',
+          model: monologueModel,
         );
         
-        return await completer.future;
+        await for (final chunk in stream) {
+          l3Response += chunk;
+          
+          // 【修复】尝试从累积的响应中实时提取 inner_monologue
+          String displayText = l3Response;
+          try {
+            // 尝试提取 inner_monologue 字段值（即使 JSON 不完整）
+            final monologueMatch = RegExp(r'"inner_monologue"\s*:\s*"([^"]*)')
+                .firstMatch(l3Response);
+            if (monologueMatch != null) {
+              displayText = monologueMatch.group(1) ?? l3Response;
+            }
+          } catch (_) {
+            // 解析失败，保留原始文本
+          }
+          
+          onMonologueChunk(displayText);
+        }
+      } else {
+        // 非流式调用
+        l3Response = await llmService.completeWithSystem(
+          systemPrompt: l3Prompt,
+          userMessage: '（请输出 JSON 结果）',
+          model: monologueModel,
+        );
       }
-
-      // 非流式常规路径 (Fallback)
-      final reflection = await _reflectionProcessor!.reflect(
-        perception: perception,
-        userProfile: profileService!.profile,
-        lastAiResponse: lastAiMessage,
-        recentFeedbackSignals: recentFeedbackSignals,
-        userMessage: userMessage,
-        model: monologueModel, // 使用用户设置的模型
-      );
-
-      print('[Pipeline] Decision completed: strategy=${reflection.responseStrategy}, tone=${reflection.emotionalTone}');
-      return reflection;
+      
+      // 【L3】解析 JSON 响应
+      final jsonMatch = RegExp(r'```json\s*([\s\S]*?)\s*```').firstMatch(l3Response);
+      final jsonString = jsonMatch?.group(1) ?? l3Response;
+      
+      try {
+        final Map<String, dynamic> l3Json = jsonDecode(jsonString.trim());
+        
+        // 转换为 ReflectionResult
+        final reflection = ReflectionResult.fromJson(l3Json);
+        
+        print('[Pipeline] L3 Decision completed: strategy=${reflection.responseStrategy}, tone=${reflection.emotionalTone}');
+        return reflection;
+        
+      } catch (jsonError) {
+        print('[Pipeline] L3 JSON parse failed: $jsonError, using fallback');
+        // JSON 解析失败，但仍有内心独白文本
+        return ReflectionResult(
+          shouldAskQuestion: false,
+          responseStrategy: '自然对话',
+          avoidPatterns: [],
+          emotionalTone: '平和',
+          contentHints: [],
+          recommendedLength: 0.5,
+          useEmoji: false,
+          timestamp: DateTime.now(),
+          innerMonologue: l3Response,
+        );
+      }
+      
     } catch (e) {
       // 降级：使用规则基础反思
-      print('[Pipeline] Decision failed, using fallback: $e');
+      print('[Pipeline] L3 Decision failed, using fallback: $e');
       return ReflectionResult.fromRules(
         perception,
         profileService?.getDislikedPatterns() ?? [],
@@ -696,6 +752,47 @@ class ConversationEngine {
   }) async {
     final context = stateData['context'] as ConversationContext;
     final memories = stateData['memories'] as String;
+
+    // 【Phase 4】崩溃状态检测 - 跳过正常 L4 生成
+    if (isMeltdown) {
+      print('[Pipeline] MELTDOWN DETECTED! arousal=${emotionEngine.arousal}, valence=${emotionEngine.valence}');
+      
+      // 随机选择一个崩溃响应
+      final collapseResponses = SettingsLoader.meltdownResponses;
+      final random = Random();
+      final collapseText = collapseResponses[random.nextInt(collapseResponses.length)];
+      
+      // 构建崩溃状态的认知状态
+      final collapseCognitiveState = CognitiveState(
+        perception: {'meltdown': true},
+        decision: {
+          'response_strategy': 'collapse',
+          'inner_monologue': '（情绪崩溃中，无法正常思考）',
+        },
+        emotion: {
+          'valence': emotionEngine.valence,
+          'arousal': emotionEngine.arousal,
+          'meltdown': true,
+        },
+        memorySummary: '',
+      );
+      
+      return ConversationResult(
+        success: true,
+        delayedMessages: [
+          DelayedMessage(
+            message: ChatMessage(
+              content: collapseText,
+              isUser: false,
+              time: DateTime.now(),
+            ),
+            delay: const Duration(milliseconds: 500),
+          ),
+        ],
+        tokensUsed: 0,
+        cognitiveState: collapseCognitiveState.toMap(),
+      );
+    }
 
     // 获取 LLM 参数
     final params = generationPolicy.getParams(context);
@@ -752,7 +849,28 @@ class ConversationEngine {
     if (_cognitiveEngineEnabled) {
       String cleanMonologue = '';
       if (reflection.innerMonologue != null && reflection.innerMonologue!.isNotEmpty) {
-        cleanMonologue = reflection.innerMonologue!
+        // 【L3修复】尝试从 JSON 中提取 inner_monologue 字段
+        String rawMonologue = reflection.innerMonologue!;
+        
+        // 检查是否是 JSON 格式（```json 或 直接 {）
+        if (rawMonologue.contains('```json') || rawMonologue.trim().startsWith('{')) {
+          try {
+            // 提取 JSON 内容
+            final jsonMatch = RegExp(r'```json\s*([\s\S]*?)\s*```').firstMatch(rawMonologue);
+            final jsonString = jsonMatch?.group(1) ?? rawMonologue;
+            final jsonData = jsonDecode(jsonString.trim());
+            
+            // 优先使用 inner_monologue 字段
+            rawMonologue = jsonData['inner_monologue']?.toString() ?? 
+                           jsonData['innerMonologue']?.toString() ?? 
+                           rawMonologue;
+          } catch (e) {
+            // JSON 解析失败，保留原始文本
+            print('[Pipeline] Failed to parse JSON from innerMonologue: $e');
+          }
+        }
+        
+        cleanMonologue = rawMonologue
             .replaceAll(RegExp(r'<[^>]+>'), '')
             .trim();
         // 长度截断避免 Token 浪费
@@ -771,6 +889,12 @@ class ConversationEngine {
         monologue: cleanMonologue,
         perception: perceptionText,
       );
+      
+      // 【调试】打印 tailInjection 内容确认 L3→L4 注入
+      print('[Pipeline] L3→L4 tailInjection generated:');
+      print('  - cleanMonologue length: ${cleanMonologue.length}');
+      print('  - strategy: ${reflection.responseStrategy}');
+      print('  - tailInjection length: ${tailInjection.length}');
     }
 
     // 组装 Prompt（不再包含 dynamicRules，仅基础约束）
@@ -792,6 +916,7 @@ class ConversationEngine {
       responseFormat: ResponseFormatter.getSplitInstruction(),
       behaviorRules: behaviorRules,
       coreFacts: coreFacts,
+      relationshipGoal: profile?.preferences.relationshipGoal ?? '', // 【新增】期望关系注入
     );
 
     // 构建 API 消息列表 (【时间注入】启用时间前缀)
@@ -815,16 +940,16 @@ class ConversationEngine {
       {'role': 'user', 'content': effectiveUserContent},
     ];
 
-    // 创建快照 (用于调试)
+    // 创建快照 (用于调试) - 【修复】使用包含 tailInjection 的完整用户消息
     lastSnapshot = PromptSnapshot(
       fullPrompt: assembleResult.systemPrompt,
-      userMessage: text,
+      userMessage: effectiveUserContent,  // 【修复】使用 effectiveUserContent 而非 text
       historyMessages: historyMessages,
       timestamp: DateTime.now(),
       estimatedTokens: PromptSnapshot.calculateEstimatedTokens(
         assembleResult.systemPrompt,
         historyMessages,
-        text,
+        effectiveUserContent,  // 【修复】同步更新 token 估算
       ),
       components: assembleResult.components,
       generationParams: params,
@@ -904,6 +1029,14 @@ class ConversationEngine {
         arousal: emotionEngine.arousal,
       );
 
+      // 【架构优化】Single Source of Truth: 直接根据发送给 LLM 的 apiMessages 生成记录
+      // 确保 UI 看到的 Prompt 与 实际发送的完全一致
+      final fullPromptLog = apiMessages.map((m) {
+        final role = m['role']?.toUpperCase() ?? 'UNKNOWN';
+        final content = m['content'] ?? '';
+        return '=== [$role] ===\n$content';
+      }).join('\n\n');
+
       // 转换为 ChatMessage，并附带延迟信息
       final aiMessages = <DelayedMessage>[];
       for (final msg in formattedMessages) {
@@ -913,7 +1046,7 @@ class ConversationEngine {
               content: msg['content'] as String,
               isUser: false,
               time: DateTime.now(),
-              fullPrompt: assembleResult.systemPrompt,
+              fullPrompt: fullPromptLog, // 【Fix】使用统一生成的 Log
               tokensUsed: response.tokensUsed,
             ),
             delay: Duration(

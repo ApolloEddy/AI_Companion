@@ -11,6 +11,7 @@ import '../core/policy/generation_policy.dart';
 import '../core/provider/theme_provider.dart';
 import '../core/provider/bubble_color_provider.dart';
 import '../core/service/chat_export_service.dart';
+import 'widgets/persona_editor_dialog.dart';
 import 'utils/ui_adapter.dart';
 
 /// Research-Grade Settings Screen
@@ -30,10 +31,9 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _apiKeyController = TextEditingController();
   // AI 身份控制器
-  final TextEditingController _aiNameController = TextEditingController();
-  final TextEditingController _aiGenderController = TextEditingController();
-  final TextEditingController _aiAgeController = TextEditingController();
-  bool _hasUnsavedAiChanges = false;
+  // AI 身份控制器已移至 PersonaEditorDialog
+  // final TextEditingController _aiNameController ...
+  // bool _hasUnsavedAiChanges ...
   
   // 用户画像控制器
   final TextEditingController _nicknameController = TextEditingController();
@@ -67,15 +67,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _birthday = profile.birthday; // 【新增】
     _relationshipGoal = profile.preferences.relationshipGoal; // 【新增】
 
-    // 初始化 AI 身份 (从 engine.personaConfig)
-    _aiNameController.text = engine.personaConfig['name'] ?? '';
-    _aiGenderController.text = engine.personaConfig['gender'] ?? '';
-    _aiAgeController.text = engine.personaConfig['age'] ?? '';
-    
-    // 监听 AI 身份变化
-    _aiNameController.addListener(_onAiIdentityChanged);
-    _aiGenderController.addListener(_onAiIdentityChanged);
-    _aiAgeController.addListener(_onAiIdentityChanged);
+    // AI 身份初始化已移除，由 PersonaEditorDialog 接管
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (engine.isInitialized) {
@@ -94,9 +86,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _debounceTimer?.cancel();
     _apiKeyController.dispose();
     
-    _aiNameController.dispose();
-    _aiGenderController.dispose();
-    _aiAgeController.dispose();
+    // AI 控制器已移除
     
     _nicknameController.dispose();
     _callSignController.dispose();
@@ -106,26 +96,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.dispose();
   }
   
-  void _onAiIdentityChanged() {
-    setState(() {
-      _hasUnsavedAiChanges = true;
-    });
-  }
-
-  Future<void> _saveAiIdentity() async {
-    final engine = context.read<AppEngine>();
-    await engine.updateAiCoreIdentity(
-      name: _aiNameController.text.trim(),
-      gender: _aiGenderController.text.trim(),
-      age: _aiAgeController.text.trim(),
-    );
-    
-    setState(() {
-      _hasUnsavedAiChanges = false;
-    });
-    
-    _showSnackBar('AI 身份设定已保存');
-  }
+  // _onAiIdentityChanged 和 _saveAiIdentity 已移除
 
 
 
@@ -173,10 +144,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           saved = true;
         }
         
-        if (_hasUnsavedAiChanges) {
-          await _saveAiIdentity(); // This is Future<void>
-          saved = true;
-        } else if (saved) {
+        // if (_hasUnsavedAiChanges) logic removed
+        if (saved) {
            // If only profile changes, we need to ensure it's saved.
            // _saveUserProfile is void. I should inspect it.
            // For now assuming it fires and forgets.
@@ -776,35 +745,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildAiIdentityEditor(AppEngine engine, bool isDark) {
-    return Column(
-      children: [
-        _buildTextField('AI 名字', _aiNameController, isDark),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(child: _buildTextField('AI 性别 (修复无法定义问题)', _aiGenderController, isDark)),
-            const SizedBox(width: 12),
-            Expanded(child: _buildTextField('AI 年龄', _aiAgeController, isDark)),
-          ],
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          showDialog(
+            context: context,
+            builder: (context) => const PersonaEditorDialog(),
+          );
+        },
+        icon: const Icon(Icons.psychology, size: 18),
+        label: const Text('配置 AI 人格与详细设定'),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFFFB74D),
+          foregroundColor: Colors.black87,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
         ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _hasUnsavedAiChanges ? _saveAiIdentity : null,
-            icon: Icon(_hasUnsavedAiChanges ? Icons.save : Icons.check, size: 18),
-            label: Text(_hasUnsavedAiChanges ? '保存 AI 设定' : '已保存'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFB74D),
-              foregroundColor: Colors.black87,
-              disabledBackgroundColor: isDark ? Colors.white12 : Colors.grey.shade200,
-              disabledForegroundColor: isDark ? Colors.white38 : Colors.black38,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
   

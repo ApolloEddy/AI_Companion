@@ -4,19 +4,26 @@ import 'package:http/http.dart' as http;
 import '../config.dart';
 import '../policy/generation_policy.dart';
 
-/// LLM 响应结果
+/// LLM 响应结果（含详细 Token 统计）
 class LLMResponse {
   final String? content;
-  final int tokensUsed;
+  final int promptTokens;     // 【新增】输入消耗的 Token
+  final int completionTokens; // 【新增】输出消耗的 Token  
+  final int totalTokens;      // 【重命名】总 Token 数
   final bool success;
   final String? error;
   
   LLMResponse({
     this.content,
-    this.tokensUsed = 0,
+    this.promptTokens = 0,
+    this.completionTokens = 0,
+    this.totalTokens = 0,
     this.success = false,
     this.error,
   });
+  
+  /// 向后兼容: tokensUsed getter
+  int get tokensUsed => totalTokens;
 }
 
 /// LLM 服务 - 纯 API 适配层
@@ -74,10 +81,14 @@ class LLMService {
         try {
           final data = jsonDecode(utf8.decode(response.bodyBytes));
           
-          // 提取 token 使用量
-          int tokensUsed = 0;
+          // 提取 token 使用量（分别统计输入/输出）
+          int promptTokens = 0;
+          int completionTokens = 0;
+          int totalTokens = 0;
           if (data['usage'] != null) {
-            tokensUsed = (data['usage']['total_tokens'] ?? 0) as int;
+            promptTokens = (data['usage']['prompt_tokens'] ?? 0) as int;
+            completionTokens = (data['usage']['completion_tokens'] ?? 0) as int;
+            totalTokens = (data['usage']['total_tokens'] ?? 0) as int;
           }
           
           if (data['choices'] != null && 
@@ -87,13 +98,15 @@ class LLMService {
             if (content is String && content.isNotEmpty) {
               return LLMResponse(
                 content: content,
-                tokensUsed: tokensUsed,
+                promptTokens: promptTokens,
+                completionTokens: completionTokens,
+                totalTokens: totalTokens,
                 success: true,
               );
             }
           }
           
-          return LLMResponse(error: 'Unexpected response format', tokensUsed: tokensUsed);
+          return LLMResponse(error: 'Unexpected response format', totalTokens: totalTokens);
         } catch (e) {
           return LLMResponse(error: 'JSON parse error: $e');
         }

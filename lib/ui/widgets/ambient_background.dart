@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/provider/intimacy_color_provider.dart';
 
 /// AmbientBackground - 情绪驱动的动态渐变背景
 ///
@@ -55,16 +56,22 @@ class AmbientBackground extends StatelessWidget {
     );
   }
 
-  /// 亲密度决定背景基调 - 更具质感的配色
+  /// 亲密度决定背景基调 - 使用统一的 IntimacyColorProvider
+  /// 【UI审计】颜色过渡: 灰色(负)→蓝色(低)→粉色(中高)→紫色(极高)
   Color _getBaseColorByIntimacy() {
+    // 使用 IntimacyColorProvider 获取基础色
+    final baseColor = IntimacyColorProvider.getIntimacyColor(intimacy);
+    
     if (isDarkMode) {
-      if (intimacy > 0.8) return const Color(0xFF2D1B2E); // 深度亲密：深紫红
-      if (intimacy > 0.4) return const Color(0xFF1A1F35); // 熟悉：深海蓝
-      return const Color(0xFF101216); // 陌生：曜石黑
+      // 暗色模式: 降低亮度和保持低饱和度
+      final hsl = HSLColor.fromColor(baseColor);
+      return hsl.withLightness((hsl.lightness * 0.25).clamp(0.05, 0.2))
+                .withSaturation((hsl.saturation * 0.6).clamp(0.1, 0.5))
+                .toColor();
     } else {
-      if (intimacy > 0.8) return const Color(0xFFFFF0F5); // 深度亲密：樱花白
-      if (intimacy > 0.4) return const Color(0xFFF0F7FF); // 熟悉：云雾蓝
-      return const Color(0xFFF9FAFB); // 陌生：纸张白
+      // 亮色模式: 使用淡化版本
+      return IntimacyColorProvider.getBackgroundTint(intimacy, isDark: false)
+                .withOpacity(0.3); // 确保足够淡
     }
   }
 

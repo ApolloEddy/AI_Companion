@@ -18,7 +18,7 @@ class PromptAssembler {
 【核心事实与记忆】
 - 事实：{core_facts}
 - 记忆：{memories}
-
+{relationship_goal}
 【当前上下文】
 - 时间：{current_time}
 - 状态：{current_state}
@@ -43,7 +43,13 @@ class PromptAssembler {
     required String behaviorRules,     // 来自 PersonaPolicy.getBehaviorConstraints()
     String coreFacts = '',             // 来自 FactStore.formatForSystemPrompt()
     String fewShots = '',              // 【新增】Few-Shot 示例预留接口
+    String relationshipGoal = '',      // 【新增】用户期望的关系目标
   }) {
+    // 格式化关系目标（如果存在）
+    final relationshipGoalText = relationshipGoal.isNotEmpty 
+        ? '\n【关系期望】用户期望与你发展为: $relationshipGoal' 
+        : '';
+    
     final systemPrompt = _systemTemplate
         .replaceAll('{persona_header}', personaHeader)
         .replaceAll('{core_facts}', coreFacts.isNotEmpty ? coreFacts : '（暂无已知信息）')
@@ -53,7 +59,8 @@ class PromptAssembler {
         .replaceAll('{few_shots}', fewShots)
         .replaceAll('{expression_guide}', expressionGuide)
         .replaceAll('{response_format}', responseFormat)
-        .replaceAll('{behavior_rules}', behaviorRules);
+        .replaceAll('{behavior_rules}', behaviorRules)
+        .replaceAll('{relationship_goal}', relationshipGoalText);
 
     return PromptAssembleResult(
       systemPrompt: systemPrompt,

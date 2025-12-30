@@ -202,7 +202,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
                       value: _formality,
                       onChanged: (v) => setState(() => _formality = v),
                       isDark: isDark,
-                      color: const Color(0xFFFFB74D),
+                      color: Colors.blueAccent, // 【修改】蓝色
                     ),
                     const SizedBox(height: 16),
                     _buildSlider(
@@ -210,7 +210,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
                       value: _humor,
                       onChanged: (v) => setState(() => _humor = v),
                       isDark: isDark,
-                      color: const Color(0xFFFFB74D),
+                      color: Colors.orangeAccent, // 【修改】橙色
                     ),
                   ],
                 ),
@@ -337,7 +337,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '${(value * 100).toStringAsFixed(0)}%',
+                value.toStringAsFixed(2), // 【修改】保留两位小数
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,

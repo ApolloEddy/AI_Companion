@@ -9,6 +9,7 @@ class PromptConfig {
   final Map<String, String> lengthGuides;
   final String globalCaveats;
   final ResponseFormatConfig responseFormat;
+  final Map<String, String> systemPrompts; // 【新增】System Prompts
 
   PromptConfig({
     required this.expressionModes,
@@ -16,6 +17,7 @@ class PromptConfig {
     required this.lengthGuides,
     required this.globalCaveats,
     required this.responseFormat,
+    required this.systemPrompts,
   });
 
   /// 加载配置
@@ -26,6 +28,7 @@ class PromptConfig {
       
       final expGuides = doc['expression_guides'];
       final respFormats = doc['response_formats'];
+      final sysPrompts = doc['system_prompts']; // 【新增】
 
       // 解析 Expression Modes
       final modes = <String, ExpressionModeConfig>{};
@@ -46,12 +49,21 @@ class PromptConfig {
         lens[k.toString()] = v.toString();
       });
 
+      // 解析 System Prompts
+      final prompts = <String, String>{};
+      if (sysPrompts != null && sysPrompts is Map) {
+        sysPrompts.forEach((k, v) {
+          prompts[k.toString()] = v.toString();
+        });
+      }
+
       return PromptConfig(
         expressionModes: modes,
         timeModifiers: timeMods,
         lengthGuides: lens,
         globalCaveats: expGuides['global_caveats']?.toString() ?? '',
         responseFormat: ResponseFormatConfig.fromMap(respFormats['chat']),
+        systemPrompts: prompts,
       );
     } catch (e) {
       print('Failed to load prompt templates: $e');
@@ -62,6 +74,7 @@ class PromptConfig {
         lengthGuides: {},
         globalCaveats: '',
         responseFormat: ResponseFormatConfig(instruction: '', example: ''),
+        systemPrompts: {},
       );
     }
   }

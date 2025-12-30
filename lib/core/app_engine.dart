@@ -60,6 +60,9 @@ class AppEngine extends ChangeNotifier {
   late PersonaPolicy _personaPolicy;
   late GenerationPolicy _generationPolicy;
   
+  // 【新增】暴露 EmotionEngine (Phase 5 Hotfix: 历史记录持久化)
+  EmotionEngine get emotionEngine => _emotionEngine;
+  
   // Phase 2: FactStore 引用（用于 MemoryManagerScreen）
   late FactStore _factStore;
   FactStore get factStore => _factStore;

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_engine.dart';
+import '../../core/provider/intimacy_color_provider.dart';
 import 'persona_editor_dialog.dart';
 import '../utils/ui_adapter.dart';
 
@@ -21,10 +22,9 @@ class ModernSideBar extends StatefulWidget {
 }
 
 class _ModernSideBarState extends State<ModernSideBar> {
-  // 情绪历史记录（最近20个数据点）
-  final List<double> _valenceHistory = [];
-  final List<double> _arousalHistory = [];
-  static const int _maxHistoryLength = 20;
+  // 情绪历史记录移至 EmotionEngine 管理，此处不再维护
+  
+  // 父级 ListView 滚动控制器
   
   // 父级 ListView 滚动控制器
   final ScrollController _listScrollController = ScrollController();
@@ -39,19 +39,7 @@ class _ModernSideBarState extends State<ModernSideBar> {
     super.dispose();
   }
   
-  void _updateEmotionHistory(double valence, double arousal) {
-    // 仅当数值有明显变化时才记录
-    if (_valenceHistory.isEmpty || 
-        ((_valenceHistory.last - valence).abs() > 0.01 || 
-         (_arousalHistory.last - arousal).abs() > 0.01)) {
-      _valenceHistory.add(valence);
-      _arousalHistory.add(arousal);
-      if (_valenceHistory.length > _maxHistoryLength) {
-        _valenceHistory.removeAt(0);
-        _arousalHistory.removeAt(0);
-      }
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -66,7 +54,8 @@ class _ModernSideBarState extends State<ModernSideBar> {
     final intimacy = engine.intimacy;
     
     // 更新情绪历史
-    _updateEmotionHistory(valence, arousal);
+    // 更新情绪历史 (已移至 EmotionEngine 自动处理)
+    // _updateEmotionHistory(valence, arousal);
     
     // 人格参数
     final config = engine.personaConfig;
@@ -86,11 +75,18 @@ class _ModernSideBarState extends State<ModernSideBar> {
       if (_isMonologueGenerating) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && _listScrollController.hasClients) {
-            _listScrollController.animateTo(
-              _listScrollController.position.maxScrollExtent,
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOut,
-            );
+            final position = _listScrollController.position;
+            // 【智能滚动】只有当用户接近底部时才自动滚动
+            // 阈值设为 120 像素（约 4-5 行文本高度），允许一定的容差
+            final isAtBottom = position.maxScrollExtent - position.pixels < 120.0;
+            
+            if (isAtBottom) {
+              _listScrollController.animateTo(
+                position.maxScrollExtent,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+              );
+            }
           }
         });
       }
@@ -129,8 +125,8 @@ class _ModernSideBarState extends State<ModernSideBar> {
                         arousal: arousal,
                         intimacy: intimacy,
                         isDark: isDark,
-                        valenceHistory: _valenceHistory,
-                        arousalHistory: _arousalHistory,
+                        valenceHistory: engine.emotionEngine.valenceHistory,
+                        arousalHistory: engine.emotionEngine.arousalHistory,
                       ),
                       
                       const SizedBox(height: 24),
@@ -203,22 +199,50 @@ class _ModernSideBarState extends State<ModernSideBar> {
                 ),
               ],
             ),
-            child: CircleAvatar(
-              radius: 28,
-              backgroundColor: isDark ? Colors.grey[900] : Colors.grey[200],
-              backgroundImage: engine.aiAvatarPath != null && engine.aiAvatarPath!.isNotEmpty
-                  ?  FileImage(File(engine.aiAvatarPath!))
-                  : null,
-              child: (engine.aiAvatarPath == null || engine.aiAvatarPath!.isEmpty)
-                  ? Text(
-                      personaName[0],
-                      style: TextStyle(
-                        fontSize: 24, 
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? const Color(0xFFFFB74D) : const Color(0xFFD87C00)
+            child: Builder(
+              builder: (context) {
+                // 性别颜色逻辑
+                final gender = engine.personaConfig['gender']?.toString().toLowerCase() ?? '';
+                Color avatarColor;
+                if (gender == 'male' || gender == 'man' || gender == '男' || gender == '男性') {
+                  avatarColor = Colors.blueAccent;
+                } else if (gender == 'female' || gender == 'woman' || gender == '女' || gender == '女性') {
+                  avatarColor = Colors.pinkAccent;
+                } else {
+                  avatarColor = Colors.amber; // 中性/未知
+                }
+
+                if (engine.aiAvatarPath != null && engine.aiAvatarPath!.isNotEmpty) {
+                  return CircleAvatar(
+                    radius: 28,
+                    backgroundColor: isDark ? Colors.grey[900] : Colors.grey[200],
+                    backgroundImage: FileImage(File(engine.aiAvatarPath!)),
+                  );
+                } else {
+                  return Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: avatarColor.withValues(alpha: isDark ? 0.3 : 0.2),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: avatarColor.withValues(alpha: 0.5),
+                        width: 1.5,
                       ),
-                    )
-                  : null,
+                    ),
+                    child: Center(
+                      child: Text(
+                        personaName.isNotEmpty ? personaName.substring(0, 1) : 'A',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: avatarColor,
+                        ),
+                      ),
+                    ),
+                  );
+                }
+              },
             ),
           ),
           const SizedBox(width: 16),
@@ -672,21 +696,25 @@ class _ModernSideBarState extends State<ModernSideBar> {
               ),
               LayoutBuilder(
                 builder: (context, constraints) {
+                  // 获取渐变色 (左深右浅)
+                  final gradientColors = IntimacyColorProvider.getGradientColors(intimacy);
+                  
                   return AnimatedContainer(
                     duration: const Duration(milliseconds: 500),
                     height: 8,
                     width: constraints.maxWidth * intimacy.clamp(0.0, 1.0),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: [
-                          _getIntimacyColor(intimacy),
-                          _getIntimacyColor(intimacy).withValues(alpha: 0.6),
-                        ],
+                        colors: gradientColors,
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
                       ),
+                      borderRadius: BorderRadius.circular(4),
                       boxShadow: [
                         BoxShadow(
-                          color: _getIntimacyColor(intimacy).withValues(alpha: 0.4),
+                          color: gradientColors.last.withValues(alpha: 0.4),
                           blurRadius: 8,
+                          spreadRadius: 1, // 增加发光扩散
                         ),
                       ],
                     ),
@@ -700,10 +728,9 @@ class _ModernSideBarState extends State<ModernSideBar> {
     );
   }
 
+  /// 【UI审计】使用统一的 IntimacyColorProvider 获取亲密度颜色
   Color _getIntimacyColor(double intimacy) {
-    if (intimacy > 0.7) return Colors.pinkAccent;
-    if (intimacy > 0.4) return Colors.purpleAccent;
-    return Colors.blueAccent;
+    return IntimacyColorProvider.getIntimacyColor(intimacy);
   }
 
   /// 【新增】情绪象限可视化 - Valence-Arousal 二维坐标系
@@ -1221,7 +1248,14 @@ class _EmotionCurvePainter extends CustomPainter {
       ..strokeCap = StrokeCap.round;
 
     final fillPaint = Paint()
-      ..color = color.withValues(alpha: 0.1)
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          color.withValues(alpha: 0.2),
+          color.withValues(alpha: 0.0),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height))
       ..style = PaintingStyle.fill;
 
     final path = Path();
@@ -1230,43 +1264,66 @@ class _EmotionCurvePainter extends CustomPainter {
     final paddingY = 4.0;
     final drawHeight = size.height - paddingY * 2;
     
+    // 1. 将数据转换为坐标点
+    List<Offset> points = [];
     for (int i = 0; i < data.length; i++) {
-      final x = data.length == 1 ? size.width / 2 : (i / (data.length - 1)) * size.width;
-      
-      // 归一化 y 值到 0~1 范围
-      double normalizedY;
-      if (normalize) {
-        normalizedY = (data[i] + 1) / 2; // -1~1 -> 0~1
-      } else {
-        normalizedY = data[i]; // 已经是 0~1
-      }
-      
-      final y = paddingY + drawHeight * (1 - normalizedY);
-      
-      if (i == 0) {
-        path.moveTo(x, y);
-        fillPath.moveTo(x, size.height);
-        fillPath.lineTo(x, y);
-      } else {
-        path.lineTo(x, y);
-        fillPath.lineTo(x, y);
+        final x = data.length == 1 ? size.width / 2 : (i / (data.length - 1)) * size.width;
+        
+        // 归一化 y 值到 0~1 范围
+        double normalizedY;
+        if (normalize) {
+          normalizedY = (data[i] + 1) / 2; // -1~1 -> 0~1
+        } else {
+          normalizedY = data[i]; // 已经是 0~1
+        }
+        
+        // 限制在有效范围内
+        normalizedY = normalizedY.clamp(0.0, 1.0);
+        
+        final y = paddingY + drawHeight * (1 - normalizedY);
+        points.add(Offset(x, y));
+    }
+
+    if (points.isEmpty) return;
+
+    // 2. 绘制平滑曲线 (Catmull-Rom Spline to Cubic Bezier)
+    path.moveTo(points[0].dx, points[0].dy);
+    fillPath.moveTo(points[0].dx, size.height);
+    fillPath.lineTo(points[0].dx, points[0].dy);
+
+    if (points.length == 1) {
+       path.lineTo(points[0].dx, points[0].dy); // 单点不动
+    } else {
+      for (int i = 0; i < points.length - 1; i++) {
+        final p0 = i > 0 ? points[i - 1] : points[i];
+        final p1 = points[i];
+        final p2 = points[i + 1];
+        final p3 = i < points.length - 2 ? points[i + 2] : p2;
+
+        final cp1 = p1 + (p2 - p0) * 0.15; // 0.15 系数调整平滑度 (类似 tension)
+        final cp2 = p2 - (p3 - p1) * 0.15;
+
+        path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
+        // fillPath 只是简单的闭合，后续还要跟随 curve？
+        // 实际上 fillPath 需要完全跟随 path 的边缘
       }
     }
     
-    // 完成填充路径
-    fillPath.lineTo(size.width, size.height);
+    // 正确的做法：fillPath 应该基于 path 构建
+    // 由于 path 是复杂的曲线，我们不能简单 lineTo
+    // 我们复制 path 并闭合它
+    fillPath.reset();
+    fillPath.addPath(path, Offset.zero);
+    fillPath.lineTo(points.last.dx, size.height);
+    fillPath.lineTo(points.first.dx, size.height);
     fillPath.close();
-    
+
     canvas.drawPath(fillPath, fillPaint);
     canvas.drawPath(path, paint);
     
     // 绘制最后一个点的圆点
-    if (data.isNotEmpty) {
-      final lastX = size.width;
-      double lastNormalized = normalize ? (data.last + 1) / 2 : data.last;
-      final lastY = paddingY + drawHeight * (1 - lastNormalized);
-      
-      canvas.drawCircle(Offset(lastX, lastY), 3, Paint()..color = color);
+    if (points.isNotEmpty) {
+      canvas.drawCircle(points.last, 3, Paint()..color = color);
     }
   }
 

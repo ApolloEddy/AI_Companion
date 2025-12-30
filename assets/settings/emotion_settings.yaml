@@ -7,6 +7,8 @@ decay:
   valence_rate: 0.02
   # 情绪唤醒度衰减率（每小时）
   arousal_rate: 0.03
+  # 怨恨值自然衰减系数 (每周期乘数，默认0.95)
+  resentment_decay_factor: 0.95
 
 # 情绪更新参数（降低变化幅度）
 update:
@@ -18,9 +20,34 @@ update:
   intimacy_buffer_factor: 0.8
   # 边界软化参数 - 接近边界时变化减缓的程度
   boundary_softness: 0.2
+  
+  # 【Phase 3 新增】怨恨与疲劳
+  # 负面交互怨恨增加量
+  resentment_increase: 0.1
+  # 怨恨对正面情绪的抑制系数 (1.0 - resentment * factor)
+  resentment_suppression_factor: 0.8
+  # 疲劳阈值 (Arousal > X)
+  fatigue_arousal_threshold: 0.8
+  # 疲劳时的变化量衰减系数
+  fatigue_dampening_factor: 0.5
+  # 负面关键词
+  negative_keywords: 
+    - "不"
+    - "别"
+    - "讨厌"
+    - "烦"
+    - "满"
+    - "吐"
+    - "满了"
+    - "够了"
+    - "去死"
+    - "滚"
+    - "闭嘴"
 
 # 情绪阈值
 thresholds:
   # 高情感强度阈值（用于记忆评估）
   high_emotional_intensity: 0.7
-
+  # 【Phase 4】崩溃阈值
+  meltdown_arousal: 0.85
+  meltdown_valence_negative: -0.75

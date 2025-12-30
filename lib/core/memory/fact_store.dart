@@ -98,6 +98,22 @@ class FactStore {
     for (final k in keysToRemove) {
       _facts.remove(k);
     }
+
+    // 【新增】清理无效值（如"谁"、"什么"等被错误提取的问词）
+    final invalidValues = ['谁', '什么', '哪里', '怎么', '为什么', '哪个', '啥'];
+    final keysToClean = <String>[];
+    _facts.forEach((key, entry) {
+      if (invalidValues.contains(entry.value) || entry.value.length <= 1) {
+        keysToClean.add(key);
+      }
+    });
+    
+    for (final k in keysToClean) {
+      _facts.remove(k);
+      await removeFact(k); // 同时也从数据库删除
+      print('[FactStore] Auto-cleaned invalid fact: $k');
+      refined = true;
+    }
     
     if (refined) {
       print('[FactStore] Data migration completed. Cleared duplicates.');
@@ -274,8 +290,11 @@ class FactStore {
     final origin = activeFacts[keyOrigin]?.value ?? activeFacts[keyUserLocation]?.value;
     
     String identity = '用户';
-    if (name != null) identity += '身份：$name';
-    if (occupation != null) identity += '是$occupation'; 
+    // 修复：只有当 name 是有意义的值时才添加（排除问词等）
+    if (name != null && name.length > 1 && !['谁', '什么', '哪里', '怎么'].contains(name)) {
+      identity = '用户：$name';  // 修复：改为"用户："而不是"用户身份："
+    }
+    if (occupation != null) identity += '，$occupation'; 
     if (origin != null) identity += '，来自$origin';
     
     if (identity != '用户') {
@@ -480,6 +499,13 @@ $typeDescriptions
           final confidence = rawConfidence / 10.0;
           
           if (typeKey == null || value == null || value.isEmpty) continue;
+          
+          // 【新增】过滤无意义的值（问词、单字符等）
+          final invalidValues = ['谁', '什么', '哪里', '怎么', '为什么', '哪个', '啥'];
+          if (value.length <= 1 || invalidValues.contains(value)) {
+            print('[FactStore] Invalid value ignored: $typeKey = $value');
+            continue;
+          }
 
           // 【FIX 1】获取 Per-Type 阈值
           final threshold = SettingsLoader.getFactConfidenceThreshold(typeKey);

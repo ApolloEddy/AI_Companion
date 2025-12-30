@@ -34,3 +34,18 @@ timing:
     random_max: 1.5
     # 每字额外延迟（秒）
     per_char: 0.015
+
+# 情感影响
+emotion_effects:
+  high_arousal_threshold: 0.6
+  split_probability_bonus: 0.3
+  
+  # 【Phase 4】崩溃状态回复 (随机选一条)
+  meltdown_responses:
+    - "......"
+    - "我不想说话了"
+    - "别问了"
+    - "随便吧"
+    - "..."
+    - "你说什么都行"
+    - "够了"

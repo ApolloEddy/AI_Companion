@@ -227,6 +227,10 @@ class IntimacyEngine {
   }) async {
     severity = severity.clamp(0.0, 1.0);
 
+    // 【Phase 7】即时扣减亲密度
+    // 扣减量 = severity * 0.05 (最大扣除 0.05)
+    _intimacy = (_intimacy - severity * 0.05).clamp(_minIntimacy, _maxIntimacy);
+
     // 降低增长系数
     double coefficientReduction = _negativeEventMultiplier * severity;
     _growthCoefficient = (_growthCoefficient - coefficientReduction).clamp(0.1, 1.0);
@@ -236,7 +240,7 @@ class IntimacyEngine {
     _coolingUntil = DateTime.now().add(Duration(hours: coolingHours));
 
     print('[IntimacyEngine] Negative feedback applied: severity=$severity, '
-          'newCoefficient=$_growthCoefficient, coolingHours=$coolingHours');
+          'newIntimacy=$_intimacy, newCoefficient=$_growthCoefficient, coolingHours=$coolingHours');
 
     await save();
   }

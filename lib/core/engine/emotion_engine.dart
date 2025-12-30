@@ -6,9 +6,11 @@
 // - 支持实时衰减（由 ConversationEngine 的 Timer 调用）
 
 import 'dart:convert';
+import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../config.dart';
 import '../settings_loader.dart';
+import '../perception/perception_processor.dart';
 
 /// 情绪标签
 class EmotionLabels {
@@ -81,6 +83,10 @@ class EmotionEngine {
   
   List<double> get valenceHistory => List.unmodifiable(_valenceHistory);
   List<double> get arousalHistory => List.unmodifiable(_arousalHistory);
+  
+  /// 【Phase 5】Meltdown 检测 - 情绪崩溃阈值
+  /// 当怨恨值 > 0.8 且 效价 < -0.7 时触发
+  bool get isMeltdown => _resentment > 0.8 && _valence < -0.7;
 
   /// 获取当前情绪状态
   EmotionState get currentState => EmotionState(
@@ -218,34 +224,80 @@ class EmotionEngine {
   /// - 接近边界时变化减缓（软边界）
   /// - 【Phase 3】怨恨值抑制正面情绪增长
   /// - 【Phase 3】高唤醒度时情绪衰减（疑劳逻辑）
-  Future<void> applyInteractionImpact(String message, double intimacy, {bool isNegative = false}) async {
+  Future<void> applyInteractionImpact(PerceptionResult perception, double intimacy) async {
+    final offense = perception.offensiveness;
+    final isNewUser = intimacy < 0.3;
+
+    // 【Phase 6】道歉阀门 (Apology Valve)
+    if (perception.underlyingNeed == 'apology') {
+      _resentment = (_resentment - 0.4).clamp(0.0, 1.0);
+      _valence = (_valence + 0.3).clamp(-1.0, 1.0);
+      print('[EmotionEngine] APOLOGY DETECTED: Resentment lowered to $_resentment');
+      _lastUpdated = DateTime.now();
+      _recordHistory();
+      await save();
+      return; 
+    }
+
+    // 【Phase 2/6】心理创伤逻辑 (Trauma Logic)
+    if (offense >= 9) {
+      // 9-10级：毁灭性打击，无视宽容协议
+      _resentment = (_resentment + (offense - 5) * 0.1).clamp(0.0, 1.0);
+      _valence = (_valence - (offense / 10.0) * 1.5).clamp(-1.0, 1.0);
+      _arousal = (_arousal + 0.4).clamp(0.0, 1.0);
+      print('[EmotionEngine] TRAUMA DETECTED (L9-10): V=$_valence, R=$_resentment');
+    } else if (offense >= 6) {
+      // 6-8级：中度伤害，新用户怨恨减半
+      double resentmentInc = (offense - 5) * 0.1;
+      if (isNewUser) resentmentInc *= 0.5;
+      
+      _resentment = (_resentment + resentmentInc).clamp(0.0, 1.0);
+      _valence = (_valence - 0.6).clamp(-1.0, 1.0);
+      _arousal = (_arousal + 0.2).clamp(0.0, 1.0);
+      print('[EmotionEngine] Moderate Hostility: offense=$offense, resentmentInc=$resentmentInc');
+    } else if (offense >= 3) {
+      // 3-5级：试探/调侃。新用户不增加怨恨值，仅降低效价
+      if (!isNewUser) {
+        _resentment = (_resentment + 0.05).clamp(0.0, 1.0);
+      }
+      _valence = (_valence - 0.2).clamp(-1.0, 1.0);
+      _arousal = (_arousal + 0.1).clamp(0.0, 1.0);
+      print('[EmotionEngine] Minor/Testing Hostility: offense=$offense, isNewUser=$isNewUser');
+    }
+
+    if (offense >= 6) {
+      _lastUpdated = DateTime.now();
+      _recordHistory();
+      await save();
+      return; // 遭受中重度伤害后，跳过正向逻辑
+    }
+
+    // --- 以下为原有的正向/中性交互逻辑 ---
+
     // 使用 SettingsLoader 读取配置
     final intimacyBuffer = 1.0 - intimacy * SettingsLoader.intimacyBufferFactor;
     double valenceChange = SettingsLoader.baseValenceChange * intimacyBuffer;
     double arousalChange = SettingsLoader.baseArousalChange * intimacyBuffer;
 
-    // 【Phase 3】检测负面交互：短消息 + 负面词汇
-    final negativeKeywords = SettingsLoader.negativeKeywords;
-    final detectedNegative = isNegative || 
-        (message.length < 10 && negativeKeywords.any((kw) => message.contains(kw)));
+    // 【Phase 3】原本的负面词汇检测（作为补充）
+    // 由于有了 L1 感知，这里可以简化，但保留 social_events 中的负面信号判定
+    final detectedNegative = perception.socialEvents.contains('neglect_signal');
     
     if (detectedNegative) {
-      // 增加怨恨值
       _resentment = (_resentment + SettingsLoader.resentmentIncrease).clamp(0.0, 1.0);
-      print('[EmotionEngine] Negative interaction detected, resentment increased to $_resentment');
     }
     
-    // 【Phase 3】怨恨值抑制正面情绪增长
-    // 公式: valenceChange *= (1 - resentment * factor)
+    // 【Phase 5】非线性怨恨抑制
     if (valenceChange > 0) {
-      valenceChange *= (1.0 - _resentment * SettingsLoader.resentmentSuppressionFactor);
+      final sigmoidSuppression = 1.0 / (1.0 + exp(-10 * (_resentment - 0.5)));
+      valenceChange *= (1.0 - sigmoidSuppression);
     }
     
-    // 【Phase 3】疑劳逻辑: 高唤醒度时衰减情绪增量
-    if (_arousal > SettingsLoader.fatigueArousalThreshold) {
-      valenceChange *= SettingsLoader.fatigueDampeningFactor;
-      arousalChange *= SettingsLoader.fatigueDampeningFactor;
-      print('[EmotionEngine] Fatigue logic applied: high arousal ($_arousal), dampening emotional changes');
+    // 【Phase 5】渐进式唤醒度疲劳
+    if (_arousal > 0.6) {
+      final fatigueMultiplier = (1.0 - (_arousal - 0.6) * 2.5).clamp(0.2, 1.0);
+      valenceChange *= fatigueMultiplier;
+      arousalChange *= fatigueMultiplier;
     }
 
     // 应用变化
@@ -254,15 +306,9 @@ class EmotionEngine {
     }
     _arousal = (_arousal + arousalChange).clamp(0.0, 1.0);
 
-    // 边界软化：接近上限时减缓增长
+    // 边界软化
     if (_valence > 0.9) {
       _valence -= SettingsLoader.boundarySoftness;
-    }
-
-    // 消息长度影响（较长消息表示更投入的交流）
-    if (message.length > 50) {
-      _valence = (_valence + 0.02).clamp(-1.0, 1.0);
-      _arousal = (_arousal + 0.03).clamp(0.0, 1.0);
     }
 
     _lastUpdated = DateTime.now();

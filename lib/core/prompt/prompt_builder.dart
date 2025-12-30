@@ -22,7 +22,9 @@ class L3IntentResult {
   final bool shouldAskQuestion;     // 是否提问
   final String? microEmotion;       // 微情绪
   final Map<String, double>? emotionShift; // 情绪偏移
-
+  final String pacingStrategy;      // 【Phase 1】节奏策略
+  final String topicDepth;          // 【Phase 1】话题深度
+  
   const L3IntentResult({
     required this.innerMonologue,
     required this.responseStrategy,
@@ -32,6 +34,8 @@ class L3IntentResult {
     this.shouldAskQuestion = false,
     this.microEmotion,
     this.emotionShift,
+    this.pacingStrategy = 'single_shot',
+    this.topicDepth = 'emotional',
   });
 
   /// 从 JSON 解析
@@ -47,6 +51,8 @@ class L3IntentResult {
       emotionShift: json['emotion_shift'] != null 
           ? Map<String, double>.from(json['emotion_shift'].map((k, v) => MapEntry(k, (v as num).toDouble())))
           : null,
+      pacingStrategy: json['pacing_strategy'] ?? json['pacingStrategy'] ?? 'single_shot',
+      topicDepth: json['topic_depth'] ?? json['topicDepth'] ?? 'emotional',
     );
   }
 
@@ -60,6 +66,8 @@ class L3IntentResult {
       recommendedLength: length > 50 ? 0.6 : 0.4,
       useEmoji: false,
       shouldAskQuestion: false,
+      pacingStrategy: length > 30 ? 'burst' : 'single_shot',
+      topicDepth: 'factual',
     );
   }
 
@@ -89,7 +97,7 @@ class PromptBuilder {
   
   /// L3 意图生成 Prompt
   /// 
-  /// 输入: 用户消息 + 记忆 + 画像 + V-A状态
+  /// 输入: 用户消息 + 记忆 + 画像 + V-A状态 + 怨恨值 + 认知偏差
   /// 输出: JSON 格式 {inner_monologue, response_strategy, ...}
   /// 
   /// 【代词锚定】思考对象使用第三人称（他/她），禁止使用"你"
@@ -100,8 +108,10 @@ class PromptBuilder {
     required UserProfile userProfile,
     required double valence,
     required double arousal,
+    required double resentment, // 【Phase 5】新增怨恨值
     required String personaName,
     String? lastAiResponse,
+    String cognitiveBiases = '', // 【Phase 5】新增认知偏差
   }) {
     final template = SettingsLoader.prompt.systemPrompts['l3_intent'];
     if (template == null || template.isEmpty) {
@@ -121,6 +131,8 @@ class PromptBuilder {
         .replaceAll('{userGender}', userGender)
         .replaceAll('{valence}', valence.toStringAsFixed(2))
         .replaceAll('{arousal}', arousal.toStringAsFixed(2))
+        .replaceAll('{resentment}', resentment.toStringAsFixed(2)) // 【Phase 5】怨恨值
+        .replaceAll('{cognitiveBiases}', cognitiveBiases) // 【Phase 5】认知偏差
         .replaceAll('{emotionDesc}', emotionDesc)
         .replaceAll('{userOccupation}', userProfile.occupation.isNotEmpty ? '职业: ${userProfile.occupation}' : '')
         .replaceAll('{userMajor}', userProfile.major != null && userProfile.major!.isNotEmpty ? '专业: ${userProfile.major}' : '')
@@ -133,7 +145,7 @@ class PromptBuilder {
 
   /// L4 表达合成 Prompt
   /// 
-  /// 输入: L3 意图结果 + V-A状态 + 人格上下文
+  /// 输入: L3 意图结果 + V-A状态 + 人格上下文 + Meltdown 覆盖
   /// 输出: 微信风格口语化回复
   /// 
   /// 【代词锚定】L3中的"他/她"映射回"你"
@@ -142,11 +154,17 @@ class PromptBuilder {
     required String userName,
     required String personaName,
     required String personaDescription,
+    required String personaGender, // 【新增】
     required double valence,
     required double arousal,
+    required double resentment, // 【Phase 5】新增怨恨值
     required String relationshipDescription,
     required String behaviorRules,
     required UserProfile userProfile,
+    required String currentTime, // 【Phase 5】新增时间
+    required String memories, // 【Phase 5】新增记忆
+    required String coreFacts, // 【Phase 5】新增核心事实
+    String meltdownOverride = '', // 【Phase 5】Meltdown 语气覆盖
   }) {
     final template = SettingsLoader.prompt.systemPrompts['l4_expression'];
     if (template == null || template.isEmpty) {
@@ -164,13 +182,19 @@ class PromptBuilder {
     return template
         .replaceAll('{personaName}', personaName)
         .replaceAll('{personaDescription}', personaDescription)
+        .replaceAll('{personaGender}', personaGender) // 【新增】
         .replaceAll('{userName}', userName)
         .replaceAll('{userGender}', userGender)
+        .replaceAll('{meltdownOverride}', meltdownOverride) // 【Phase 5】Meltdown
         .replaceAll('{strategyGuide}', l3Result.toStrategyGuide())
+        .replaceAll('{currentTime}', currentTime) // 【Phase 5】
+        .replaceAll('{coreFacts}', coreFacts) // 【Phase 5】
+        .replaceAll('{memories}', memories) // 【Phase 5】
         .replaceAll('{valence}', valence.toStringAsFixed(2))
         .replaceAll('{valenceLabel}', _getValenceLabel(valence))
         .replaceAll('{arousal}', arousal.toStringAsFixed(2))
         .replaceAll('{arousalLabel}', _getArousalLabel(arousal))
+        .replaceAll('{resentment}', resentment.toStringAsFixed(2)) // 【Phase 5】怨恨值
         .replaceAll('{relationshipDescription}', relationshipDescription)
         .replaceAll('{emotionalTone}', l3Result.emotionalTone)
         .replaceAll('{lengthDescription}', _lengthDescription(l3Result.recommendedLength))
@@ -178,7 +202,9 @@ class PromptBuilder {
         .replaceAll('{askQuestion}', l3Result.shouldAskQuestion ? '可以提问' : '避免提问')
         .replaceAll('{behaviorRules}', behaviorRules)
         .replaceAll('{avoidanceGuide}', avoidanceGuide)
-        .replaceAll('{userDislikedGuide}', userDislikedGuide);
+        .replaceAll('{userDislikedGuide}', userDislikedGuide)
+        .replaceAll('{pacingStrategy}', l3Result.pacingStrategy)
+        .replaceAll('{topicDepth}', l3Result.topicDepth);
   }
 
   // ==================== Legacy Methods (向后兼容) ====================

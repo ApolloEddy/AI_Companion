@@ -12,6 +12,7 @@ class PersonaEditorDialog extends StatefulWidget {
 
 class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
   late TextEditingController _nameController;
+  late TextEditingController _genderController; // 【新增】
   late TextEditingController _appearanceController;
   late TextEditingController _personalityController;
   late TextEditingController _speakingStyleController;
@@ -31,6 +32,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
     final config = engine.personaConfig;
     
     _nameController = TextEditingController(text: config['name'] ?? 'April');
+    _genderController = TextEditingController(text: config['gender'] ?? '女孩'); // 【新增】
     _appearanceController = TextEditingController(
       text: config['appearance'] ?? config['age'] ?? '',
     );
@@ -57,6 +59,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
   @override
   void dispose() {
     _nameController.dispose();
+    _genderController.dispose(); // 【新增】
     _appearanceController.dispose();
     _personalityController.dispose();
     _speakingStyleController.dispose();
@@ -74,6 +77,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
     
     engine.updatePersonaConfig({
       'name': personaName.isEmpty ? '小悠' : personaName,
+      'gender': _genderController.text.trim(), // 【新增】
       'appearance': _appearanceController.text.trim(),
       'age': _appearanceController.text.trim(),
       'personality': _personalityController.text.trim(),
@@ -130,6 +134,13 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
                       label: '名字',
                       hint: 'AI 伴侣的名字',
                       controller: _nameController,
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 16),
+                    _buildTextField( // 【新增】
+                      label: '性别/物种',
+                      hint: '如：女孩、猫娘、傲娇学长',
+                      controller: _genderController,
                       isDark: isDark,
                     ),
                     const SizedBox(height: 16),

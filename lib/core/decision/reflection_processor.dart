@@ -27,6 +27,8 @@ class ReflectionResult {
   final String? innerMonologue;  // 内心独白
   final Map<String, double>? emotionShift; // 情绪偏移 (valence/arousal)
   final String? microEmotion; // 【新增】微情绪 (jealousy_mild, pride_hidden, disappointed)
+  final String? pacingStrategy; // 【Phase 1】节奏策略: single_shot, burst, hesitant
+  final String? topicDepth; // 【Phase 1】话题深度: factual, emotional, abstract
   
   const ReflectionResult({
     required this.shouldAskQuestion,
@@ -41,6 +43,8 @@ class ReflectionResult {
     this.innerMonologue,
     this.emotionShift,
     this.microEmotion,
+    this.pacingStrategy,
+    this.topicDepth,
   });
 
   /// 基于配置的快速反思结果 (重构版)
@@ -111,6 +115,8 @@ class ReflectionResult {
       timestamp: DateTime.now(),
       innerMonologue: '基于规则生成的快速反思',
       microEmotion: null, // 规则模式不生成微情绪
+      pacingStrategy: 'single_shot', // 规则模式默认单句
+      topicDepth: 'emotional', // 规则模式默认有情商回复
     );
   }
 
@@ -138,6 +144,8 @@ class ReflectionResult {
       innerMonologue: _cleanXmlTags(json['inner_monologue'] ?? '思考完成'),
       emotionShift: shift,
       microEmotion: json['micro_emotion']?.toString(), // 【新增】解析微情绪
+      pacingStrategy: json['pacing_strategy']?.toString() ?? 'single_shot',
+      topicDepth: json['topic_depth']?.toString() ?? 'emotional',
     );
   }
 

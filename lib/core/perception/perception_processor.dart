@@ -81,6 +81,7 @@ class PerceptionResult {
   final String conversationIntent;
   final TimeSensitivity timeSensitivity;
   final bool hasEmoji; // 【新增】用户消息中是否包含 emoji
+  final int offensiveness; // 【Phase 1】攻击性评估 (0-10)
   final double confidence;
   final DateTime timestamp;
 
@@ -91,6 +92,7 @@ class PerceptionResult {
     required this.conversationIntent,
     required this.timeSensitivity,
     required this.hasEmoji,
+    required this.offensiveness,
     required this.confidence,
     required this.timestamp,
   });
@@ -106,6 +108,7 @@ class PerceptionResult {
     conversationIntent: '延续上文',
     timeSensitivity: const TimeSensitivity(),
     hasEmoji: false,
+    offensiveness: 0,
     confidence: 0.5,
     timestamp: DateTime.now(),
   );
@@ -118,6 +121,7 @@ class PerceptionResult {
       conversationIntent: json['conversation_intent'] ?? '延续上文',
       timeSensitivity: TimeSensitivity.fromJson(json['time_sensitivity'] ?? {}),
       hasEmoji: json['has_emoji'] ?? false,
+      offensiveness: (json['offensiveness'] ?? 0).toInt(),
       confidence: (json['confidence'] ?? 0.5).toDouble(),
       timestamp: DateTime.now(),
     );
@@ -140,6 +144,9 @@ class PerceptionResult {
     lines.add('对话意图：$conversationIntent');
     if (timeSensitivity.isTimeRelated) {
       lines.add('时间关联：${timeSensitivity.context}');
+    }
+    if (offensiveness > 3) {
+      lines.add('敌意等级：$offensiveness/10');
     }
     return lines.join('\n');
   }
@@ -244,7 +251,7 @@ $lastAiResponseSection$recentMessagesSection
 
 2. 深层需求 (underlying_need)
    从以下选项中选择最匹配的一个：
-     $needOptions
+     $needOptions, apology
 
 3. 潜台词推断 (subtext_inference)
    用户没有直说但可能想表达的内容（如果有的话）
@@ -262,10 +269,16 @@ $lastAiResponseSection$recentMessagesSection
 7. 使用了表情 (has_emoji)
    - 只有在用户消息中包含明确的表情符号（图形 emoji 或符号表情）时为 true
 
-8. 社交信号扫描 (social_events)
-   检查用户消息是否包含以下特殊信号：
-     $socialEventDescs
-   结果以列表形式返回，如无则返回空数组 []
+      $socialEventDescs
+    结果以列表形式返回，如无则返回空数组 []
+
+9. 敌意评估 (offensiveness)
+   评估用户消息对你的攻击性程度 (0-10)：
+   - 0-2: 无害/友好/普通对话
+   - 3-5: 边界测试、调侃、轻微不耐烦 (如 "别烦我", "你好笨", "哦")
+   - 6-8: 明确的人身攻击/辱骂 (如 "白痴", "你有病吧")
+   - 9-10: 毁灭性打击、诅咒或驱逐 (如 "滚", "去死")
+   【修正规则】如果判断用户只是在“开玩笑”、“试探你的反应”或“调皮”，请将原始判定的分数降低 3 分。
 
 === 输出格式 ===
 必须输出有效的 JSON，不要包含任何其他文本：
@@ -276,6 +289,7 @@ $lastAiResponseSection$recentMessagesSection
   "conversation_intent": "...",
   "time_sensitivity": {"is_time_related": false, "context": null},
   "has_emoji": false,
+  "offensiveness": 0,
   "confidence": 0.8
 }
 ''';
@@ -345,6 +359,7 @@ $lastAiResponseSection$recentMessagesSection
     String need = '闲聊解闷';
     String intent = '延续上文';
     int keywordHits = 0;  // 【新增】关键词命中计数
+    int offensiveness = 0; // 【Phase 1】攻击性评分
     
     // 表情检测
     final hasEmoji = _detectEmoji(userMessage);
@@ -395,6 +410,16 @@ $lastAiResponseSection$recentMessagesSection
       need = '寻求建议';
       keywordHits += 1;
     }
+
+    // 攻击性检测 (Phase 1 规则版)
+    final hostileKeywords = ['滚', '死', '病', '白痴', '傻'];
+    if (_containsAny(userMessage, hostileKeywords)) {
+      offensiveness = userMessage.contains('滚') || userMessage.contains('死') ? 9 : 6;
+      valence = -0.8;
+      arousal = 0.8;
+      label = offensiveness >= 9 ? '愤怒' : '焦虑';
+      keywordHits += 2;
+    }
     
     // 时间相关 (严格判定)
     final hour = currentTime.hour;
@@ -427,6 +452,7 @@ $lastAiResponseSection$recentMessagesSection
         context: isLateNight ? '深夜时分' : null,
       ),
       hasEmoji: hasEmoji,
+      offensiveness: offensiveness,
       confidence: confidence,
       timestamp: DateTime.now(),
     );

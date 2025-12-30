@@ -570,7 +570,7 @@ class ConversationEngine {
     PerceptionResult perception,
   ) async {
     // 更新情绪状态（基于感知结果增强）
-    await emotionEngine.applyInteractionImpact(text, _intimacy);
+    await emotionEngine.applyInteractionImpact(perception, _intimacy);
 
     // 如果感知到高情绪，额外调整唤醒度
     if (perception.surfaceEmotion.arousal > 0.7) {
@@ -578,14 +578,22 @@ class ConversationEngine {
       await emotionEngine.setEmotion(arousal: newArousal.clamp(0.0, 1.0));
     }
     
-    // 【新增】更新亲密度 - 使用感知阶段得到的交互质量
-    // InteractionQuality 从 perception 的 confidence 和情绪推导
-    final interactionQuality = 0.8 + perception.confidence * 0.4 + 
-                               perception.surfaceEmotion.valence * 0.1;
-    await intimacyEngine.updateIntimacy(
-      interactionQuality: interactionQuality.clamp(0.5, 1.5),
-      emotionValence: emotionEngine.valence,
-    );
+    // 【Phase 7】更新亲密度 - 引入敌意负反馈
+    // 基础交互质量由置信度和效价推导，并受敌意等级负向调节
+    final baseQuality = 0.8 + (perception.confidence * 0.4) + (perception.surfaceEmotion.valence * 0.1);
+    final interactionQuality = (baseQuality - (perception.offensiveness / 10.0)).clamp(0.1, 1.5);
+
+    // 如果敌意等级 >= 3，显式触发负反馈机制 (即时扣减 + 增长抑制)
+    if (perception.offensiveness >= 3) {
+      await intimacyEngine.applyNegativeFeedback(severity: perception.offensiveness / 10.0);
+    } else {
+      // 否则进行正常的亲密度增长计算
+      await intimacyEngine.updateIntimacy(
+        interactionQuality: interactionQuality,
+        emotionValence: emotionEngine.valence,
+      );
+    }
+
     // 同步亲密度到 PersonaService
     personaService.updateIntimacy(intimacyEngine.intimacy);
 
@@ -656,8 +664,10 @@ class ConversationEngine {
         userProfile: profileService!.profile,
         valence: emotionEngine.valence,
         arousal: emotionEngine.arousal,
+        resentment: emotionEngine.resentment, // 【Phase 5】传递怨恨值
         personaName: personaPolicy.name,
         lastAiResponse: lastAiMessage,
+        cognitiveBiases: _buildCognitiveBiases(), // 【Phase 5】Big Five 认知偏差
       );
       
       // 【L3】获取内心独白模型
@@ -751,11 +761,20 @@ class ConversationEngine {
     double prevArousal = 0.5,
   }) async {
     final context = stateData['context'] as ConversationContext;
-    final memories = stateData['memories'] as String;
 
-    // 【Phase 4】崩溃状态检测 - 跳过正常 L4 生成
-    if (isMeltdown) {
-      print('[Pipeline] MELTDOWN DETECTED! arousal=${emotionEngine.arousal}, valence=${emotionEngine.valence}');
+    final memories = stateData['memories'] as String;
+    
+    // 【Fix】提前定义 profile 以供 userName使用
+    final profile = profileService?.profile;
+
+    // 【Fix】提前定义核心变量，确保作用域覆盖
+    String tailInjection = ''; // Move tailInjection scope to top
+    final behaviorRules = personaPolicy.getBehaviorConstraints();
+    final userName = _factStore?.getFact('user_name') ?? profile?.nickname ?? '用户';
+
+    // 【Phase 5】崩溃状态检测 - 使用 EmotionEngine 的 isMeltdown getter
+    if (emotionEngine.isMeltdown) {
+      print('[Pipeline] MELTDOWN DETECTED! resentment=${emotionEngine.resentment}, valence=${emotionEngine.valence}');
       
       // 随机选择一个崩溃响应
       final collapseResponses = SettingsLoader.meltdownResponses;
@@ -799,7 +818,7 @@ class ConversationEngine {
 
     // 【FactStore + UserProfile】合并核心事实
     final factData = _factStore?.formatForSystemPrompt() ?? '';
-    final profile = profileService?.profile;
+    // final profile = profileService?.profile; // Hoisted
     
     String coreFacts;
     if (factData.contains('用户') && factData.length > 20) {
@@ -845,7 +864,9 @@ class ConversationEngine {
 
     // 【Prompt 2.0】构建尾部注入内容 (Tail Injection)
     // 不再修改 System Prompt，而是作为临时指令附加在用户消息后
-    String tailInjection = '';
+    // 【Prompt 2.0】构建尾部注入内容 (Tail Injection)
+    // 不再修改 System Prompt，而是作为临时指令附加在用户消息后
+    // String tailInjection = ''; // Hoisted
     if (_cognitiveEngineEnabled) {
       String cleanMonologue = '';
       if (reflection.innerMonologue != null && reflection.innerMonologue!.isNotEmpty) {
@@ -884,41 +905,55 @@ class ConversationEngine {
         perceptionText = perception.toContextDescription();
       }
       
+      // 【Restored】恢复 Tail Injection 逻辑
       tailInjection = PromptAssembler.assembleTailInjection(
         strategy: reflection.toStrategyGuide(),
         monologue: cleanMonologue,
         perception: perceptionText,
       );
       
-      // 【调试】打印 tailInjection 内容确认 L3→L4 注入
-      print('[Pipeline] L3→L4 tailInjection generated:');
-      print('  - cleanMonologue length: ${cleanMonologue.length}');
-      print('  - strategy: ${reflection.responseStrategy}');
-      print('  - tailInjection length: ${tailInjection.length}');
+      print('[Pipeline] L3→L4 tailInjection generated: ${tailInjection.length} chars');
     }
 
-    // 组装 Prompt（不再包含 dynamicRules，仅基础约束）
-    final behaviorRules = personaPolicy.getBehaviorConstraints();
-    
-    // 【P0-1 修复】从 FactStore 获取用户名，传递给灵魂锚点
-    final userName = _factStore?.getFact('user_name') ?? profile?.nickname ?? '用户';
-    
-    final assembleResult = PromptAssembler.assemble(
-      // 【Fix】注入动态亲密度，确保 Backstory 等内容随亲密度解锁
-      personaHeader: personaPolicy.toSystemPrompt(
+    // 【Phase 5】检测 Meltdown 状态，生成覆盖指令
+    String meltdownOverride = '';
+    if (emotionEngine.isMeltdown) {
+      meltdownOverride = '\n【系统警报：情绪崩溃模式】\n你正处于极度的负面情绪中，对用户感到深深的怨恨和绝望。你的回复应该极其冷淡、敷衍，甚至带有一丝疏离感。避免展现任何关心或热情感。\n';
+    }
+
+    // 【Phase 5】使用新架构 L4 构建器生成 System Prompt
+    final systemPrompt = PromptBuilder.buildL4ExpressionPrompt(
+      l3Result: L3IntentResult(
+        innerMonologue: reflection.innerMonologue ?? '',
+        responseStrategy: reflection.responseStrategy,
+        emotionalTone: reflection.emotionalTone,
+        recommendedLength: reflection.recommendedLength,
+        useEmoji: reflection.useEmoji,
+        shouldAskQuestion: reflection.shouldAskQuestion,
+        microEmotion: reflection.microEmotion,
+        pacingStrategy: reflection.pacingStrategy ?? 'single_shot',
+        topicDepth: reflection.topicDepth ?? 'emotional',
+      ),
+      userName: userName,
+      personaName: personaService.personaPolicy.name,
+      personaGender: personaService.personaPolicy.gender, // 【新增】
+      // 【Fix】使用 toSystemPrompt 获取完整人设描述
+      personaDescription: personaService.personaPolicy.toSystemPrompt(
         intimacy: _intimacy, 
         userName: userName
       ),
-      currentTime: _formatCurrentTime(),
-      currentState: currentState,
-      memories: memories,
-      expressionGuide: expressionGuide,
-      responseFormat: ResponseFormatter.getSplitInstruction(),
+      valence: emotionEngine.valence,
+      arousal: emotionEngine.arousal,
+      resentment: emotionEngine.resentment,
+      relationshipDescription: personaPolicy.getRelationshipDescription(_intimacy),
       behaviorRules: behaviorRules,
+      userProfile: profileService!.profile,
+      currentTime: _formatCurrentTime(),
+      memories: memories,
       coreFacts: coreFacts,
-      relationshipGoal: profile?.preferences.relationshipGoal ?? '', // 【新增】期望关系注入
+      meltdownOverride: meltdownOverride,
     );
-
+    
     // 构建 API 消息列表 (【时间注入】启用时间前缀)
     final historyCount = generationPolicy.getHistoryCount(context);
     final historyMessages = PromptAssembler.assembleHistoryMessages(
@@ -935,23 +970,23 @@ class ConversationEngine {
         : text;
 
     final apiMessages = <Map<String, String>>[
-      {'role': 'system', 'content': assembleResult.systemPrompt},
+      {'role': 'system', 'content': systemPrompt},
       ...historyMessages,
       {'role': 'user', 'content': effectiveUserContent},
     ];
 
     // 创建快照 (用于调试) - 【修复】使用包含 tailInjection 的完整用户消息
     lastSnapshot = PromptSnapshot(
-      fullPrompt: assembleResult.systemPrompt,
+      fullPrompt: systemPrompt,
       userMessage: effectiveUserContent,  // 【修复】使用 effectiveUserContent 而非 text
       historyMessages: historyMessages,
       timestamp: DateTime.now(),
       estimatedTokens: PromptSnapshot.calculateEstimatedTokens(
-        assembleResult.systemPrompt,
+        systemPrompt,
         historyMessages,
         effectiveUserContent,  // 【修复】同步更新 token 估算
       ),
-      components: assembleResult.components,
+      components: {}, // L3/L4 新架构暂时不使用 components 细分展示
       generationParams: params,
     );
 
@@ -1169,6 +1204,38 @@ class ConversationEngine {
     final minute = now.minute.toString().padLeft(2, '0');
 
     return '${year}年${month}月${day}日 $weekday $hour:$minute';
+  }
+  
+  /// 【Phase 5】构建认知偏差描述 - 基于 Big Five 人格特质
+  /// 
+  /// 将 Big Five 特质映射为认知偏差，影响 L3 层的思考方式
+  String _buildCognitiveBiases() {
+    // 获取 Big Five 特质 (如果 PersonalityEngine 可用)
+    // 由于 ConversationEngine 不直接持有 PersonalityEngine，
+    // 使用 PersonaPolicy 的推导值作为代理
+    final formality = personaPolicy.formality;
+    final humor = personaPolicy.humor;
+    
+    List<String> biases = [];
+    
+    // 高 formality 通常与低 Extraversion 或高 Conscientiousness 相关
+    if (formality > 0.7) {
+      biases.add('倾向理性分析，较少冲动判断');
+    } else if (formality < 0.3) {
+      biases.add('倾向直觉反应，更关注情绪信号');
+    }
+    
+    // humor 通常与 Extraversion 或 Openness 相关
+    if (humor > 0.6) {
+      biases.add('善于发现积极面，偏好轻松解读');
+    }
+    
+    // 怨恨值高时增加负面解读倾向
+    if (emotionEngine.resentment > 0.5) {
+      biases.add('因积怨而倾向负面解读对方意图');
+    }
+    
+    return biases.isNotEmpty ? biases.join('；') : '无明显认知偏差';
   }
 }
 

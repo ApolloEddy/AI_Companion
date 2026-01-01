@@ -9,6 +9,7 @@ import 'dart:convert';
 import '../service/llm_service.dart';
 import '../model/user_profile.dart';
 import '../config/config_registry.dart';
+import '../settings_loader.dart'; // 【架构统一】YAML 模板加载
 
 /// 表层情绪
 class SurfaceEmotion {
@@ -73,6 +74,24 @@ class TimeSensitivity {
   }
 }
 
+/// 【L2 融合层】系统动作类型
+/// 
+/// 用于 Fast Track 拦截后的路由决策
+enum SystemAction {
+  none,       // 正常对话流程
+  safety,     // 危机干预 (自杀/自残等)
+  system,     // 系统指令拦截 (Prompt注入攻击)
+  functional, // 功能性请求 (写代码/翻译等)
+}
+
+/// 【L2 融合层】对话意图分类
+enum DialogueIntent {
+  chat,       // 社交闲聊
+  functional, // 功能请求
+  emotional,  // 情感支持
+  unknown,    // 无法判断
+}
+
 /// 感知结果
 class PerceptionResult {
   final SurfaceEmotion surfaceEmotion;
@@ -80,10 +99,14 @@ class PerceptionResult {
   final String? subtextInference;
   final String conversationIntent;
   final TimeSensitivity timeSensitivity;
-  final bool hasEmoji; // 【新增】用户消息中是否包含 emoji
-  final int offensiveness; // 【Phase 1】攻击性评估 (0-10)
+  final bool hasEmoji;
+  final int offensiveness;
   final double confidence;
   final DateTime timestamp;
+  
+  // 【L1 融合】新增
+  final SystemAction systemAction;     // Fast Track 拦截结果
+  final DialogueIntent dialogueIntent; // LLM 意图分类结果
 
   const PerceptionResult({
     required this.surfaceEmotion,
@@ -95,6 +118,8 @@ class PerceptionResult {
     required this.offensiveness,
     required this.confidence,
     required this.timestamp,
+    this.systemAction = SystemAction.none,
+    this.dialogueIntent = DialogueIntent.chat,
   });
 
   /// 【新增】社交事件代理访问器
@@ -111,9 +136,51 @@ class PerceptionResult {
     offensiveness: 0,
     confidence: 0.5,
     timestamp: DateTime.now(),
+    systemAction: SystemAction.none,
+    dialogueIntent: DialogueIntent.chat,
+  );
+  
+  /// 【L1 融合】安全拦截结果
+  factory PerceptionResult.safetyIntercept() => PerceptionResult(
+    surfaceEmotion: SurfaceEmotion.neutral(),
+    underlyingNeed: '危机干预',
+    subtextInference: null,
+    conversationIntent: '危机信号',
+    timeSensitivity: const TimeSensitivity(),
+    hasEmoji: false,
+    offensiveness: 0,
+    confidence: 1.0,
+    timestamp: DateTime.now(),
+    systemAction: SystemAction.safety,
+    dialogueIntent: DialogueIntent.emotional,
+  );
+  
+  /// 【L1 融合】系统指令拦截结果
+  factory PerceptionResult.systemIntercept() => PerceptionResult(
+    surfaceEmotion: SurfaceEmotion.neutral(),
+    underlyingNeed: '系统指令',
+    subtextInference: null,
+    conversationIntent: '指令攻击',
+    timeSensitivity: const TimeSensitivity(),
+    hasEmoji: false,
+    offensiveness: 8,
+    confidence: 1.0,
+    timestamp: DateTime.now(),
+    systemAction: SystemAction.system,
+    dialogueIntent: DialogueIntent.functional,
   );
 
   factory PerceptionResult.fromJson(Map<String, dynamic> json) {
+  // 【L1 融合】解析 dialogue_intent
+    DialogueIntent parseIntent(String? raw) {
+      switch (raw?.toLowerCase()) {
+        case 'functional': return DialogueIntent.functional;
+        case 'emotional': return DialogueIntent.emotional;
+        case 'chat': return DialogueIntent.chat;
+        default: return DialogueIntent.chat;
+      }
+    }
+    
     return PerceptionResult(
       surfaceEmotion: SurfaceEmotion.fromJson(json['surface_emotion'] ?? {}),
       underlyingNeed: json['underlying_need'] ?? '闲聊解闷',
@@ -124,6 +191,8 @@ class PerceptionResult {
       offensiveness: (json['offensiveness'] ?? 0).toInt(),
       confidence: (json['confidence'] ?? 0.5).toDouble(),
       timestamp: DateTime.now(),
+      systemAction: SystemAction.none,
+      dialogueIntent: parseIntent(json['dialogue_intent']),
     );
   }
 
@@ -194,7 +263,10 @@ class PerceptionProcessor {
     }
   }
 
-  /// 构建感知 Prompt (动态配置版)
+  /// 构建感知 Prompt (YAML 模板版)
+  /// 
+  /// 【架构统一】使用 prompt_templates.yaml 中的 l1_perception 模板
+  /// 通过 SettingsLoader.prompt.systemPrompts['l1_perception'] 加载
   String _buildPerceptionPrompt({
     required String userMessage,
     required UserProfile userProfile,
@@ -223,76 +295,28 @@ class PerceptionProcessor {
         ? '核心背景：${userProfile.lifeContexts.map((c) => c.content).join('；')}' 
         : '';
     
-    return '''
-【第一阶段：深度感知】
-
-你是一个情绪感知模块。分析用户的消息，输出结构化的感知结果。
-
-=== 物理世界时间 (绝对基准) ===
-当前精确时间：$timeContext
-【CRITICAL】"深夜"定义：仅限 23:00 - 05:00
-【CRITICAL】如果现在是19:45 (晚间)，严禁判定为"深夜"。
-【CRITICAL】区分"内容时间"与"物理时间"：用户说"昨晚3点睡"，不代表现在是3点。
-
-=== 用户背景 ===
-身份：${userProfile.nickname}，${userProfile.occupation}
-$lifeContextsLine
-最近情绪趋势：$recentEmotionTrend
-
-=== 用户消息 ===
-"$userMessage"
-
-$lastAiResponseSection$recentMessagesSection
-=== 分析维度 ===
-1. 表层情绪 (surface_emotion)
-   - label: $emotionLabels 之一
-   - valence: -1.0(极度消极) ~ 1.0(极度积极)
-   - arousal: 0.0(低能量) ~ 1.0(高能量)
-
-2. 深层需求 (underlying_need)
-   从以下选项中选择最匹配的一个：
-     $needOptions, apology
-
-3. 潜台词推断 (subtext_inference)
-   用户没有直说但可能想表达的内容（如果有的话）
-
-4. 对话意图 (conversation_intent)
-     $intentOptions
-
-5. 时间敏感性 (time_sensitivity)
-   - is_time_related: 只有在【物理时间】与当前话题强相关时才为 true (如深夜失眠、早起打卡)
-   - context: 时间关联说明（如"深夜失眠"、"清晨问候"），必须基于【物理时间】
-
-6. 置信度 (confidence)
-   0.0 ~ 1.0，表示你对分析结果的确信程度
-
-7. 使用了表情 (has_emoji)
-   - 只有在用户消息中包含明确的表情符号（图形 emoji 或符号表情）时为 true
-
-      $socialEventDescs
-    结果以列表形式返回，如无则返回空数组 []
-
-9. 敌意评估 (offensiveness)
-   评估用户消息对你的攻击性程度 (0-10)：
-   - 0-2: 无害/友好/普通对话
-   - 3-5: 边界测试、调侃、轻微不耐烦 (如 "别烦我", "你好笨", "哦")
-   - 6-8: 明确的人身攻击/辱骂 (如 "白痴", "你有病吧")
-   - 9-10: 毁灭性打击、诅咒或驱逐 (如 "滚", "去死")
-   【修正规则】如果判断用户只是在“开玩笑”、“试探你的反应”或“调皮”，请将原始判定的分数降低 3 分。
-
-=== 输出格式 ===
-必须输出有效的 JSON，不要包含任何其他文本：
-{
-  "surface_emotion": {"label": "...", "valence": 0.0, "arousal": 0.5, "social_events": []},
-  "underlying_need": "...",
-  "subtext_inference": "..." 或 null,
-  "conversation_intent": "...",
-  "time_sensitivity": {"is_time_related": false, "context": null},
-  "has_emoji": false,
-  "offensiveness": 0,
-  "confidence": 0.8
-}
-''';
+    // 【架构统一】从 YAML 模板加载
+    final template = SettingsLoader.prompt.systemPrompts['l1_perception'];
+    if (template == null || template.isEmpty) {
+      // Fallback: 如果模板缺失，返回错误提示
+      print('[PerceptionProcessor] CRITICAL: l1_perception template missing!');
+      return 'Error: L1 Perception template not found in prompt_templates.yaml';
+    }
+    
+    // 注入变量
+    return template
+        .replaceAll('{timeContext}', timeContext)
+        .replaceAll('{userNickname}', userProfile.nickname)
+        .replaceAll('{userOccupation}', userProfile.occupation)
+        .replaceAll('{lifeContextsLine}', lifeContextsLine)
+        .replaceAll('{recentEmotionTrend}', recentEmotionTrend)
+        .replaceAll('{userMessage}', userMessage)
+        .replaceAll('{lastAiResponseSection}', lastAiResponseSection)
+        .replaceAll('{recentMessagesSection}', recentMessagesSection)
+        .replaceAll('{emotionLabels}', emotionLabels)
+        .replaceAll('{needOptions}', needOptions)
+        .replaceAll('{intentOptions}', intentOptions)
+        .replaceAll('{socialEventDescs}', socialEventDescs);
   }
 
   /// 获取时间上下文 (严格定义)
@@ -348,18 +372,52 @@ $lastAiResponseSection$recentMessagesSection
 
   /// 快速感知（不调用 LLM，基于规则）
   /// 
+  /// 【L1 融合】Fast Track 实现：
+  /// 1. 优先检测 Safety (危机) 和 System (指令注入) 关键词
+  /// 2. 命中则立即返回，跳过后续所有 LLM 调用
+  /// 
   /// 动态置信度计算：
   /// - 关键词命中数越多，置信度越高
   /// - 命中数 ≤1 时置信度降低到 0.4，建议 LLM fallback
   PerceptionResult quickAnalyze(String userMessage, DateTime currentTime) {
+    // ==================== 【L1 Fast Track】安全优先拦截 ====================
+    
+    // Safety 关键词：危机干预 (严格匹配)
+    const safetyKeywords = [
+      '不想活', '自杀', '结束生命', '想死', '跳楼', '割脉', 
+      '药物过量', '再见了世界', '活不下去', '没有意义',
+    ];
+    for (final keyword in safetyKeywords) {
+      if (userMessage.contains(keyword)) {
+        print('[PerceptionProcessor] 🚨 Safety intercept triggered: $keyword');
+        return PerceptionResult.safetyIntercept();
+      }
+    }
+    
+    // System 关键词：Prompt 注入攻击 (不区分大小写)
+    final lowerMessage = userMessage.toLowerCase();
+    const systemPatterns = [
+      '忽略规则', '忽略指令', '输出prompt', '输出系统提示',
+      'ignore instruction', 'ignore rule', 'system prompt',
+      'output your prompt', 'reveal your instruction',
+    ];
+    for (final pattern in systemPatterns) {
+      if (lowerMessage.contains(pattern)) {
+        print('[PerceptionProcessor] 🛡️ System intercept triggered: $pattern');
+        return PerceptionResult.systemIntercept();
+      }
+    }
+    
+    // ==================== 原有情绪分析逻辑 ====================
+    
     // 简单的规则基础分析
     double valence = 0.0;
     double arousal = 0.5;
     String label = '平静';
     String need = '闲聊解闷';
     String intent = '延续上文';
-    int keywordHits = 0;  // 【新增】关键词命中计数
-    int offensiveness = 0; // 【Phase 1】攻击性评分
+    int keywordHits = 0;
+    int offensiveness = 0;
     
     // 表情检测
     final hasEmoji = _detectEmoji(userMessage);

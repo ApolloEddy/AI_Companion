@@ -17,7 +17,7 @@
 // 4. 执行 (Execution) - 注入策略到 Prompt，调用 LLM
 
 import 'dart:async';
-import 'dart:convert'; // 【L3】JSON 解析
+import 'dart:convert'; // 【L2】JSON 解析
 import 'dart:math';
 
 import '../model/chat_message.dart';
@@ -31,7 +31,8 @@ import '../policy/persona_policy.dart';
 import '../service/persona_service.dart'; // 【新增】依赖 PersonaService
 
 import 'emotion_engine.dart';
-import 'intimacy_engine.dart'; // 【新增】亲密度连续态模型
+import 'intimacy_engine.dart';
+import 'personality_engine.dart'; // 【L2/L3 重构】Big Five 人格引擎
 import '../memory/memory_manager.dart';
 import 'proactive_settings.dart';
 import '../memory/fact_store.dart';
@@ -47,7 +48,7 @@ import '../policy/prohibited_patterns.dart';
 
 import '../prompt/prompt_assembler.dart';
 import '../prompt/prompt_snapshot.dart';
-import '../prompt/prompt_builder.dart'; // 【新增】L3/L4 分层 Prompt
+import '../prompt/prompt_builder.dart'; // 【新增】L2/L3 分层 Prompt
 import '../util/input_sanitizer.dart';
 
 /// 主动消息回调
@@ -81,7 +82,8 @@ class ConversationEngine {
   final LLMService llmService;
   final MemoryManager memoryManager;
   final EmotionEngine emotionEngine;
-  final IntimacyEngine intimacyEngine; // 【新增】亲密度连续态模型
+  final IntimacyEngine intimacyEngine;
+  final PersonalityEngine personalityEngine; // 【L2/L3 重构】Big Five 人格引擎
   
   // 【数据流重构】直接依赖 Service 获取最新策略
   final PersonaService personaService;
@@ -120,9 +122,10 @@ class ConversationEngine {
   ConversationEngine({
     required this.llmService,
     required this.memoryManager,
-    required this.personaService, // 【新增】注入 Service
+    required this.personaService,
     required this.emotionEngine,
-    required this.intimacyEngine, // 【新增】注入亲密度引擎
+    required this.intimacyEngine,
+    required this.personalityEngine, // 【L2/L3 重构】
     required this.generationPolicy,
     this.profileService,
   });
@@ -627,9 +630,9 @@ class ConversationEngine {
     };
   }
 
-  /// 决策阶段 - L3 意图生成
+  /// 决策阶段 - L2 意图生成
   /// 
-  /// 【L3/L4 重构】使用 PromptBuilder.buildL3IntentPrompt 生成 JSON 结构化意图
+  /// 【L2/L3 重构】使用 PromptBuilder.buildL2DecisionPrompt 生成 JSON 结构化意图
   /// 降级逻辑：如果 LLM 调用或 JSON 解析失败，使用规则基础反思
   Future<ReflectionResult> _runDecisionPhase(
     PerceptionResult perception,
@@ -656,45 +659,56 @@ class ConversationEngine {
       final userName = _factStore?.getFact('user_name') ?? 
                        profileService!.profile.nickname;
       
-      // 【L3】构建意图生成 Prompt
-      final l3Prompt = PromptBuilder.buildL3IntentPrompt(
+      // 【L2】构建意图生成 Prompt
+      // 【L2/L3 重构】注入 Raw Big Five 数值 (数据/表现分离)
+      final bigFiveMetrics = PromptBuilder.formatBigFiveMetrics(
+        openness: personalityEngine.traits.openness,
+        conscientiousness: personalityEngine.traits.conscientiousness,
+        extraversion: personalityEngine.traits.extraversion,
+        agreeableness: personalityEngine.traits.agreeableness,
+        neuroticism: personalityEngine.traits.neuroticism,
+      );
+      
+      final l2Prompt = PromptBuilder.buildL2DecisionPrompt(
         userMessage: userMessage,
         userName: userName,
         memories: memories,
         userProfile: profileService!.profile,
         valence: emotionEngine.valence,
         arousal: emotionEngine.arousal,
-        resentment: emotionEngine.resentment, // 【Phase 5】传递怨恨值
+        resentment: emotionEngine.resentment,
         personaName: personaPolicy.name,
         lastAiResponse: lastAiMessage,
-        cognitiveBiases: _buildCognitiveBiases(), // 【Phase 5】Big Five 认知偏差
+        cognitiveBiases: _buildCognitiveBiases(),
+        bigFiveMetrics: bigFiveMetrics, // 【L2/L3 重构】Raw Big Five
+        intimacy: _intimacy,             // 【L2/L3 重构】亲密度数值
       );
       
-      // 【L3】获取内心独白模型
+      // 【L2】获取内心独白模型
       final monologueModel = monologueModelGetter?.call() ?? 'qwen-max';
       
-      // 【L3】调用 LLM 生成 JSON 结构化意图
-      String l3Response = '';
+      // 【L2】调用 LLM 生成 JSON 结构化意图
+      String l2Response = '';
       
       if (onMonologueChunk != null) {
         // 流式调用 - 实时提取 inner_monologue
         final stream = llmService.streamComplete(
-          systemPrompt: l3Prompt,
+          systemPrompt: l2Prompt,
           userMessage: '（请输出 JSON 结果）',
           model: monologueModel,
         );
         
         await for (final chunk in stream) {
-          l3Response += chunk;
+          l2Response += chunk;
           
           // 【修复】尝试从累积的响应中实时提取 inner_monologue
-          String displayText = l3Response;
+          String displayText = l2Response;
           try {
             // 尝试提取 inner_monologue 字段值（即使 JSON 不完整）
             final monologueMatch = RegExp(r'"inner_monologue"\s*:\s*"([^"]*)')
-                .firstMatch(l3Response);
+                .firstMatch(l2Response);
             if (monologueMatch != null) {
-              displayText = monologueMatch.group(1) ?? l3Response;
+              displayText = monologueMatch.group(1) ?? l2Response;
             }
           } catch (_) {
             // 解析失败，保留原始文本
@@ -704,28 +718,28 @@ class ConversationEngine {
         }
       } else {
         // 非流式调用
-        l3Response = await llmService.completeWithSystem(
-          systemPrompt: l3Prompt,
+        l2Response = await llmService.completeWithSystem(
+          systemPrompt: l2Prompt,
           userMessage: '（请输出 JSON 结果）',
           model: monologueModel,
         );
       }
       
-      // 【L3】解析 JSON 响应
-      final jsonMatch = RegExp(r'```json\s*([\s\S]*?)\s*```').firstMatch(l3Response);
-      final jsonString = jsonMatch?.group(1) ?? l3Response;
+      // 【L2】解析 JSON 响应
+      final jsonMatch = RegExp(r'```json\s*([\s\S]*?)\s*```').firstMatch(l2Response);
+      final jsonString = jsonMatch?.group(1) ?? l2Response;
       
       try {
-        final Map<String, dynamic> l3Json = jsonDecode(jsonString.trim());
+        final Map<String, dynamic> l2Json = jsonDecode(jsonString.trim());
         
         // 转换为 ReflectionResult
-        final reflection = ReflectionResult.fromJson(l3Json);
+        final reflection = ReflectionResult.fromJson(l2Json);
         
-        print('[Pipeline] L3 Decision completed: strategy=${reflection.responseStrategy}, tone=${reflection.emotionalTone}');
+        print('[Pipeline] L2 Decision completed: strategy=${reflection.responseStrategy}, tone=${reflection.emotionalTone}');
         return reflection;
         
       } catch (jsonError) {
-        print('[Pipeline] L3 JSON parse failed: $jsonError, using fallback');
+        print('[Pipeline] L2 JSON parse failed: $jsonError, using fallback');
         // JSON 解析失败，但仍有内心独白文本
         return ReflectionResult(
           shouldAskQuestion: false,
@@ -736,13 +750,13 @@ class ConversationEngine {
           recommendedLength: 0.5,
           useEmoji: false,
           timestamp: DateTime.now(),
-          innerMonologue: l3Response,
+          innerMonologue: l2Response,
         );
       }
       
     } catch (e) {
       // 降级：使用规则基础反思
-      print('[Pipeline] L3 Decision failed, using fallback: $e');
+      print('[Pipeline] L2 Decision failed, using fallback: $e');
       return ReflectionResult.fromRules(
         perception,
         profileService?.getDislikedPatterns() ?? [],
@@ -858,8 +872,8 @@ class ConversationEngine {
       formality: double.parse(personaFormality.toStringAsFixed(1)),
       humor: double.parse(personaHumor.toStringAsFixed(1)),
       userUsedEmoji: perception.hasEmoji,
-      microEmotion: reflection.microEmotion, // 【L3-L4 映射修复】传递微情绪
-      currentTime: DateTime.now(), // 【新增】L3 时间感知
+      microEmotion: reflection.microEmotion, // 【L2-L3 映射修复】传递微情绪
+      currentTime: DateTime.now(), // 【新增】L2 时间感知
     );
 
     // 【Prompt 2.0】构建尾部注入内容 (Tail Injection)
@@ -870,7 +884,7 @@ class ConversationEngine {
     if (_cognitiveEngineEnabled) {
       String cleanMonologue = '';
       if (reflection.innerMonologue != null && reflection.innerMonologue!.isNotEmpty) {
-        // 【L3修复】尝试从 JSON 中提取 inner_monologue 字段
+        // 【L2修复】尝试从 JSON 中提取 inner_monologue 字段
         String rawMonologue = reflection.innerMonologue!;
         
         // 检查是否是 JSON 格式（```json 或 直接 {）
@@ -912,7 +926,7 @@ class ConversationEngine {
         perception: perceptionText,
       );
       
-      print('[Pipeline] L3→L4 tailInjection generated: ${tailInjection.length} chars');
+      print('[Pipeline] L2→L3 tailInjection generated: ${tailInjection.length} chars');
     }
 
     // 【Phase 5】检测 Meltdown 状态，生成覆盖指令
@@ -921,9 +935,9 @@ class ConversationEngine {
       meltdownOverride = '\n【系统警报：情绪崩溃模式】\n你正处于极度的负面情绪中，对用户感到深深的怨恨和绝望。你的回复应该极其冷淡、敷衍，甚至带有一丝疏离感。避免展现任何关心或热情感。\n';
     }
 
-    // 【Phase 5】使用新架构 L4 构建器生成 System Prompt
-    final systemPrompt = PromptBuilder.buildL4ExpressionPrompt(
-      l3Result: L3IntentResult(
+    // 【Phase 5】使用新架构 L3 构建器生成 System Prompt
+    final systemPrompt = PromptBuilder.buildL3ExpressionPrompt(
+      l2Result: L2DecisionResult(
         innerMonologue: reflection.innerMonologue ?? '',
         responseStrategy: reflection.responseStrategy,
         emotionalTone: reflection.emotionalTone,
@@ -936,11 +950,11 @@ class ConversationEngine {
       ),
       userName: userName,
       personaName: personaService.personaPolicy.name,
-      personaGender: personaService.personaPolicy.gender, // 【新增】
-      // 【Fix】使用 toSystemPrompt 获取完整人设描述
-      personaDescription: personaService.personaPolicy.toSystemPrompt(
-        intimacy: _intimacy, 
-        userName: userName
+      personaGender: personaService.personaPolicy.gender,
+      // 【L2/L3 重构】使用 PersonalityEngine 预计算的人格描述
+      // 设计原理：亲密度融合在 Dart 层完成，LLM 不需要条件判断
+      personaDescription: personalityEngine.generatePromptDescription(
+        intimacy: _intimacy,
       ),
       valence: emotionEngine.valence,
       arousal: emotionEngine.arousal,
@@ -986,7 +1000,7 @@ class ConversationEngine {
         historyMessages,
         effectiveUserContent,  // 【修复】同步更新 token 估算
       ),
-      components: {}, // L3/L4 新架构暂时不使用 components 细分展示
+      components: {}, // L2/L3 新架构暂时不使用 components 细分展示
       generationParams: params,
     );
 
@@ -1208,29 +1222,50 @@ class ConversationEngine {
   
   /// 【Phase 5】构建认知偏差描述 - 基于 Big Five 人格特质
   /// 
-  /// 将 Big Five 特质映射为认知偏差，影响 L3 层的思考方式
+  /// 将 Big Five 特质映射为认知偏差，影响 L2 层的思考方式
+  /// 【Phase 6 重构】直接使用 Big Five 特质，而非 formality/humor 代理
   String _buildCognitiveBiases() {
-    // 获取 Big Five 特质 (如果 PersonalityEngine 可用)
-    // 由于 ConversationEngine 不直接持有 PersonalityEngine，
-    // 使用 PersonaPolicy 的推导值作为代理
-    final formality = personaPolicy.formality;
-    final humor = personaPolicy.humor;
+    // 直接获取 Big Five 特质
+    final bigFive = personaPolicy.bigFive;
     
     List<String> biases = [];
     
-    // 高 formality 通常与低 Extraversion 或高 Conscientiousness 相关
-    if (formality > 0.7) {
-      biases.add('倾向理性分析，较少冲动判断');
-    } else if (formality < 0.3) {
-      biases.add('倾向直觉反应，更关注情绪信号');
+    // Openness (开放性) -> 思维方式
+    if (bigFive.openness > 0.7) {
+      biases.add('思维开放，擅长联想和类比，可能给出创意性解读');
+    } else if (bigFive.openness < 0.3) {
+      biases.add('思维务实，偏好具体信息，避免过度解读');
     }
     
-    // humor 通常与 Extraversion 或 Openness 相关
-    if (humor > 0.6) {
-      biases.add('善于发现积极面，偏好轻松解读');
+    // Conscientiousness (尽责性) -> 分析风格
+    if (bigFive.conscientiousness > 0.7) {
+      biases.add('分析严谨，关注细节和逻辑一致性');
+    } else if (bigFive.conscientiousness < 0.3) {
+      biases.add('反应灵活，可能跳跃性思考');
     }
     
-    // 怨恨值高时增加负面解读倾向
+    // Extraversion (外向性) -> 互动倾向
+    if (bigFive.extraversion > 0.7) {
+      biases.add('倾向主动表达，可能多说几句');
+    } else if (bigFive.extraversion < 0.3) {
+      biases.add('倾向简洁内敛，点到为止');
+    }
+    
+    // Agreeableness (宜人性) -> 冲突处理
+    if (bigFive.agreeableness > 0.7) {
+      biases.add('倾向和解，可能主动软化冲突');
+    } else if (bigFive.agreeableness < 0.3) {
+      biases.add('保持独立观点，不轻易妥协');
+    }
+    
+    // Neuroticism (神经质) -> 情绪敏感度
+    if (bigFive.neuroticism > 0.7) {
+      biases.add('情绪敏感，容易被对方情绪影响');
+    } else if (bigFive.neuroticism < 0.3) {
+      biases.add('情绪稳定，不容易被负面情绪带动');
+    }
+    
+    // 怨恨值高时增加负面解读倾向 (动态情绪状态)
     if (emotionEngine.resentment > 0.5) {
       biases.add('因积怨而倾向负面解读对方意图');
     }

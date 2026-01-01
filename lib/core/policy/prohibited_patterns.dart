@@ -5,6 +5,8 @@
 // - 用于检测和过滤机械化、恼人的回复模式
 // - 快速止血，立即改善用户体验
 
+import '../settings_loader.dart'; // 【Phase 6】用于加载 global_caveats
+
 /// 禁止模式检测器
 class ProhibitedPatterns {
   /// 正则模式：必须避免的回复模式
@@ -151,8 +153,19 @@ class ProhibitedPatterns {
   }
 
   /// 获取应该避免的模式描述（用于 Prompt）
+  /// 
+  /// 【Phase 6 更新】优先使用 YAML global_caveats，硬编码规则作为补充
   static String getAvoidanceGuide() {
-    return '''
+    // 尝试获取 YAML 配置的 global_caveats
+    String yamlCaveats = '';
+    try {
+      yamlCaveats = SettingsLoader.prompt.globalCaveats;
+    } catch (_) {
+      // SettingsLoader 未初始化时降级到硬编码规则
+    }
+    
+    // 硬编码基础规则（不可被 YAML 覆盖）
+    const hardcodedRules = '''
 【严格禁止的回复模式】
 - 禁止重复提问（如连续问"你觉得呢？""对吧？"）
 - 禁止无意义追问（如"那你接下来打算怎么办？"）
@@ -163,6 +176,12 @@ class ProhibitedPatterns {
 - 禁止固定套路（回答+反问）
 - 禁止每句话都用相同开头（嗯/哈哈/原来如此）
 ''';
+    
+    // 合并：YAML caveats + 硬编码规则
+    if (yamlCaveats.isNotEmpty) {
+      return '$yamlCaveats\n$hardcodedRules';
+    }
+    return hardcodedRules;
   }
 
   /// 根据用户偏好扩展禁止规则

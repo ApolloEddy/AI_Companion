@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.8.0] - 2026-01-02 (Cognitive Architecture Refactoring)
+
+### Changed
+
+- **由四变三**: 认知架构重构为 **L1 感知 (Perception) -> L2 决策 (Decision) -> L3 表达 (Expression)** 三层模型。
+  - 移除了独立的 L2 情绪层 (Emoji/Valence)，将其融合进 L1 与 L2 决策流。
+  - 将原 L3 意图层升级为 L2 决策核心 (Decision Core)。
+  - 将原 L4 表达层重命名为 L3 表达核心 (Expression Core)。
+- **Prompt 标准化**: `prompt_templates.yaml` 中的所有 Prompt (包括 L1) 统一对齐为 L2/L3 的 Markdown 格式 (Headers, Lists, Alerts)。
+- **去硬编码**: 移除了 `PromptBuilder` 中残留的硬编码 `buildSynthesisPrompt` 及字符串拼接逻辑，完全实现 YAML 配置驱动。
+
 ## [2.7.0] - 2025-12-30 (Psychological Dynamics Update)
 
 ### Added

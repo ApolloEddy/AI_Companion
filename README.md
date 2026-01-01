@@ -1,151 +1,112 @@
-# AI Companion: 基于心理学建模的认知智能架构框架
+# AI Companion - 认知架构框架 (Cognitive Architecture Framework)
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Flutter](https://img.shields.io/badge/Flutter-3.0%2B-02569B) ![Dart](https://img.shields.io/badge/Dart-3.0%2B-0175C2)
 
-**AI Companion** 不仅仅是一个聊天机器人；它是一个由**闭环认知架构**驱动的“数字生命”。与仅依赖提示词工程（Prompt Engineering）的传统 LLM 封装应用不同，本项目实现了一套源自人类心理学建模的连续状态机，使其区别于标准 AI 的无状态（Stateless）请求-响应循环。
-
-## 🧠 核心理念
-
-系统的构建基于一个前提：**智能需要内在状态（Internal State）**。
-
-- **情感持久性**：情绪会随时间持续并自然衰减，即使在用户离开时亦然。
-- **社交边界感**：通过“敌意检测”与“心理创伤”机制，AI 具备了自尊心，能够拒绝侮辱性交互。
-- **动态人格控制**：人格并非静态的文本描述，而是通过“五大人格（Big Five）”参数化的向量，实时调节感知与表达。
+**[English](README_EN.md) | [中文](README.md)**
 
 ---
 
-## 🏗️ 四层认知架构 (4-Layer Cognitive Architecture)
+# 中文文档
 
-系统采用受生物认知过程启发的单向数据流管线。
+**AI Companion** 是一个由**闭环认知架构**驱动的“数字生命”框架。与简单的套壳 LLM 不同，它拥有基于心理学建模的内在状态、情感持久性以及动态进化的人格系统。
+
+## 🏗️ 三层认知架构 (L1-L3)
+
+系统采用仿生单向数据流管线：
 
 ```mermaid
 graph TD
-    UserInput[用户输入] --> L1(L1: 感知层 - Perception)
-    L1 -->|感知结果| L2(L2: 情绪层 - Emotion)
-    L2 -->|情绪状态| L3(L3: 意图层 - Intent)
-    L1 -->|上下文信息| L3
-    L3 -->|反思结果| L4(L4: 表达层 - Expression)
-    L4 -->|系统提示词| LLM[LLM 生成]
+    UserInput[用户输入] --> L1(L1: 感知核心)
+    L1 -->|感知结果| L2(L2: 决策核心)
+    L2 -->|内在状态| L3(L3: 表达核心)
+    L3 -->|System Prompt| LLM[LLM 生成]
     LLM --> Output[AI 回复]
 ```
 
-### L1: 社交感知 (感知分析层)
+### L1: 感知核心 (Perception Core)
 
-负责“理解”而非“回复”。分析用户消息中的：
+负责“听”和“感觉”，而非“回答”。
 
-- **攻击性 (Offensiveness, 0-10)**：检测敌意、调侃或辱骂。
-- **底层需求 (Underlying Needs)**：识别含蓄的需求，如 `寻求安慰`、`道歉` 或 `夸奖`。
-- **置信度 (Confidence)**：评估对当前语境理解的准确度。
+- **敌意检测 (Offensiveness)**: 0-10 评分，区分“打情骂俏”与“恶意攻击”。
+- **需求分析 (Underlying Needs)**: 识别用户的隐性需求（如求安慰、求道歉）。
+- **环境感知**: 结合物理时间与上下文判断语境。
 
-### L2: 情感计算 (内在状态层)
+### L2: 决策核心 (Decision Core)
 
-“数字灵魂”的核心引擎。根据感知结果更新内在状态：
+负责“思考”的融合层。将感知结果与**当前情绪 (V-A-R)** 及 **五大人格 (Big Five)** 融合。
 
-- **效价 (Valence, V)**：正负情绪映射（如：快乐 vs 难过）。
-- **唤醒度 (Arousal, A)**：能量/警觉水平（如：兴奋 vs 疲惫）。
-- **怨恨值 (Resentment, R)**：长期积累的负面情感。
+- **内心独白**: 生成一段私密的思维链 (CoT)。
+- **策略制定**: 决定回复节奏 (秒回/迟疑)、话题深度 (闲聊/深谈) 及情感倾向。
 
-### L3: 意图决策 (认知反思层)
+### L3: 表达核心 (Expression Core)
 
-在开口前的“内心审问”。通过第三人称思维决定**要做什么**：
+负责“说话”的执行层。
 
-- **内心独白**：生成一段私密的思考流。
-- **节奏协议 (Pacing)**：决定是 `单次回复`、`爆发模式` 还是 `迟疑回应`。
-- **深度过滤**：决定是进入深层共情（情感类）还是保持浅层应对（事实/琐事类）。
+- **语气映射**: 将抽象的情绪坐标映射为具体的语气指令 (如 "慵懒"、"兴奋")。
+- **代词转换**: 将思考中的第三人称 ("他") 转换为对话中的第二人称 ("你")。
+- **约束注入**: 动态注入字数限制与禁忌语。
 
-### L4: 表达合成 (语言生成层)
+## 🧠 心理学模型与公式
 
-“语言中枢”。将抽象的 L3 意图转化为 LLM 能够理解的自然语言系统提示词（System Prompt）：
+### 1. H-E-I 动力学反馈环
 
-- **语气调节**：将 (V, A) 状态映射为特定的语言风格（例如：低效价 + 高唤醒 = “冷淡/疏离”）。
-- **人格注入**：注入 `{personaGender}` 等身份锚点。
-- **约束应用**：实施字数限制、格式规范及避词检查。
+将**敌意 (Hostility)**、**情绪 (Emotion)** 与 **亲密度 (Intimacy)** 耦合的统一模型。
 
----
+#### V-A-R 情绪模型
 
-## 📐 心理学建模与算法公式
-
-### 1. H-E-I 反馈环路
-
-系统将**敌意 (Hostility)**、**情绪 (Emotion)** 与 **亲密度 (Intimacy)** 耦合进一个统一的动态模型中。
-
-#### 情绪动力学 (V-A-R 模型)
-
-在 Russell 的情感环形模型基础上，我们增加了 Z 轴：**怨恨值 (Resentment)**。
-为了模拟“情绪惯性”，更新函数采用了非线性设计：
+基于 Russell 环形模型，增加了 Z 轴 **怨恨值 (Resentment)**。
 
 ```math
 E_{t} = E_{t-1} + \Delta E_{stimulus} \times (1 - |E_{t-1}|)^\alpha
 ```
 
-*当情绪接近极端值（-1.0 或 1.0）时，进一步改变的阻力会变大（软边界效应）。*
+- **效价 (Valence)**: 愉悦程度 (-1 ~ 1)。
+- **唤醒度 (Arousal)**: 能量水平 (0 ~ 1)。即便是愤怒也是高唤醒。
+- **怨恨值 (Resentment)**: 长期累积的负面状态。*怨恨值 > 0.8 会触发心理创伤模式 (Trauma Mode)*。
 
 #### 亲密度增长函数
 
-亲密度并非简单的计数器，它遵循**对数增长曲线**，并受到负反馈系数的影响：
+遵循边际收益递减的对数曲线：
 
 ```math
-\Delta I = Q \times E_{multi} \times T_{cool} \times B(I)
+\Delta I = Q \times E \times T \times B(I)
 ```
 
-其中：
+- **Q (质量)**: 交互质量评分，受敌意值负修正。
+- **E (情绪加成)**: $1 + (Valence \times 0.3)$ *(开心的 AI 建立关系更快)*。
+- **T (时间因子)**: 冷却系数，防止刷分。
+- **B (边际衰减)**: $(1 - I)^{0.5}$ *(亲密度越高越难提升)*。
 
-- **Q (质量因子)**：$f(\text{置信度}, \text{效价}) - (\text{攻击性} \times 0.1)$
-- **E (情绪加成)**：$1 + (Valence \times 0.3)$ —— *开心的 AI 建立关系更快。*
-- **T (时间因子)**：惩罚“轰炸式”交互，奖励有节奏的互动。
-- **B (边际衰减函数)**：$(1 - I)^{0.5}$ —— *亲密度越高，提升越难（边际收益递减）。*
+### 2. 人格引擎 (Big Five)
 
-### 2. 人格向量 (Big Five Model)
+基于 OCEAN 模型，通过用户反馈进行微调演化。
 
-AI 的个性由 OCEAN 模型定义，直接影响 LLM 的概率分布分布偏移：
+```math
+\Delta Trait_i = D \times M \times A_i \times I \times P(t)
+```
 
-| 特质 (Trait) | 对系统的影响 |
-|-------|------------------|
-| **开放性 (Openness)** | 调节 `topic_depth` 的选择概率（抽象深度 vs 事实表面）。 |
-| **尽责性 (Conscientiousness)** | 影响 `formality` (严谨度) 以及对比格式规范的遵守程度。 |
-| **外向性 (Extraversion)** | 与 `temperature` 参数及 `burst` (爆发) 节奏的触发概率正相关。 |
-| **宜人性 (Agreeableness)** | 与针对敌意检测的灵敏度阈值负相关（高宜人性更包容）。 |
-| **神经质 (Neuroticism)** | 负面事件触发时 `arousal` (唤醒度) 飙升幅度的乘数。 |
+- **开放性 (Openness)**: 决定对话的抽象程度。
+- **尽责性 (Conscientiousness)**: 影响对指令的服从度。
+- **外向性 (Extraversion)**: 决定主动开启话题的频率。
+- **宜人性 (Agreeableness)**: 决定对冒犯行为的容忍阈值。
+- **神经质 (Neuroticism)**: 决定情绪波动的幅度。
 
----
-
-## 🛠️ 安装与使用
+## 🛠️ 部署与使用
 
 ### 环境要求
 
 - Flutter SDK 3.10+
 - Dart 3.0+
-- 有效的 OpenAI/DashScope (通义千问) API Key
+- 有效的 OpenAI / 通义千问 API Key
 
-### 快速开始
+### 运行
 
-1. 克隆仓库：
+```bash
+flutter run -d windows
+# 或
+flutter run -d android
+```
 
-   ```bash
-   git clone https://github.com/ApolloEddy/AI_Companion.git
-   ```
+### 许可证
 
-2. 安装依赖：
-
-   ```bash
-   flutter pub get
-   ```
-
-3. 在 Windows/Android 运行：
-
-   ```bash
-   flutter run -d windows
-   # 或
-   flutter run -d android
-   ```
-
-### 配置建议
-
-- **模型选择**：建议在设置中选择 `qwen-max` 或 `qwen-plus` 以获得最佳的认知反思能力。
-- **人格编辑**：使用内置的编辑器自定义名字、性别、物种以及背景故事。
-
----
-
-## 📄 开源协议
-
-MIT License. 由 [ApolloEddy] 开发。
+MIT License

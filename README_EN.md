@@ -1,151 +1,118 @@
-# AI Companion: A Psychologically Grounded Cognitive Intelligence Framework
+# AI Companion - Cognitive Architecture Framework
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Flutter](https://img.shields.io/badge/Flutter-3.0%2B-02569B) ![Dart](https://img.shields.io/badge/Dart-3.0%2B-0175C2)
 
-**AI Companion** is not just a chatbot; it is a **Digital Being** driven by a closed-loop cognitive architecture. Unlike traditional LLM wrappers that rely solely on prompt engineering, this project implements a continuous state machine modeled after human psychology, distinct from the stateless request-response cycle of standard AI.
-
-## 🧠 Core Philosophy
-
-The system is built on the premise that **intelligence requires an internal state**.
-
-- **Emotional Permanence**: Emotions persist and decay over time, even when the user is away.
-- **Social Boundaries**: The AI has self-respect, utilizing "Hostility Detection" and "Psychological Trauma" mechanisms to reject abusive interactions.
-- **Dynamic Personality**: Personality is not a static text description but a parameterized vector (Big Five) that modulates perception and expression in real-time.
+**[English](README_EN.md) | [中文](README.md)**
 
 ---
 
-## 🏗️ 4-Layer Cognitive Architecture
+# English Documentation
 
-The system employs a unidirectional data flow pipeline inspired by biological cognitive processes.
+**AI Companion** is a "digital life" framework driven by a **Closed-Loop Cognitive Architecture**, distinct from typical stateless LLM wrappers. It integrates psychological modeling to give the AI internal state, emotional persistence, and dynamic personality evolution.
+
+## 🏗️ 3-Layer Cognitive Architecture (L1-L3)
+
+The system operates on a unidirectional cognitive pipeline inspired by human cognition.
 
 ```mermaid
 graph TD
-    UserInput[User Input] --> L1(L1: Perception Layer)
-    L1 -->|PerceptionResult| L2(L2: Emotion Layer)
-    L2 -->|EmotionalState| L3(L3: Intent Layer)
-    L1 -->|Context| L3
-    L3 -->|ReflectionResult| L4(L4: Expression Layer)
-    L4 -->|SystemPrompt| LLM[LLM Generation]
-    LLM --> Output[AI Response]
+    User --> L1[L1: Perception Core]
+    L1 -->|Perception Result| L2[L2: Decision Core]
+    State[Emotional State (Memory)] --> L2
+    Config[Personality Config] --> L2
+    L2 -->|Inner Monologue| L3[L3: Expression Core]
+    L3 -->|System Prompt| LLM
+    LLM --> Output
 ```
 
-### L1: Social Perception (Analytic Layer)
+### L1: Perception Core
 
-Responsible for "understanding" rather than "replying". It analyzes the user's message for:
+Acts as the sensory cortex. It analyzes input without generating a response.
 
-- **Offensiveness (0-10)**: Detects hostility, teasing, or abuse.
-- **Underlying Needs**: Identifies implicit needs like `comfort`, `apology`, or `praise`.
-- **Confidence**: Assesses how well the context is understood.
+- **Offensiveness (0-10)**: Detects hostility (playful teasing vs. malicious attacks).
+- **Underlying Needs**: Identifies implicit needs (e.g., *need for comfort*, *apology*, *praise*).
+- **Time Sensitivity**: Determines if the physical time context is relevant (e.g., "Good morning").
 
-### L2: Emotional Computing (Internal State Layer)
+### L2: Decision Core (The Brain)
 
-The core engine of the "Digital Soul". It updates the internal state based on perception.
+The fusion center where "Thinking" happens. It combines:
 
-- **Valence (V)**: Positivity/Negativity mapping.
-- **Arousal (A)**: Energy level/Alertness.
-- **Resentment (R)**: Cumulative long-term negative sentiment.
+- **Perception**: What the user said.
+- **Emotion (V-A-R)**: How the AI feels right now.
+- **Personality (Big Five)**: The AI's innate traits.
 
-### L3: Intent Decision (Cognitive Layer)
+It generates an **Inner Monologue** (private thought) and a **Response Strategy** (Pacing, Topic Depth).
 
-A "Check of Conscience" before speaking. It decides **what to do** using third-person reasoning:
+### L3: Expression Core (The Mouth)
 
-- **Inner Monologue**: Generates a private thought stream.
-- **Pacing Strategy**: Decides whether to reply in a `single_shot`, `burst`, or be `hesitant`.
-- **Depth Filter**: Decides whether to engage deeply (emotional) or stay superficial (factual/banal).
+Translates abstract decisions into natural language instructions for the LLM.
 
-### L4: Expression Synthesis (Generative Layer)
+- **Tone Mapping**: "High Arousal + High Valence" -> "Excited/Playful".
+- **Pacing Control**: Appends instructions for `single_shot` or `burst` mode.
+- **Constraint Enforcement**: Ensures no forbidden patterns or lengths are violated.
 
-The "Speech Center". It translates the abstract L3 intent into a natural language System Prompt for the LLM.
+## 🧠 Psychological Models & Formulas
 
-- **Tone Modulation**: Maps (V, A) state to linguistic styles (e.g., Cold + High Arousal = "Dismissive").
-- **Persona Injection**: Injects `{personaGender}` and identity anchors.
-- **Constraint Application**: Enforces brevity or formatting rules.
+### 1. H-E-I Feedback Loop (Emotion Dynamics)
 
----
+A unified model coupling **Hostility**, **Emotion**, and **Intimacy**.
 
-## 📐 Psychological Modeling & Algorithms
+#### V-A-R Emotion Model
 
-### 1. The H-E-I Feedback Loop
-
-The system couples **Hostility (H)**, **Emotion (E)**, and **Intimacy (I)** into a unified dynamic model.
-
-#### Emotional Dynamics (V-A-R Model)
-
-We iterate on the Russell Circumplex Model by adding a Z-axis for **Resentment**.
-The update function is non-linear to simulate "Emotional Inertia":
+Based on the Russell Circumplex Model, extended with a Z-axis: **Resentment**.
+We use a non-linear update function with soft boundaries:
 
 ```math
 E_{t} = E_{t-1} + \Delta E_{stimulus} \times (1 - |E_{t-1}|)^\alpha
 ```
 
-*As emotion approaches extremes (-1.0 or 1.0), it becomes harder to push further (Soft Boundaries).*
+- **Valence (V)**: Pleasure vs. Displeasure (-1 to 1).
+- **Arousal (A)**: Energy vs. Lethargy (0 to 1).
+- **Resentment (R)**: Accumulated grudges (0 to 1). *High R blocks positive emotion.*
 
 #### Intimacy Growth Function
 
-Intimacy is not a linear counter. It follows a **Logarithmic Growth Curve** with negative feedback multipliers:
+Intimacy is not a linear counter. It follows a logarithmic growth curve governed by:
 
 ```math
-\Delta I = Q \times E_{multi} \times T_{cool} \times B(I)
+\Delta I = Q \times E \times T \times B(I)
 ```
 
-Where:
+- **Q (Quality)**: $f(Confidence, Valence) - (Offense \times 0.1)$
+- **E (Emotion Multiplier)**: $1 + (Valence \times 0.3)$ *(Happy AI bonds 1.3x faster)*
+- **T (Time Factor)**: Penalizes spamming; rewards spaced interactions.
+- **B (Marginal Utility)**: $(1 - I)^{0.5}$ *(Harder to level up at high tiers)*
 
-- **Q (Quality)**: $f(\text{Confidence}, \text{Valence}) - (\text{Offense} \times 0.1)$
-- **E (Emotion Multiplier)**: $1 + (Valence \times 0.3)$ — *Happy AI bonds faster.*
-- **T (Time Factor)**: Penalizes "spamming" interactions; rewards periodic engagement.
-- **B (Band Function)**: $(1 - I)^{0.5}$ — *Intimacy grows slower as it gets higher.*
+### 2. Personality Engine (Big Five)
 
-### 2. Personality Vector (Big Five)
+Personality evolves based on user feedback (reinforcement learning).
 
-The AI's personality is defined by the OCEAN model, which biases the standard probability distribution of the LLM:
+```math
+\Delta Trait_i = D \times M \times A_i \times I \times P(t)
+```
 
-| Trait | Effect on System |
-|-------|------------------|
-| **Openness** | Modulates `topic_depth` selection probability (Abstract vs. Factual). |
-| **Conscientiousness** | Affects `formality` and adherence to strict formatting. |
-| **Extraversion** | Scaled to `temperature` and `burst` pacing probability. |
-| **Agreeableness** | Inverse correlation with `offensiveness` sensitivity threshold. |
-| **Neuroticism** | Multiplier for `arousal` spikes during negative events. |
+- **O**penness: Affects topic depth preference.
+- **C**onscientiousness: Affects instruction adherence.
+- **E**xtraversion: Affects burst mode probability.
+- **A**greeableness: Affects tolerance threshold for hostility.
+- **N**euroticism: Multiplier for negative emotional reactions.
 
----
-
-## 🛠️ Installation & Usage
+## 🚀 Deployment
 
 ### Prerequisites
 
 - Flutter SDK 3.10+
 - Dart 3.0+
-- A valid generic OpenAI/DashScope API Key
+- Valid OpenAI (or compatible) API Key
 
-### Setup
+### Quick Start
 
-1. Clone the repository:
+```bash
+git clone https://github.com/ApolloEddy/AI_Companion.git
+flutter pub get
+flutter run -d windows # or android
+```
 
-   ```bash
-   git clone https://github.com/ApolloEddy/AI_Companion.git
-   ```
+### License
 
-2. Install dependencies:
-
-   ```bash
-   flutter pub get
-   ```
-
-3. Run on Windows/Android:
-
-   ```bash
-   flutter run -d windows
-   # or
-   flutter run -d android
-   ```
-
-### Configuration
-
-- **Model**: Select `qwen-max` or `qwen-plus` in Settings for optimal cognitive performance.
-- **Persona**: Use the built-in Editor to customize Name, Gender, and Backstory.
-
----
-
-## 📄 License
-
-MIT License. Created by [ApolloEddy].
+MIT License

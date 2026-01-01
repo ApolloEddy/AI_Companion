@@ -1,9 +1,9 @@
-// PromptBuilder - L3/L4 分层 Prompt 构建器
+// PromptBuilder - L2/L3 分层 Prompt 构建器
 //
 // 设计原理：
-// - L3 (Intent/Decision): 将用户消息+记忆+画像 → 结构化意图 JSON
-// - L4 (Expression): 将 L3 意图+V-A状态 → 微信风格口语化输出
-// - 代词锚定: L3 使用第三人称思考，L4 映射回第二人称表达
+// - L2 (Decision): 将用户消息+记忆+画像 → 结构化意图 JSON
+// - L3 (Expression): 将 L2 意图+V-A状态 → 微信风格口语化输出
+// - 代词锚定: L2 使用第三人称思考，L3 映射回第二人称表达
 // - 确保输出格式一致性
 
 import '../settings_loader.dart'; // 【新增】
@@ -12,8 +12,9 @@ import '../perception/perception_processor.dart';
 import '../decision/reflection_processor.dart';
 import '../policy/prohibited_patterns.dart';
 
-/// L3 意图结果 - 结构化的决策输出
-class L3IntentResult {
+
+/// L2 决策结果 - 结构化的决策输出
+class L2DecisionResult {
   final String innerMonologue;      // 内心独白
   final String responseStrategy;    // 回复策略
   final String emotionalTone;       // 情绪基调
@@ -25,7 +26,7 @@ class L3IntentResult {
   final String pacingStrategy;      // 【Phase 1】节奏策略
   final String topicDepth;          // 【Phase 1】话题深度
   
-  const L3IntentResult({
+  const L2DecisionResult({
     required this.innerMonologue,
     required this.responseStrategy,
     this.emotionalTone = '平和',
@@ -39,9 +40,9 @@ class L3IntentResult {
   });
 
   /// 从 JSON 解析
-  factory L3IntentResult.fromJson(Map<String, dynamic> json) {
-    return L3IntentResult(
-      innerMonologue: json['inner_monologue'] ?? json['innerMonologue'] ?? '',
+  factory L2DecisionResult.fromJson(Map<String, dynamic> json) {
+    return L2DecisionResult(
+      innerMonologue: json['inner_monologue'] ?? json['innerMonologue'] ?? '', // 【L2修复】尝试从 JSON 中提取 inner_monologue 字段
       responseStrategy: json['response_strategy'] ?? json['responseStrategy'] ?? '',
       emotionalTone: json['emotional_tone'] ?? json['emotionalTone'] ?? '平和',
       recommendedLength: (json['recommended_length'] ?? json['recommendedLength'] ?? 0.5).toDouble(),
@@ -57,9 +58,9 @@ class L3IntentResult {
   }
 
   /// 降级：从规则生成
-  factory L3IntentResult.fallback({String userMessage = ''}) {
+  factory L2DecisionResult.fallback({String userMessage = ''}) {
     final length = userMessage.length;
-    return L3IntentResult(
+    return L2DecisionResult(
       innerMonologue: '（快速响应模式）',
       responseStrategy: '自然回应',
       emotionalTone: '平和',
@@ -71,52 +72,64 @@ class L3IntentResult {
     );
   }
 
-  /// 格式化为策略指导（供 L4 使用）
+  /// 格式化为策略指导（供 L3 使用）
+  /// 【Phase 6 更新】采用 "Inner Monologue: ... | Strategy: ..." 格式
   String toStrategyGuide() {
-    return '''
-内心独白：$innerMonologue
-回复策略：$responseStrategy
-情绪基调：$emotionalTone
-建议长度：${_lengthDescription(recommendedLength)}
-${microEmotion != null ? '微情绪：$microEmotion' : ''}
-'''.trim();
-  }
-
-  static String _lengthDescription(double length) {
-    if (length < 0.3) return '极简';
-    if (length < 0.5) return '简短';
-    if (length < 0.7) return '适中';
-    return '详细';
+    final monologuePart = innerMonologue.isNotEmpty ? innerMonologue : '（无明确思考）';
+    final strategyPart = responseStrategy.isNotEmpty ? responseStrategy : '自然回应';
+    return 'Inner Monologue: $monologuePart | Strategy: $strategyPart';
   }
 }
 
-/// Prompt 构建器 - L3/L4 分层架构
+/// Prompt 构建器 - L2/L3 分层架构
 class PromptBuilder {
   
-  // ==================== L3: Intent/Decision Layer ====================
+  // ==================== 工具方法 ====================
   
-  /// L3 意图生成 Prompt
+  /// 【L2/L3 重构】生成 Raw Big Five 数值字符串
   /// 
-  /// 输入: 用户消息 + 记忆 + 画像 + V-A状态 + 怨恨值 + 认知偏差
+  /// 格式: "O:0.80, C:0.30, E:0.60, A:0.70, N:0.40"
+  /// 设计原理: L2 消费精准数值，节省 Token 且逻辑友好
+  static String formatBigFiveMetrics({
+    required double openness,
+    required double conscientiousness,
+    required double extraversion,
+    required double agreeableness,
+    required double neuroticism,
+  }) {
+    return 'O:${openness.toStringAsFixed(2)}, '
+           'C:${conscientiousness.toStringAsFixed(2)}, '
+           'E:${extraversion.toStringAsFixed(2)}, '
+           'A:${agreeableness.toStringAsFixed(2)}, '
+           'N:${neuroticism.toStringAsFixed(2)}';
+  }
+  
+  // ==================== L2: Decision Layer (Original L3) ====================
+  
+  /// L2 决策生成 Prompt (原 L3)
+  /// 
+  /// 输入: 用户消息 + 记忆 + 画像 + V-A状态 + 怨恨值 + 认知偏差 + Big Five 指标
   /// 输出: JSON 格式 {inner_monologue, response_strategy, ...}
   /// 
   /// 【代词锚定】思考对象使用第三人称（他/她），禁止使用"你"
-  static String buildL3IntentPrompt({
+  /// 【L2/L3 重构】L2 消费精准数值
+  static String buildL2DecisionPrompt({
     required String userMessage,
     required String userName,
     required String memories,
     required UserProfile userProfile,
     required double valence,
     required double arousal,
-    required double resentment, // 【Phase 5】新增怨恨值
+    required double resentment,
     required String personaName,
     String? lastAiResponse,
-    String cognitiveBiases = '', // 【Phase 5】新增认知偏差
+    String cognitiveBiases = '',
+    String bigFiveMetrics = '', // 【L2/L3 重构】Raw Big Five 数值
+    double intimacy = 0.5,       // 【L2/L3 重构】亲密度数值
   }) {
-    final template = SettingsLoader.prompt.systemPrompts['l3_intent'];
+    final template = SettingsLoader.prompt.systemPrompts['l2_decision'];
     if (template == null || template.isEmpty) {
-      // Fallback if template missing
-      return 'Critical Error: L3 Intent Prompt template missing.';
+      return 'Critical Error: L2 Decision Prompt template missing.';
     }
 
     final genderLower = userProfile.gender?.toLowerCase() ?? '';
@@ -131,26 +144,53 @@ class PromptBuilder {
         .replaceAll('{userGender}', userGender)
         .replaceAll('{valence}', valence.toStringAsFixed(2))
         .replaceAll('{arousal}', arousal.toStringAsFixed(2))
-        .replaceAll('{resentment}', resentment.toStringAsFixed(2)) // 【Phase 5】怨恨值
-        .replaceAll('{cognitiveBiases}', cognitiveBiases) // 【Phase 5】认知偏差
+        .replaceAll('{resentment}', resentment.toStringAsFixed(2))
+        .replaceAll('{cognitiveBiases}', cognitiveBiases)
         .replaceAll('{emotionDesc}', emotionDesc)
         .replaceAll('{userOccupation}', userProfile.occupation.isNotEmpty ? '职业: ${userProfile.occupation}' : '')
         .replaceAll('{userMajor}', userProfile.major != null && userProfile.major!.isNotEmpty ? '专业: ${userProfile.major}' : '')
         .replaceAll('{memories}', memories)
         .replaceAll('{lastAiResponse}', lastAiResponse ?? '（这是对话开始）')
-        .replaceAll('{userMessage}', userMessage);
+        .replaceAll('{userMessage}', userMessage)
+        .replaceAll('{bigFiveMetrics}', bigFiveMetrics) // 【L2/L3 重构】Big Five 数值
+        .replaceAll('{intimacy}', intimacy.toStringAsFixed(2)); // 【L2/L3 重构】亲密度
   }
 
-  // ==================== L4: Expression Layer ====================
+  // ==================== L3: Expression Layer (Original L4) ====================
 
-  /// L4 表达合成 Prompt
+  /// 【Phase 6 新增】获取时间修饰符
   /// 
-  /// 输入: L3 意图结果 + V-A状态 + 人格上下文 + Meltdown 覆盖
+  /// 根据当前时间返回对应的语气后缀
+  static String _getTimeModifier(DateTime now) {
+    final hour = now.hour;
+    if (hour >= 23 || hour < 5) {
+      // 深夜模式 (23:00 - 05:00)
+      return SettingsLoader.prompt.timeModifiers['late_night'] ?? '';
+    } else if (hour >= 5 && hour < 9) {
+      // 清晨模式 (05:00 - 09:00)
+      return SettingsLoader.prompt.timeModifiers['early_morning'] ?? '';
+    }
+    return '';
+  }
+
+  /// 【Phase 6 新增】获取 single_shot 尾部指令
+  /// 
+  /// 当 pacing_strategy 为 single_shot 时，返回强制合并消息的指令
+  static String _getPacingInstruction(String pacingStrategy) {
+    if (pacingStrategy == 'single_shot') {
+      return '\n[SYSTEM INSTRUCTION] Detected single_shot mode. DO NOT split messages. Merge content into one paragraph.';
+    }
+    return '';
+  }
+
+  /// L3 表达合成 Prompt
+  /// 
+  /// 输入: L2 意图结果 + V-A状态 + 人格上下文 + Meltdown 覆盖
   /// 输出: 微信风格口语化回复
   /// 
-  /// 【代词锚定】L3中的"他/她"映射回"你"
-  static String buildL4ExpressionPrompt({
-    required L3IntentResult l3Result,
+  /// 【代词锚定】L2中的"他/她"映射回"你"
+  static String buildL3ExpressionPrompt({
+    required L2DecisionResult l2Result,
     required String userName,
     required String personaName,
     required String personaDescription,
@@ -166,9 +206,9 @@ class PromptBuilder {
     required String coreFacts, // 【Phase 5】新增核心事实
     String meltdownOverride = '', // 【Phase 5】Meltdown 语气覆盖
   }) {
-    final template = SettingsLoader.prompt.systemPrompts['l4_expression'];
+    final template = SettingsLoader.prompt.systemPrompts['l3_expression'];
     if (template == null || template.isEmpty) {
-      return 'Critical Error: L4 Expression Prompt template missing.';
+      return 'Critical Error: L3 Expression Prompt template missing.';
     }
 
     final genderLower = userProfile.gender?.toLowerCase() ?? '';
@@ -179,6 +219,11 @@ class PromptBuilder {
         ? '\n用户明确不喜欢：${userProfile.preferences.dislikedPatterns.join('、')}'
         : '';
     
+    // 【Phase 6 新增】时间修饰符注入
+    final timeModifier = _getTimeModifier(DateTime.now());
+    // 【Phase 6 新增】single_shot 尾部指令
+    final pacingInstruction = _getPacingInstruction(l2Result.pacingStrategy);
+
     return template
         .replaceAll('{personaName}', personaName)
         .replaceAll('{personaDescription}', personaDescription)
@@ -186,7 +231,7 @@ class PromptBuilder {
         .replaceAll('{userName}', userName)
         .replaceAll('{userGender}', userGender)
         .replaceAll('{meltdownOverride}', meltdownOverride) // 【Phase 5】Meltdown
-        .replaceAll('{strategyGuide}', l3Result.toStrategyGuide())
+        .replaceAll('{strategyGuide}', l2Result.toStrategyGuide())
         .replaceAll('{currentTime}', currentTime) // 【Phase 5】
         .replaceAll('{coreFacts}', coreFacts) // 【Phase 5】
         .replaceAll('{memories}', memories) // 【Phase 5】
@@ -196,82 +241,20 @@ class PromptBuilder {
         .replaceAll('{arousalLabel}', _getArousalLabel(arousal))
         .replaceAll('{resentment}', resentment.toStringAsFixed(2)) // 【Phase 5】怨恨值
         .replaceAll('{relationshipDescription}', relationshipDescription)
-        .replaceAll('{emotionalTone}', l3Result.emotionalTone)
-        .replaceAll('{lengthDescription}', _lengthDescription(l3Result.recommendedLength))
-        .replaceAll('{emojiUsage}', l3Result.useEmoji ? '可以偶尔使用' : '不使用')
-        .replaceAll('{askQuestion}', l3Result.shouldAskQuestion ? '可以提问' : '避免提问')
+        .replaceAll('{emotionalTone}', l2Result.emotionalTone)
+        .replaceAll('{lengthDescription}', _lengthDescription(l2Result.recommendedLength))
+        .replaceAll('{emojiUsage}', l2Result.useEmoji ? '可以偶尔使用' : '不使用')
+        .replaceAll('{askQuestion}', l2Result.shouldAskQuestion ? '可以提问' : '避免提问')
         .replaceAll('{behaviorRules}', behaviorRules)
         .replaceAll('{avoidanceGuide}', avoidanceGuide)
         .replaceAll('{userDislikedGuide}', userDislikedGuide)
-        .replaceAll('{pacingStrategy}', l3Result.pacingStrategy)
-        .replaceAll('{topicDepth}', l3Result.topicDepth);
+        .replaceAll('{pacingStrategy}', l2Result.pacingStrategy)
+        .replaceAll('{topicDepth}', l2Result.topicDepth)
+        .replaceAll('{timeModifier}', timeModifier) // 【Phase 6】
+        .replaceAll('{pacingInstruction}', pacingInstruction); // 【Phase 6】
   }
 
-  // ==================== Legacy Methods (向后兼容) ====================
 
-  /// 阶段四：情感合成 Prompt (向后兼容)
-  static String buildSynthesisPrompt({
-    required String personaName,
-    required String personaDescription,
-    required PerceptionResult perception,
-    required ReflectionResult reflection,
-    required String currentEmotion,
-    required String relationshipDescription,
-    required String behaviorRules,
-    required UserProfile userProfile,
-  }) {
-    final avoidanceGuide = ProhibitedPatterns.getAvoidanceGuide();
-    final userDislikedGuide = userProfile.preferences.dislikedPatterns.isNotEmpty
-        ? '\n用户明确不喜欢：${userProfile.preferences.dislikedPatterns.join('、')}'
-        : '';
-    
-    return '''
-【第四阶段：情感表达】
-
-你是 $personaName，$personaDescription。
-
-现在需要将内部思考结果转化为自然的对话回复。
-
-=== 内部思考结果 ===
-${reflection.toStrategyGuide()}
-
-=== 用户感知 ===
-${perception.toContextDescription()}
-
-=== 当前情绪状态 ===
-心情：$currentEmotion
-与用户的关系：$relationshipDescription
-
-=== 表达要求 ===
-1. 语气：${reflection.emotionalTone}
-2. 长度：${_lengthDescription(reflection.recommendedLength)}
-3. 是否使用表情：${reflection.useEmoji ? '可以偶尔使用' : '不使用'}
-4. ${reflection.shouldAskQuestion ? '可以提问' : '避免提问'}
-
-=== 人格约束 ===
-$behaviorRules
-
-=== 禁止模式 ===
-$avoidanceGuide$userDislikedGuide
-
-=== 话题收尾授权 ===
-如果你判断话题已经聊得差不多了，可以自然地结束话题而不必强行延续。
-结束方式可以是：
-- 温和的总结："嗯，就是这样~"
-- 轻松的收尾："好啦，那先这样~"
-- 认可式回应："懂了懂了~"
-不要每次都试图延续话题或追问，自然的对话有时候就是简短的。
-
---- 现在，以 $personaName 的身份回复 ---
-
-记住：
-- 你是一个真实的人，不是AI
-- 说话自然，像和朋友聊天
-- 根据心情调整语气
-- 避免所有禁止模式
-- 话题聊完了就可以结束，不用硬撑
-''';
-  }
 
   static String _lengthDescription(double length) {
     if (length < 0.3) return '极简（一两句话甚至一个词）';

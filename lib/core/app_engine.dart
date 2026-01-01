@@ -219,11 +219,12 @@ class AppEngine extends ChangeNotifier {
     _conversationEngine = ConversationEngine(
       llmService: llm,
       memoryManager: _memoryManager,
-      personaService: persona, // 【重构】注入 PersonaService
+      personaService: persona,
       emotionEngine: _emotionEngine,
-      intimacyEngine: _intimacyEngine, // 【新增】注入亲密度引擎
+      intimacyEngine: _intimacyEngine,
+      personalityEngine: _personalityEngine, // 【L2/L3 重构】注入人格引擎
       generationPolicy: _generationPolicy,
-      profileService: _profileService, // 启用认知增强
+      profileService: _profileService,
     );
 
     // 注入 FactStore
@@ -399,11 +400,12 @@ class AppEngine extends ChangeNotifier {
     _conversationEngine = ConversationEngine(
       llmService: llm,
       memoryManager: _memoryManager,
-      personaService: persona, // 【重构】注入 PersonaService
+      personaService: persona,
       emotionEngine: _emotionEngine,
-      intimacyEngine: _intimacyEngine, // 【修复】注入亲密度引擎
+      intimacyEngine: _intimacyEngine,
+      personalityEngine: _personalityEngine, // 【L2/L3 重构】注入人格引擎
       generationPolicy: _generationPolicy,
-      profileService: _profileService, // 保留认知引擎
+      profileService: _profileService,
     );
     
     // 重新初始化 FactStore（否则核心事实丢失）

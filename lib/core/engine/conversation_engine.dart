@@ -490,6 +490,13 @@ class ConversationEngine {
     print('[Pipeline] Step 1: Perception phase');
     final perception = await _runPerceptionPhase(sanitizedText, currentMessages);
     
+    // ======== 【Safety Fast Track】紧急安全模式 ========
+    // 检测到自杀/自残关键词时，跳过所有 L2/L3 处理，直接返回安全响应
+    if (perception.systemAction == SystemAction.safety) {
+      print('[Pipeline] 🚨 SAFETY MODE ACTIVATED - Bypassing L2/L3');
+      return _handleSafetyMode(userMessage: sanitizedText);
+    }
+    
     // ======== Step 2: 状态加载阶段 (State Loading) ========
     // 更新情绪引擎，获取相关记忆
     print('[Pipeline] Step 2: State Loading phase');
@@ -1271,6 +1278,44 @@ class ConversationEngine {
     }
     
     return biases.isNotEmpty ? biases.join('；') : '无明显认知偏差';
+  }
+
+  /// 【Safety Fast Track】紧急安全模式响应
+  /// 
+  /// 设计原理：
+  /// - 完全跳过 L2 决策和 L3 表达流程
+  /// - 不使用任何人格修饰符 (无傲娇/慵懒等)
+  /// - 返回固定的危机干预响应
+  ConversationResult _handleSafetyMode({required String userMessage}) {
+    const safetyResponse = '''
+我注意到你可能正在经历非常困难的时刻。
+请记住，你不是一个人。
+
+如果你有自我伤害的想法，请立即拨打：
+📞 全国心理援助热线：400-161-9995
+📞 北京心理危机研究与干预中心：010-82951332
+📞 生命热线：400-821-1215
+
+我会一直在这里陪着你。''';
+
+    final safetyMessage = ChatMessage(
+      content: safetyResponse,
+      isUser: false,
+      time: DateTime.now(),
+    );
+
+    return ConversationResult(
+      success: true,
+      delayedMessages: [
+        DelayedMessage(message: safetyMessage, delay: Duration.zero),
+      ],
+      tokensUsed: 0,
+      cognitiveState: {
+        'safety_mode': true,
+        'trigger': userMessage,
+        'strategy': 'crisis_intervention',
+      },
+    );
   }
 }
 

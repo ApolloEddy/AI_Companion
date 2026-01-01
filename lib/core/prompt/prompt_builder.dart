@@ -133,7 +133,7 @@ class PromptBuilder {
     }
 
     final genderLower = userProfile.gender?.toLowerCase() ?? '';
-    final isMale = genderLower == 'male' || genderLower == 'man' || genderLower == '男';
+    final isMale = genderLower == 'male' || genderLower == 'man' || genderLower == '男' || genderLower == '男性';
     final userGender = isMale ? '他' : '她';
     final emotionDesc = _getEmotionDescription(valence, arousal);
     

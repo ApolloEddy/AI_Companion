@@ -27,6 +27,7 @@ enum FeedbackType {
 /// 人格引擎
 class PersonalityEngine extends ChangeNotifier {
   BigFiveTraits _traits;
+  BigFiveTraits? _initialTraits; // 【新增】出厂设置 (基准人格)
   DateTime? _lastFeedbackTime;
   
   // 配置常量 (从 YAML 读取的回退值)
@@ -42,6 +43,12 @@ class PersonalityEngine extends ChangeNotifier {
 
   /// 当前人格特质
   BigFiveTraits get traits => _traits;
+
+  /// 初始人格 (基准线)
+  BigFiveTraits? get initialTraits => _initialTraits;
+
+  /// 是否已完成人格定型 (Genesis Locked)
+  bool get isGenesisLocked => _initialTraits != null;
 
   /// 是否处于反馈冷却期
   bool get isInCooldown {
@@ -208,6 +215,19 @@ class PersonalityEngine extends ChangeNotifier {
     return '$traitName: $description (${value.toStringAsFixed(2)})';
   }
 
+  /// 锁定初始人格 (Genesis Complete)
+  void lockGenesis(BigFiveTraits traits) {
+    _initialTraits = traits;
+    _traits = traits; // 同时更新当前人格
+    notifyListeners();
+  }
+
+  /// 恢复人格锁 (仅用于从持久化恢复状态，不改变当前人格)
+  void restoreLock(BigFiveTraits initialTraits) {
+    _initialTraits = initialTraits;
+    notifyListeners();
+  }
+
   /// 直接设置人格 (用于 UI 调节或重置)
   void setTraits(BigFiveTraits newTraits) {
     _traits = newTraits;
@@ -217,6 +237,7 @@ class PersonalityEngine extends ChangeNotifier {
   /// 重置为中性人格
   void reset() {
     _traits = BigFiveTraits.neutral();
+    _initialTraits = null; // 【新增】解锁 Genesis
     _lastFeedbackTime = null;
     notifyListeners();
   }
@@ -224,9 +245,18 @@ class PersonalityEngine extends ChangeNotifier {
   /// 从持久化数据恢复
   void loadFromJson(Map<String, dynamic> json) {
     _traits = BigFiveTraits.fromJson(json);
+    if (json.containsKey('initialTraits')) {
+      _initialTraits = BigFiveTraits.fromJson(json['initialTraits']);
+    }
     notifyListeners();
   }
 
   /// 导出为持久化数据
-  Map<String, dynamic> toJson() => _traits.toJson();
+  Map<String, dynamic> toJson() {
+    final json = _traits.toJson();
+    if (_initialTraits != null) {
+      json['initialTraits'] = _initialTraits!.toJson();
+    }
+    return json;
+  }
 }

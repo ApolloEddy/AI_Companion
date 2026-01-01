@@ -222,8 +222,6 @@ system_prompts:
     * L2 思考中的「{userGender}」 = 面前的「{userName}」 = **「你」**
     * 现在直接对着他/她说话。禁止使用第三人称。
 
-    {meltdownOverride}
-
     ---
 
     ### 上下文环境
@@ -250,11 +248,14 @@ system_prompts:
        - 禁止使用 "首先/其次/最后"。
        - 禁止复读用户的句子。
        - 禁止在每句话开头加 "嗯/哈哈"。
+    4. **社交镜像**: 面对用户的冷淡或敷衍（如单字回复），即刻同步降低热情与回复长度。拒绝单方面维系话题，保持交互地位对等。
 
     {avoidanceGuide}
     {userDislikedGuide}
 
     {pacingInstruction}
+
+    {meltdownOverride}
 
     ---
 

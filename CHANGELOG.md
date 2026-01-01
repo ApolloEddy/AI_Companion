@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [2.8.0] - 2026-01-02 (Cognitive Architecture Refactoring)
 
+### Added
+
+- **Personality Genesis Radar**: 新增“人格塑形雷达”组件，在创建 AI 时可通过拖拽 5 个顶点直观塑造 Big Five 人格特质 (Openness, Conscientiousness, Extraversion, Agreeableness, Neuroticism)。
+- **Dual-Mode Visualization**: 雷达图支持“塑形模式”(Sculpting) 和“监测模式”(Monitoring)，分别用于初始设定和日常对话中的人格漂移观测。
+- **Factory Reset**: 新增"重置人格与记忆"功能（危险区），支持一键清空所有记忆、聊天记录并重置 Big Five 参数（解锁 Genesis 二次编辑）。
+- **Persona Unification**: 统一了人格配置源，移除了代码中的硬编码默认值，现在 `default_persona.yaml` 是唯一的出厂设定源。默认 AI 名称变更为 **April**。
+
 ### Changed
 
 - **由四变三**: 认知架构重构为 **L1 感知 (Perception) -> L2 决策 (Decision) -> L3 表达 (Expression)** 三层模型。
@@ -12,6 +19,16 @@ All notable changes to this project will be documented in this file.
   - 将原 L4 表达层重命名为 L3 表达核心 (Expression Core)。
 - **Prompt 标准化**: `prompt_templates.yaml` 中的所有 Prompt (包括 L1) 统一对齐为 L2/L3 的 Markdown 格式 (Headers, Lists, Alerts)。
 - **去硬编码**: 移除了 `PromptBuilder` 中残留的硬编码 `buildSynthesisPrompt` 及字符串拼接逻辑，完全实现 YAML 配置驱动。
+
+### Fixed
+
+- **Meltdown 失效修复**: 将 `{meltdownOverride}` 从 Prompt 头部移动到 `{pacingInstruction}` 之后 (Prompt 尾部)，利用 LLM Recency Bias 确保 Meltdown 状态不会被后续 L2 指令覆盖。
+- **Critical Safety Mode**: 新增紧急安全模式，当检测到自杀/自残关键词时，完全跳过 L2/L3 流程，返回固定危机干预响应（包含心理援助热线），避免人格修饰符污染严肃场景。
+- **Anti-Simp Guardrail**: 新增反舔狗行为约束，防止 AI 在用户连续冷回复时无限追问。
+- **UI 美化与规范化**:
+  - **性别选择器**: 将 AI 人格编辑器与用户资料中的性别输入框改为下拉选择 (`男性`/`女性`/`其他`)，并统一标签为"性别"。
+  - **交互反馈升级**: 全局替换旧版 SnackBar 为带有呼吸动画的 `SuccessDialog` 成功确认弹窗 (Persona 保存/复制气泡/资料更新)。
+  - **文档更新**: 补充 `README` 与 `CHANGELOG`，确保文档与代码实现一致。
 
 ## [2.7.0] - 2025-12-30 (Psychological Dynamics Update)
 

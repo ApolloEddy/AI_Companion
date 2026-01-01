@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/app_engine.dart';
 import '../core/memory/fact_store.dart';
+import 'widgets/success_dialog.dart';
 
 /// MemoryManagerScreen - 用户记忆管理界面
 /// 
@@ -316,19 +317,19 @@ class _MemoryManagerScreenState extends State<MemoryManagerScreen> {
   Future<void> _verifyFact(AppEngine engine, String key) async {
     await engine.factStore.verifyFact(key);
     setState(() {});
-    _showSnackBar('已确认：此信息将被优先保留');
+    SuccessDialog.show(context, '已确认：此信息将被优先保留');
   }
 
   Future<void> _rejectFact(AppEngine engine, String key) async {
     await engine.factStore.rejectFact(key);
     setState(() {});
-    _showSnackBar('已拒绝：此信息将不再出现在 AI 上下文中');
+    SuccessDialog.show(context, '已拒绝：此信息将不再出现在 AI 上下文中');
   }
 
   Future<void> _activateFact(AppEngine engine, String key) async {
     await engine.factStore.activateFact(key);
     setState(() {});
-    _showSnackBar('已恢复');
+    SuccessDialog.show(context, '已恢复');
   }
 
   Future<void> _deleteFact(AppEngine engine, String key) async {
@@ -353,19 +354,11 @@ class _MemoryManagerScreenState extends State<MemoryManagerScreen> {
     if (confirm == true) {
       await engine.factStore.removeFact(key);
       setState(() {});
-      _showSnackBar('已删除');
+      SuccessDialog.show(context, '已删除');
     }
   }
 
-  void _showSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
+
 
   void _showHelpDialog(bool isDark) {
     showDialog(

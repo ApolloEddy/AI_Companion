@@ -134,6 +134,9 @@ class PersonaPolicy {
   
   // 【新增】Big Five 人格模型
   late final BigFiveTraits bigFive;
+  
+  // 【新增】初始人格基因 (用于 Genesis Lock 持久化)
+  final BigFiveTraits? initialBigFive;
 
   // 兼容旧字段（派生自嵌套对象或 config）
   late final String character;    // 对应 UI 的 'personality'
@@ -143,7 +146,7 @@ class PersonaPolicy {
   late final double formality;    // 【弃用警告】请使用 bigFive.conscientiousness
   late final double humor;        // 【弃用警告】请使用 bigFive.openness + extraversion
 
-  PersonaPolicy(this.config) {
+  PersonaPolicy(this.config) : initialBigFive = _parseInitialBigFive(config) {
     // 构建分层对象
     coreIdentity = CoreIdentity.fromJson(config);
     spiritTraits = SpiritTraits.fromJson(config);
@@ -208,6 +211,7 @@ class PersonaPolicy {
       'deepSecrets': historyBackground.deepSecrets,
       // 【新增】Big Five
       'bigFive': bigFive.toJson(),
+      'initialBigFive': initialBigFive?.toJson(),
       // 兼容字段
       'personality': character,
       'appearance': appearance,
@@ -387,5 +391,12 @@ class PersonaPolicy {
   /// 更新配置
   PersonaPolicy copyWith(Map<String, dynamic> newConfig) {
     return PersonaPolicy({...config, ...newConfig});
+  }
+  static BigFiveTraits? _parseInitialBigFive(Map<String, dynamic> config) {
+    final json = config['initialBigFive'] ?? config['initialTraits'];
+    if (json != null && json is Map<String, dynamic>) {
+      return BigFiveTraits.fromJson(json);
+    }
+    return null;
   }
 }

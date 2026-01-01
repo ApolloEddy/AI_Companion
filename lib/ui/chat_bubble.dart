@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../core/app_engine.dart';
 import '../core/model/chat_message.dart';
 import '../core/provider/bubble_color_provider.dart';
+import 'widgets/success_dialog.dart';
 import 'utils/ui_adapter.dart';
 
 class ChatBubble extends StatefulWidget {
@@ -180,14 +181,8 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
 
   void _copyToClipboard() {
     Clipboard.setData(ClipboardData(text: widget.message.content));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('已复制到剪贴板'),
-        duration: const Duration(milliseconds: 800),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 16),
-      ),
-    );
+    Clipboard.setData(ClipboardData(text: widget.message.content));
+    SuccessDialog.show(context, '已复制到剪贴板');
   }
 
   /// 格式化消息时间
@@ -370,14 +365,9 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
     // 使用 Clipboard 作为简单的分享替代
     // 实际项目可以接入 share_plus 插件
     Clipboard.setData(ClipboardData(text: text));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('已复制到剪贴板，可粘贴分享'),
-        duration: const Duration(milliseconds: 1200),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.only(top: 16, left: 16, right: 16, bottom: 16),
-      ),
-    );
+    // 实际项目可以接入 share_plus 插件
+    Clipboard.setData(ClipboardData(text: text));
+    SuccessDialog.show(context, '已复制到剪贴板，可粘贴分享');
   }
 
   /// AI 气泡：毛玻璃效果 + 柔和阴影

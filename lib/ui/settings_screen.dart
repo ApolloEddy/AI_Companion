@@ -12,6 +12,8 @@ import '../core/provider/theme_provider.dart';
 import '../core/provider/bubble_color_provider.dart';
 import '../core/service/chat_export_service.dart';
 import 'widgets/persona_editor_dialog.dart';
+import 'widgets/genesis_editor_dialog.dart'; // 【新增】
+import 'widgets/success_dialog.dart';
 import 'utils/ui_adapter.dart';
 
 /// Research-Grade Settings Screen
@@ -40,7 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final TextEditingController _callSignController = TextEditingController(); // 【新增】
   final TextEditingController _occupationController = TextEditingController();
   final TextEditingController _majorController = TextEditingController();
-  final TextEditingController _genderController = TextEditingController();
+  String _selectedUserGender = '男性'; // 【重构】改为下拉选项
   DateTime? _birthday; // 【新增】
   String _relationshipGoal = ''; // 【新增】
   String _selectedModel = AppConfig.defaultModel;
@@ -63,7 +65,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _callSignController.text = profile.callSign ?? ''; // 【新增】
     _occupationController.text = profile.occupation;
     _majorController.text = profile.major ?? '';
-    _genderController.text = profile.gender ?? '';
+    _selectedUserGender = profile.gender ?? '男性';
+    // 兼容旧数据格式
+    if (!['男性', '女性', '其他'].contains(_selectedUserGender)) {
+      if (_selectedUserGender.contains('男')) {
+        _selectedUserGender = '男性';
+      } else if (_selectedUserGender.contains('女')) {
+        _selectedUserGender = '女性';
+      } else {
+        _selectedUserGender = '其他';
+      }
+    }
     _birthday = profile.birthday; // 【新增】
     _relationshipGoal = profile.preferences.relationshipGoal; // 【新增】
 
@@ -92,7 +104,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _callSignController.dispose();
     _occupationController.dispose();
     _majorController.dispose();
-    _genderController.dispose();
+    // _selectedUserGender 无需 dispose
     super.dispose();
   }
   
@@ -113,12 +125,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       callSign: _callSignController.text.trim(), // 【新增】
       occupation: _occupationController.text.trim(),
       major: _majorController.text.trim(),
-      gender: _genderController.text.trim(),
+      gender: _selectedUserGender, // 【重构】使用下拉值
       birthday: _birthday, // 【新增】
       preferences: DialoguePreferences.fromJson(newPrefs), // 【新增】
     ));
     setState(() => _hasUnsavedProfileChanges = false);
-    _showSnackBar('用户画像已保存');
+    SuccessDialog.show(context, '用户画像已保存');
   }
 
   @override
@@ -150,7 +162,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
            // _saveUserProfile is void. I should inspect it.
            // For now assuming it fires and forgets.
            // To properly wait, I might need to refactor _saveUserProfile to Future.
-           _showSuccessDialog('配置已保存');
+           SuccessDialog.show(context, '配置已保存');
            await Future.delayed(const Duration(milliseconds: 1000));
         }
 
@@ -223,6 +235,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               isDark: isDark,
               children: [
                 _buildAiIdentityEditor(engine, isDark),
+                const SizedBox(height: 12),
+                _buildGenesisButton(context, engine, isDark), // 【新增】Genesis 入口
               ],
             ),
   
@@ -248,7 +262,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               children: [
                 _buildExportButtons(engine),
                 const SizedBox(height: 12),
+
                 _buildClearHistoryButton(),
+                const SizedBox(height: 12),
+                _buildFactoryResetButton(context, engine, isDark), // 【新增】出厂重置按钮
               ],
             ),
             
@@ -485,7 +502,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       onTap: () {
         setState(() => _selectedModel = model.id);
         engine.updateModel(model.id);
-        _showSnackBar('已切换到 ${model.name}');
+        SuccessDialog.show(context, '已切换到 ${model.name}');
       },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -728,7 +745,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final key = _apiKeyController.text.trim();
               if (key.isNotEmpty) {
                 engine.updateApiKey(key);
-                _showSnackBar('API Key 已保存');
+                SuccessDialog.show(context, 'API Key 已保存');
               }
             },
             style: ElevatedButton.styleFrom(
@@ -745,7 +762,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Widget _buildAiIdentityEditor(AppEngine engine, bool isDark) {
-    return SizedBox(
+        final personaName = engine.personaConfig['name'] ?? 'AI';
+        return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
         onPressed: () {
@@ -755,7 +773,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           );
         },
         icon: const Icon(Icons.psychology, size: 18),
-        label: const Text('配置 AI 人格与详细设定'),
+        label: Text('配置 $personaName 人格与详细设定'),
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFFFFB74D),
           foregroundColor: Colors.black87,
@@ -804,7 +822,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Expanded(child: _buildProfileFieldWithDebounce('专业', _majorController, isDark)),
             const SizedBox(width: 12),
-            Expanded(child: _buildProfileFieldWithDebounce('性别', _genderController, isDark)),
+            Expanded(child: _buildUserGenderDropdown(isDark)), // 【重构】下拉选择器
           ],
         ),
         const SizedBox(height: 12),
@@ -947,6 +965,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  /// 【新增】用户性别下拉选择器
+  Widget _buildUserGenderDropdown(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '性别',
+          style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<String>(
+              value: _selectedUserGender,
+              isExpanded: true,
+              dropdownColor: isDark ? const Color(0xFF252229) : Colors.white,
+              items: const [
+                DropdownMenuItem(value: '男性', child: Text('男性')),
+                DropdownMenuItem(value: '女性', child: Text('女性')),
+                DropdownMenuItem(value: '其他', child: Text('其他')),
+              ],
+              onChanged: (v) {
+                setState(() => _selectedUserGender = v ?? '男性');
+                _onProfileFieldChanged();
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildProfileFieldWithDebounce(String label, TextEditingController controller, bool isDark) {
     final ui = UIAdapter(context);
     return Column(
@@ -997,7 +1052,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           return GestureDetector(
             onTap: () {
               engine.updateMonologueModel(model['id']!);
-              _showSnackBar('已切换内心独白模型为 ${model['name']}');
+              SuccessDialog.show(context, '已切换内心独白模型为 ${model['name']}');
             },
             child: Container(
               margin: const EdgeInsets.only(bottom: 8),
@@ -1051,13 +1106,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 【新增】头像设置
   Widget _buildAvatarSettings(AppEngine engine, bool isDark) {
+    final personaName = engine.personaConfig['name'] ?? 'AI';
     return Column(
       children: [
         Row(
           children: [
             Expanded(
               child: _buildAvatarPicker(
-                label: 'AI 头像',
+                label: '$personaName 头像',
                 currentPath: engine.aiAvatarPath,
                 onPick: () => _pickAvatar(engine, isAi: true),
                 onRemove: () => engine.updateAiAvatar(null),
@@ -1149,7 +1205,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         // 检查文件大小 (5MB = 5 * 1024 * 1024 = 5242880)
         final fileSize = File(file.path!).lengthSync();
         if (fileSize > 5242880) {
-          _showSnackBar('文件过大，请选择 5MB 以内的图片');
+          SuccessDialog.show(context, '文件过大，请选择 5MB 以内的图片');
           return;
         }
         
@@ -1158,7 +1214,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         } else {
           await engine.updateUserAvatar(file.path);
         }
-        _showSnackBar('头像已更新');
+        SuccessDialog.show(context, '头像已更新');
       }
     }
   }
@@ -1192,7 +1248,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _exportChat(String format) async {
     final engine = context.read<AppEngine>();
     if (engine.messages.isEmpty) {
-      _showSnackBar('没有聊天记录可导出');
+      SuccessDialog.show(context, '没有聊天记录可导出');
       return;
     }
 
@@ -1216,9 +1272,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           throw Exception('未知格式');
       }
       
-      _showSnackBar('已导出到: $path');
+      SuccessDialog.show(context, '已导出到: $path');
     } catch (e) {
-      _showSnackBar('导出失败: $e');
+      SuccessDialog.show(context, '导出失败: $e');
     } finally {
       setState(() => _isExporting = false);
     }
@@ -1240,7 +1296,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             onPressed: () {
               engine.clearChatHistory();
               Navigator.pop(ctx);
-              _showSnackBar('聊天记录已清空');
+              SuccessDialog.show(context, '聊天记录已清空');
             },
             child: const Text('确认删除', style: TextStyle(color: Colors.red)),
           ),
@@ -1290,7 +1346,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               child: TextButton.icon(
                 onPressed: () {
                    engine.personalityEngine.reset();
-                   _showSnackBar('人格参数已重置');
+                   SuccessDialog.show(context, '人格参数已重置');
                 },
                 icon: const Icon(Icons.settings_backup_restore, size: 16),
                 label: const Text('重置可塑性与人格'),
@@ -1364,73 +1420,125 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   // ... (save logic unchanged for now) ...
-
-  /// 显示成功反馈弹窗 (对钩动画)
-  void _showSuccessDialog(String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) {
-        // 自动关闭定时器
-        Future.delayed(const Duration(milliseconds: 1200), () {
-          if (context.mounted && Navigator.canPop(context)) {
-            Navigator.of(context).pop();
+  Widget _buildGenesisButton(BuildContext context, AppEngine engine, bool isDark) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: () async {
+          if (engine.personalityEngine.isGenesisLocked) {
+            final personaName = engine.personaConfig['name'] ?? 'AI';
+             showDialog(
+              context: context,
+              builder: (context) => AlertDialog(
+                backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                title: const Text('已锁定'),
+                content: Text(
+                  '人格矩阵已完成创世纪(Genesis)定型。\n\n'
+                  '请尊重 $personaName 的独立人格，让 TA 随交互自然成长。',
+                  style: const TextStyle(height: 1.5),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('知道了'),
+                  ),
+                ],
+              ),
+            );
+          } else {
+             await showDialog(
+              context: context,
+              builder: (context) => const GenesisEditorDialog(),
+            );
+             setState(() {});
           }
-        });
-        
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark 
-                  ? const Color(0xFF1E1E1E).withValues(alpha: 0.9) 
-                  : Colors.white.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withValues(alpha: 0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.check_rounded,
-                    color: Colors.green,
-                    size: 48,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  message,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Theme.of(context).brightness == Brightness.dark 
-                        ? Colors.white 
-                        : Colors.black87,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
+        },
+        icon: const Icon(Icons.fingerprint, size: 18),
+        label: const Text('人格塑形 (Genesis)'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: isDark ? Colors.cyanAccent : Colors.cyan,
+          side: BorderSide(color: isDark ? Colors.cyanAccent.withValues(alpha: 0.5) : Colors.cyan.withValues(alpha: 0.5)),
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
     );
   }
 
-  // 兼容旧调用 (重定向到新弹窗)
-  void _showSnackBar(String message) => _showSuccessDialog(message);
+  Widget _buildFactoryResetButton(BuildContext context, AppEngine engine, bool isDark) {
+    return SizedBox(
+      width: double.infinity,
+      child: TextButton.icon(
+        onPressed: () => _showFactoryResetDialog(context, engine),
+        icon: const Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 16),
+        label: const Text('重置人格与记忆 (Factory Reset)'),
+        style: TextButton.styleFrom(
+          foregroundColor: Colors.redAccent,
+          backgroundColor: Colors.redAccent.withValues(alpha: 0.1),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
+    );
+  }
+
+  void _showFactoryResetDialog(BuildContext context, AppEngine engine) {
+    final personaName = engine.personaConfig['name'] ?? 'AI';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).brightness == Brightness.dark 
+            ? const Color(0xFF1E1E1E) 
+            : Colors.white,
+        title: const Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('危险操作'),
+          ],
+        ),
+        content: Text(
+          '此操作将执行"出厂重置"：\n\n'
+          '1. 清空所有聊天记录与亲密度。\n'
+          '2. 永久删除核心事实库与记忆。\n'
+          '3. 重置 Big Five 人格参数（解锁 Genesis 编辑权）。\n\n'
+          '$personaName 将完全忘记你们的过去并重生。此操作不可恢复！\n\n'
+          '是否确定继续？',
+          style: TextStyle(height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop(); // Close first dialog
+              _performFactoryReset(context, engine);
+            },
+            child: const Text('我意已决', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _performFactoryReset(BuildContext context, AppEngine engine) async {
+    // 显示加载中
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+    
+    await Future.delayed(const Duration(milliseconds: 1000)); // 假装很忙，增加仪式感
+    await engine.factoryReset();
+    
+    if (context.mounted) {
+      Navigator.of(context).pop(); // Close loading
+      SuccessDialog.show(context, '系统已重置，Genesis 协议已重启');
+      setState(() {}); // Refresh UI state
+    }
+  }
 }
+
+

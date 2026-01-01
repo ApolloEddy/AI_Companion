@@ -4,6 +4,8 @@
 
 **[English](README_EN.md) | [中文](README.md)**
 
+> **v2.8.0 Update**: UI/UX polished! Added dropdown gender selection, global breathing animation feedback dialogs, and optimized localized prompts.
+
 ---
 
 # English Documentation
@@ -84,6 +86,10 @@ Intimacy is not a linear counter. It follows a logarithmic growth curve governed
 - **B (Marginal Utility)**: $(1 - I)^{0.5}$ *(Harder to level up at high tiers)*
 
 ### 2. Personality Engine (Big Five)
+
+> **v2.8.0 Feature**: Supports intuitive "Personality Genesis Radar" for drag-and-drop persona sculpting and real-time drift monitoring.
+
+Based on the OCEAN model, evolving through user feedback.
 
 Personality evolves based on user feedback (reinforcement learning).
 

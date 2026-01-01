@@ -84,17 +84,7 @@ class AppEngine extends ChangeNotifier {
 
   bool isInitialized = false;
 
-
-  Map<String, dynamic> personaConfig = {
-    'name': '小悠',
-    'gender': '女性',
-    'age': '20岁左右的少女',
-    'character': '温柔细腻，有时会害羞，真心对待朋友',
-    'interests': '看小说、发呆、聊天',
-    'values': ['真诚', '善良'],
-    'formality': 0.5,
-    'humor': 0.5,
-  };
+  Map<String, dynamic> personaConfig = {};
 
   // 最近的认知状态与流式独白（供 UI 层消费）
   Map<String, dynamic> _currentThoughtProcess = {};
@@ -198,11 +188,17 @@ class AppEngine extends ChangeNotifier {
     
     // 【重构】从 PersonaService 获取人格策略，而不是硬编码
     _personaPolicy = persona.personaPolicy;
+    // 保持向后兼容：同步 personaConfig
+    personaConfig = _personaPolicy.toJson();
     personaConfig = _personaPolicy.toJson(); // 同步到 UI 层配置
     
     // 【重构】初始化 Big Five 人格引擎 (Source of Truth: PersonaPolicy)
     // 不再使用独立的 SharedPreferences key，而是直接从 PersonaPolicy 派生
     _personalityEngine = PersonalityEngine(initialTraits: _personaPolicy.bigFive);
+    // 【Fix】如果存在初始人格基因（Genesis Lock），则恢复锁状态
+    if (_personaPolicy.initialBigFive != null) {
+      _personalityEngine.restoreLock(_personaPolicy.initialBigFive!);
+    }
     // 监听人格变化并更新 PersonaPolicy
     _personalityEngine.addListener(_onPersonalityChanged);
 
@@ -458,6 +454,45 @@ class AppEngine extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 【新增】出厂重置 (Factory Reset)
+  ///
+  /// 重置所有人格参数、清空聊天记录、清空核心事实库、重置亲密度。
+  /// 相当于 AI "转世重生"。
+  Future<void> factoryReset() async {
+    // 1. 重置 Big Five 人格 (解锁 Genesis)
+    _personalityEngine.reset();
+    
+    // 2. 重置亲密度
+    await _intimacyEngine.reset();
+    
+    // 3. 清空记忆与事实
+    await _memoryManager.clearAll();
+    await _factStore.clearAll();
+    
+    // 4. 清空聊天记录
+    await chatHistory.clearAll();
+    messages.clear();
+    _oldestLoadedIndex = 0;
+    hasMoreHistory = false;
+    _totalChatCount = 0;
+
+    // 5. 持久化变更
+    await _saveTokenCount(); // 保留 Token 统计? 用户说"重置所有人格参数...清空聊天记录...核心事实库"。 Token 统计通常保留较好，或者也重置?
+    // 假设保留 Token 统计作为技术指标。如果不保留，可以在这里重置。
+    
+    notifyListeners();
+    
+    // 重新发送问候
+    final name = personaConfig['name'] ?? '小悠';
+    final welcomeMsg = ChatMessage(
+      content: "（重启完成）你好呀！我是$name，我们从头开始吧，有什么想聊的吗？",
+      isUser: false,
+      time: DateTime.now(),
+    );
+    messages.add(welcomeMsg);
+    await chatHistory.addMessage(welcomeMsg);
+  }
+
   /// 发送消息 - 异步处理，不阻塞UI，支持连续发送多条
   Future<void> sendMessage(String text) async {
     if (text.trim().isEmpty) return;
@@ -582,6 +617,7 @@ class AppEngine extends ChangeNotifier {
     // 1. 更新内存中的策略对象
     _personaPolicy = _personaPolicy.copyWith({
       'bigFive': _personalityEngine.traits.toJson(),
+      'initialBigFive': _personalityEngine.initialTraits?.toJson(), // 【Fix】同步 Genesis Lock
     });
     
     // 2. 通过 Service 持久化 (Source of Truth)

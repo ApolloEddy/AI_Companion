@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/app_engine.dart';
 import '../../core/provider/intimacy_color_provider.dart';
 import 'persona_editor_dialog.dart';
+import 'personality_radar_chart.dart'; // 【新增】
 import '../utils/ui_adapter.dart';
 
 /// Research HUD 侧边栏 - 科幻风格实时状态监控面板
@@ -59,7 +60,7 @@ class _ModernSideBarState extends State<ModernSideBar> {
     
     // 人格参数
     final config = engine.personaConfig;
-    final personaName = config['name'] ?? '小悠';
+    final personaName = config['name'] ?? 'April';
     final userName = engine.userProfile.nickname.isNotEmpty 
         ? engine.userProfile.nickname 
         : '用户';
@@ -182,7 +183,7 @@ class _ModernSideBarState extends State<ModernSideBar> {
   }
 
   Widget _buildHeader(BuildContext context, AppEngine engine, bool isDark) {
-    final personaName = engine.personaConfig['name'] ?? '小悠';
+    final personaName = engine.personaConfig['name'] ?? 'AI';
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -209,7 +210,7 @@ class _ModernSideBarState extends State<ModernSideBar> {
                 } else if (gender == 'female' || gender == 'woman' || gender == '女' || gender == '女性') {
                   avatarColor = Colors.pinkAccent;
                 } else {
-                  avatarColor = Colors.amber; // 中性/未知
+                  avatarColor = Colors.amber; // 中性/未知/其他
                 }
 
                 if (engine.aiAvatarPath != null && engine.aiAvatarPath!.isNotEmpty) {
@@ -325,6 +326,13 @@ class _ModernSideBarState extends State<ModernSideBar> {
   /// 【Research-Grade】Big Five 人格雷达图 - 五边形可视化
   Widget _buildBigFiveRadar(AppEngine engine, bool isDark) {
     final traits = engine.personalityEngine.traits;
+    // 获取经过亲密度修饰的有效人格
+    final effective = engine.personalityEngine.getEffectiveTraits(
+      intimacy: engine.intimacyEngine.intimacy,
+    );
+
+    final initial = engine.personalityEngine.initialTraits ?? traits;
+
     return Container(
       height: 200,
       decoration: BoxDecoration(
@@ -334,17 +342,24 @@ class _ModernSideBarState extends State<ModernSideBar> {
           color: isDark ? const Color(0xFFFFB74D).withValues(alpha: 0.15) : Colors.grey.withValues(alpha: 0.2),
         ),
       ),
-      child: CustomPaint(
-        size: const Size(double.infinity, 200),
-        painter: RadarChartPainter(
-          values: [
-            traits.openness,
-            traits.conscientiousness,
-            traits.extraversion,
-            traits.agreeableness,
-            traits.neuroticism,
-          ],
-          labels: ['开放', '尽责', '外向', '宜人', '神质'],
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: PersonalityRadarChart(
+          initialTraits: {
+            'openness': initial.openness,
+            'conscientiousness': initial.conscientiousness,
+            'extraversion': initial.extraversion,
+            'agreeableness': initial.agreeableness,
+            'neuroticism': initial.neuroticism,
+          },
+          effectiveTraits: {
+            'openness': effective.openness,
+            'conscientiousness': effective.conscientiousness,
+            'extraversion': effective.extraversion,
+            'agreeableness': effective.agreeableness,
+            'neuroticism': effective.neuroticism,
+          },
+          mode: RadarMode.monitoring,
           isDark: isDark,
         ),
       ),
@@ -1333,124 +1348,7 @@ class _EmotionCurvePainter extends CustomPainter {
   }
 }
 
-/// 【Research-Grade】雷达图绘制器
-class RadarChartPainter extends CustomPainter {
-  final List<double> values;
-  final List<String> labels;
-  final bool isDark;
 
-  RadarChartPainter({
-    required this.values,
-    required this.labels,
-    required this.isDark,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = min(size.width, size.height) / 2 - 30;
-    final sides = values.length;
-    final angle = 2 * pi / sides;
-
-    // 绘制网格 - 温暖色系
-    final warmAccent = isDark ? const Color(0xFFFFB74D) : const Color(0xFF8D6E63);
-    final gridPaint = Paint()
-      ..color = warmAccent.withValues(alpha: 0.25)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-
-    for (var level = 1; level <= 3; level++) {
-      final levelRadius = radius * level / 3;
-      final path = Path();
-      for (var i = 0; i < sides; i++) {
-        final x = center.dx + levelRadius * cos(angle * i - pi / 2);
-        final y = center.dy + levelRadius * sin(angle * i - pi / 2);
-        if (i == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
-        }
-      }
-      path.close();
-      canvas.drawPath(path, gridPaint);
-    }
-
-    // 绘制轴线
-    for (var i = 0; i < sides; i++) {
-      final x = center.dx + radius * cos(angle * i - pi / 2);
-      final y = center.dy + radius * sin(angle * i - pi / 2);
-      canvas.drawLine(center, Offset(x, y), gridPaint);
-    }
-
-    // 绘制数据区域 - 温暖琥珀色
-    final dataPath = Path();
-    final dataPaint = Paint()
-      ..color = const Color(0xFFFFB74D).withValues(alpha: 0.35)
-      ..style = PaintingStyle.fill;
-    final dataStrokePaint = Paint()
-      ..color = const Color(0xFFFFB74D)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-
-    for (var i = 0; i < sides; i++) {
-      final value = values[i].clamp(0.0, 1.0);
-      final r = radius * value;
-      final x = center.dx + r * cos(angle * i - pi / 2);
-      final y = center.dy + r * sin(angle * i - pi / 2);
-      if (i == 0) {
-        dataPath.moveTo(x, y);
-      } else {
-        dataPath.lineTo(x, y);
-      }
-    }
-    dataPath.close();
-    canvas.drawPath(dataPath, dataPaint);
-    canvas.drawPath(dataPath, dataStrokePaint);
-
-    // 绘制数据点 - 温暖色
-    final dotPaint = Paint()
-      ..color = const Color(0xFFFFCC80)
-      ..style = PaintingStyle.fill;
-    for (var i = 0; i < sides; i++) {
-      final value = values[i].clamp(0.0, 1.0);
-      final r = radius * value;
-      final x = center.dx + r * cos(angle * i - pi / 2);
-      final y = center.dy + r * sin(angle * i - pi / 2);
-      canvas.drawCircle(Offset(x, y), 4, dotPaint);
-    }
-
-    // 绘制标签
-    final textStyle = TextStyle(
-      color: isDark ? Colors.white60 : Colors.black54,
-      fontSize: 10,
-    );
-    for (var i = 0; i < sides; i++) {
-      final labelRadius = radius + 18;
-      final x = center.dx + labelRadius * cos(angle * i - pi / 2);
-      final y = center.dy + labelRadius * sin(angle * i - pi / 2);
-      final textSpan = TextSpan(text: labels[i], style: textStyle);
-      final textPainter = TextPainter(
-        text: textSpan,
-        textDirection: TextDirection.ltr,
-      );
-      textPainter.layout();
-      textPainter.paint(
-        canvas,
-        Offset(x - textPainter.width / 2, y - textPainter.height / 2),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant RadarChartPainter oldDelegate) {
-    if (oldDelegate.isDark != isDark) return true;
-    if (oldDelegate.values.length != values.length) return true;
-    for (int i = 0; i < values.length; i++) {
-      if ((oldDelegate.values[i] - values[i]).abs() > 0.01) return true;
-    }
-    return false;
-  }
-}
 
 /// 【Research-Grade】折线图绘制器
 class SparklinePainter extends CustomPainter {

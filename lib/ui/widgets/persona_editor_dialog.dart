@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'success_dialog.dart';
+import 'personality_radar_chart.dart'; // 【新增】
 import '../../core/app_engine.dart';
+import '../../core/model/big_five_personality.dart'; // 【新增】
 
 /// Persona Editor Dialog - Deep customization for AI persona
 class PersonaEditorDialog extends StatefulWidget {
@@ -12,7 +15,7 @@ class PersonaEditorDialog extends StatefulWidget {
 
 class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
   late TextEditingController _nameController;
-  late TextEditingController _genderController; // 【新增】
+  String _selectedGender = '女性'; // 【重构】改为下拉选项
   late TextEditingController _appearanceController;
   late TextEditingController _personalityController;
   late TextEditingController _speakingStyleController;
@@ -24,6 +27,9 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
   
   double _formality = 0.5;
   double _humor = 0.5;
+  
+  // Big Five Traits State
+  late Map<String, double> _currentTraits;
 
   @override
   void initState() {
@@ -32,7 +38,28 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
     final config = engine.personaConfig;
     
     _nameController = TextEditingController(text: config['name'] ?? 'April');
-    _genderController = TextEditingController(text: config['gender'] ?? '女孩'); // 【新增】
+    
+    // Initialize Big Five Traits
+    final traits = engine.personalityEngine.traits;
+    _currentTraits = {
+      'openness': traits.openness,
+      'conscientiousness': traits.conscientiousness,
+      'extraversion': traits.extraversion,
+      'agreeableness': traits.agreeableness,
+      'neuroticism': traits.neuroticism,
+    };
+
+    _selectedGender = config['gender']?.toString() ?? '女性'; // 【重构】初始化下拉值
+    // 兼容旧数据格式
+    if (!['男性', '女性', '其他'].contains(_selectedGender)) {
+      if (_selectedGender.contains('男')) {
+        _selectedGender = '男性';
+      } else if (_selectedGender.contains('女')) {
+        _selectedGender = '女性';
+      } else {
+        _selectedGender = '其他';
+      }
+    }
     _appearanceController = TextEditingController(
       text: config['appearance'] ?? config['age'] ?? '',
     );
@@ -59,7 +86,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
   @override
   void dispose() {
     _nameController.dispose();
-    _genderController.dispose(); // 【新增】
+    // _selectedGender 无需 dispose
     _appearanceController.dispose();
     _personalityController.dispose();
     _speakingStyleController.dispose();
@@ -76,8 +103,8 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
     final personaName = _nameController.text.trim();
     
     engine.updatePersonaConfig({
-      'name': personaName.isEmpty ? '小悠' : personaName,
-      'gender': _genderController.text.trim(), // 【新增】
+      'name': personaName.isEmpty ? 'April' : personaName,
+      'gender': _selectedGender, // 【重构】使用下拉值
       'appearance': _appearanceController.text.trim(),
       'age': _appearanceController.text.trim(),
       'personality': _personalityController.text.trim(),
@@ -91,13 +118,20 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
       'humor': _humor,
     });
     
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('已保存 $personaName 的人格配置'),
-        behavior: SnackBarBehavior.floating,
-      ),
+    // update Personality Engine
+    final newTraits = BigFiveTraits(
+      openness: _currentTraits['openness'] ?? 0.5,
+      conscientiousness: _currentTraits['conscientiousness'] ?? 0.5,
+      extraversion: _currentTraits['extraversion'] ?? 0.5,
+      agreeableness: _currentTraits['agreeableness'] ?? 0.5,
+      neuroticism: _currentTraits['neuroticism'] ?? 0.5,
+      plasticity: engine.personalityEngine.traits.plasticity, // Keep existing physics
+      totalInteractions: engine.personalityEngine.traits.totalInteractions,
     );
+    engine.personalityEngine.setTraits(newTraits);
+    
+    Navigator.of(context).pop();
+    SuccessDialog.show(context, '已保存 $personaName 的人格配置');
   }
 
   @override
@@ -137,12 +171,7 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
                       isDark: isDark,
                     ),
                     const SizedBox(height: 16),
-                    _buildTextField( // 【新增】
-                      label: '性别/物种',
-                      hint: '如：女孩、猫娘、傲娇学长',
-                      controller: _genderController,
-                      isDark: isDark,
-                    ),
+                    _buildGenderDropdown(isDark), // 【重构】下拉选择器
                     const SizedBox(height: 16),
                     _buildTextField(
                       label: '外貌/基本背景',
@@ -159,6 +188,8 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
                       isDark: isDark,
                       maxLines: 2,
                     ),
+                    const SizedBox(height: 24),
+
                     const SizedBox(height: 16),
                     _buildTextField(
                       label: '说话风格',
@@ -415,4 +446,43 @@ class _PersonaEditorDialogState extends State<PersonaEditorDialog> {
       ),
     );
   }
+
+  /// 【新增】性别下拉选择器
+  Widget _buildGenderDropdown(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '性别',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white70 : Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _selectedGender,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.grey.withValues(alpha: 0.1),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+          dropdownColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
+          items: const [
+            DropdownMenuItem(value: '男性', child: Text('男性')),
+            DropdownMenuItem(value: '女性', child: Text('女性')),
+            DropdownMenuItem(value: '其他', child: Text('其他')),
+          ],
+          onChanged: (v) => setState(() => _selectedGender = v ?? '女性'),
+        ),
+      ],
+    );
+  }
 }
+
+

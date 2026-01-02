@@ -217,4 +217,26 @@ class TimeAwareness {
     
     return meanings.isEmpty ? '' : meanings.join('，');
   }
+  /// 【Reaction Compass】计算认知惰性 (Cognitive Laziness)
+  ///
+  /// 基于时间计算 AI 的"思考疲惫度" (0.0 - 1.0)
+  /// - 0.0: 精力充沛 (白天)
+  /// - 1.0: 极度疲惫 (深夜 3-4 点)
+  static double calculateCognitiveLaziness(DateTime now) {
+    final hour = now.hour;
+    
+    // 深夜 0:00 - 5:00: 疲惫度逐渐升高
+    if (hour >= 0 && hour < 5) {
+      if (hour == 3 || hour == 4) return 0.9; // 最困时刻
+      return 0.6 + (hour * 0.1); 
+    }
+    
+    // 晚上 22:00 - 24:00: 开始疲惫
+    if (hour >= 22) {
+      return 0.3 + ((hour - 22) * 0.15);
+    }
+    
+    // 早晨/白日: 精力充沛
+    return 0.0;
+  }
 }

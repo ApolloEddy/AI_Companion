@@ -4,7 +4,7 @@
 
 **[English](README_EN.md) | [中文](README.md)**
 
-> **v2.8.0 Update**: UI/UX polished! Added dropdown gender selection, global breathing animation feedback dialogs, and optimized localized prompts.
+> **v2.9.0 Update**: Introducing **Reaction Compass** and **Tone Valve**. The AI now possesses a psychodynamics-based "temper," capable of detecting sarcasm, memes, and dynamically adjusting its defensive stance based on offensiveness.
 
 ---
 
@@ -14,44 +14,47 @@
 
 ## 🏗️ 3-Layer Cognitive Architecture (L1-L3)
 
-The system operates on a unidirectional cognitive pipeline inspired by human cognition.
+The system operates on a unidirectional cognitive pipeline inspired by human cognition:
 
 ```mermaid
 graph TD
-    User --> L1[L1: Perception Core]
-    L1 -->|Perception Result| L2[L2: Decision Core]
-    State[Emotional State (Memory)] --> L2
-    Config[Personality Config] --> L2
-    L2 -->|Inner Monologue| L3[L3: Expression Core]
-    L3 -->|System Prompt| LLM
-    LLM --> Output
+    User[User Input] --> L1(L1: Perception Core)
+    L1 -->|Psych Profiling| Compass(Reaction Compass)
+    Compass -->|Social Stance| L2(L2: Decision Core)
+    L2 -->|Internal State| L3(L3: Expression Core)
+    L3 -->|Tone Valve| LLM[LLM Generation]
+    LLM --> Output[AI Response]
 ```
 
 ### L1: Perception Core
 
-Acts as the sensory cortex. It analyzes input without generating a response.
+Acts as the sensory cortex. It "listens" and "profiles," outputting high-precision JSON structures.
 
-- **Offensiveness (0-10)**: Detects hostility (playful teasing vs. malicious attacks).
-- **Underlying Needs**: Identifies implicit needs (e.g., *need for comfort*, *apology*, *praise*).
-- **Time Sensitivity**: Determines if the physical time context is relevant (e.g., "Good morning").
+- **Semantic Category**: Distinguishes between `meme` (playful), `preference` (likes/dislikes), `boundary` (setting limits), and `fact` (statements).
+- **Social Signal**:
+  - **Offensiveness (0-10)**: Distinguishes playful teasing from malicious attacks.
+  - **Meme Detected**: Identifies if the user is using internet slang/memes.
 
-### L2: Decision Core (The Brain)
+### Reaction Compass
 
-The fusion center where "Thinking" happens. It combines:
+Calculates the AI's social stance based on perception results and current personality state.
 
-- **Perception**: What the user said.
-- **Emotion (V-A-R)**: How the AI feels right now.
-- **Personality (Big Five)**: The AI's innate traits.
+- **Dominance**: Decides whether to be "Assertive" or "Submissive".
+- **Heat**: Decides whether to be "Intense" or "Cold".
+- **Stance**:
+  - `Explosive`: Emotional outburst, confrontation.
+  - `ColdDismissal`: Indifferent, minimal response.
+  - `Vulnerable`: Showing weakness, seeking peace.
+  - `Neutral`: Normal conversation.
 
-It generates an **Inner Monologue** (private thought) and a **Response Strategy** (Pacing, Topic Depth).
+### L3: Expression Core
 
-### L3: Expression Core (The Mouth)
+The execution layer responsible for "speaking," featuring the built-in **Tone Valve**.
 
-Translates abstract decisions into natural language instructions for the LLM.
-
-- **Tone Mapping**: "High Arousal + High Valence" -> "Excited/Playful".
-- **Pacing Control**: Appends instructions for `single_shot` or `burst` mode.
-- **Constraint Enforcement**: Ensures no forbidden patterns or lengths are violated.
+- **Tone Valve**: Injects mandatory behavioral constraints via System Prompt based on Resentment and Cognitive Laziness.
+  - **Hostile Level**: Strips service-oriented language, forbids apologies, forces short sentences.
+  - **Cold Level**: Acts distant like a stranger, strips adjectives.
+- **Pronoun Transformation**: Converts "He/She" in thoughts to "You" in dialogue.
 
 ## 🧠 Psychological Models & Formulas
 
@@ -68,7 +71,7 @@ graph TD
     Intimacy -->|Buffer Factor| Emotion(Emotion E)
     Emotion -->|Growth Multiplier| Intimacy
     Hostility -->|Accumulated Resentment| Resentment(Resentment R)
-    Resentment -->|Threshold Block| Emotion
+    Resentment -->|Tone Valve| Output[Tone Valve]
 ```
 
 #### A. V-A-R 3D Emotion Space
@@ -80,9 +83,8 @@ E_{t} = E_{t-1} + \Delta E_{stimulus} \times (1 - |E_{t-1}|)^\alpha
 $$
 
 - **Valence** $v \in [-1, 1]$: Pleasure vs. Displeasure.
-- **Arousal** $a \in [0, 1]$: Energy level. Anger (High A) vs. Depression (Low A).
-- **Resentment** $r \in [0, 1]$: Long-term accumulated grudge.
-  - **Meltdown Condition**: Triggers when $r > 0.8 \land v < -0.7$, rejecting all positive interactions.
+- **Arousal** $a \in [0, 1]$: Energy level.
+- **Resentment** $r \in [0, 1]$: Long-term accumulated grudge; directly determines the Tone Valve threshold.
 
 #### B. Intimacy Growth Function
 
@@ -91,13 +93,6 @@ Follows the law of diminishing returns, modulated by emotional state.
 $$
 \Delta I = Q_{interaction} \times E_{multiplier} \times T_{cooling} \times B(I)
 $$
-
-1. **Interaction Quality** $Q = f(Confidence, Valence) - Hostility \times 0.1$
-2. **Emotion Multiplier** $E = 1 + (v \times 0.3)$ *(Happy AI bonds faster)*
-3. **Time Factor** $T$: Penalizes spamming; interval approaching zero leads to $T \to 0$.
-4. **Marginal Decay** $B(I) = \sqrt{1 - I}$ *(Harder to level up at higher tiers)*
-
----
 
 ### 2. Cognitive Laziness & Bio-Rhythm
 
@@ -111,40 +106,15 @@ $$
 Trait_{effective} = Trait_{base} \times (1 - Fatigue \times W_{trait})
 $$
 
-| Trait | Fatigue Weight $W$ | Impact |
-| :--- | :--- | :--- |
-| **Openness** | 0.9 | Creativity drops significantly; responses become clichéd. |
-| **Conscientiousness** | 0.8 | Stops "thinking deep" (CoT), favoring intuitive/lazy responses. |
-| **Extraversion** | 0.5 | Willingness to initiate topics decreases; becomes passive. |
-
----
-
 ### 3. Social Radar & Micro-Expressions
 
 L1 Perception Core has built-in detectors for specific social signals, triggering **Instant Micro-Emotions**.
 
-| Signal Type | Trigger Condition | Micro-Emotion | Behavioral Result |
-| :--- | :--- | :--- | :--- |
-| **Jealousy** | Mentioning other AIs or partners | `jealousy_mild` | Tone becomes prickly; slight arousal increase. |
-| **High Praise** | Extreme praise/confession | `pride_hidden` | Feigns modesty but boosts intimacy. |
-| **Neglect** | Perfunctory 1-word reply ("Oh") | `disappointed` | Reduces response length; triggers mirror defense. |
-
----
-
-### 4. Personality Evolution Engine
-
-> **v2.8.0 Feature**: Supports drag-and-drop initial persona sculpting via "Genesis Radar".
-
-Uses reinforcement learning to fine-tune Big Five parameters in real-time.
-
-$$
-\Delta Trait_i = D_{ir} \times M_{ag} \times A_{ctivation} \times I_{ntimacy} \times P(t)
-$$
-
-- $D_{ir}$: Feedback Direction (+1/-1).
-- $M_{ag}$: Magnitude (Negative feedback weight is typically 1.2x positive).
-- $A_{ctivation}$: Activation level of the trait in current response (Attribution).
-- $P(t)$: **Neuroplasticity**, decays over time $P(t) \propto \frac{1}{t}$, simulating personality stabilization in adulthood.
+| Signal Type | Trigger Condition | Behavioral Result |
+| :--- | :--- | :--- |
+| **Meme** | Internet slang/memes | Skips fact extraction, responds playfully |
+| **Boundary** | User sets boundaries | Triggers `Respect` intent, lowers intimacy attempts |
+| **Sarcasm** | Sarcastic praise | Marked as negative feedback, triggers introspection |
 
 ## 🚀 Deployment
 

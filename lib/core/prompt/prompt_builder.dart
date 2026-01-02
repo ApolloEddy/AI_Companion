@@ -11,7 +11,14 @@ import '../model/user_profile.dart';
 import '../perception/perception_processor.dart';
 import '../decision/reflection_processor.dart';
 import '../policy/prohibited_patterns.dart';
+import '../mechanisms/reaction_engine.dart';
 
+/// 【Reaction Compass】语气阀门等级
+enum ToneValveLevel {
+  normal,   // Level 1: 正常交流
+  cold,     // Level 2: 低能冷淡
+  hostile,  // Level 3: 敌意防御
+}
 
 /// L2 决策结果 - 结构化的决策输出
 class L2DecisionResult {
@@ -290,8 +297,62 @@ class PromptBuilder {
     }
     return ''; // 正常模式无额外指令
   }
+  
+  // ==================== 【Reaction Compass】Tone Valve ====================
+  
+  /// 【Reaction Compass】计算语气阀门等级
+  /// 
+  /// [resentment] - 怨恨值 (0-1)
+  /// [laziness] - 认知惰性 (0-1)
+  /// [offensiveness] - 攻击性评分 (0-10)
+  static ToneValveLevel calculateToneValve({
+    required double resentment,
+    required double laziness,
+    required int offensiveness,
+  }) {
+    // Level 3: Hostile (敌意防御)
+    if (offensiveness > 6 || resentment > 0.8) {
+      return ToneValveLevel.hostile;
+    }
+    // Level 2: Cold (低能冷淡)
+    if (laziness > 0.6 || resentment > 0.4) {
+      return ToneValveLevel.cold;
+    }
+    // Level 1: Normal
+    return ToneValveLevel.normal;
+  }
+  
+  /// 【Reaction Compass】获取 Tone Valve 约束注入内容
+  static String getToneValveConstraint(ToneValveLevel level) {
+    switch (level) {
+      case ToneValveLevel.hostile:
+        return '''
 
+【防御协议】
+- 剥离服务性，禁止道歉
+- 强制短句 (<5字)
+- 可以回怼或直接无视
+- 禁止任何解释性语言''';
+      case ToneValveLevel.cold:
+        return '''
 
+【低能协议】
+- 剥离修辞，禁止形容词
+- 像路人一样冷淡
+- 不主动延续话题
+- 最大回复长度: 2句''';
+      case ToneValveLevel.normal:
+        return '';
+    }
+  }
+  
+  /// 【Reaction Compass】获取 ReactionStance 描述 (用于 L3 注入)
+  static String getStanceDescription(ReactionResult? reaction) {
+    if (reaction == null || reaction.stance == ReactionStance.neutral) {
+      return '';
+    }
+    return '\n${reaction.description}';
+  }
 
   static String _lengthDescription(double length) {
     if (length < 0.3) return '极简（一两句话甚至一个词）';

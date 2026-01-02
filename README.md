@@ -4,7 +4,7 @@
 
 **[English](README_EN.md) | [中文](README.md)**
 
-> **v2.8.0 更新**: 界面美化升级！新增下拉式性别选择、全局呼吸动画反馈弹窗，并优化了 Prompt 本地化体验。
+> **v2.9.0 更新**: 引入 **Reaction Compass (反应罗盘)** 和 **Tone Valve (语气阀门)**，AI 现在拥有了基于心理动力学的“脾气”，能识别反讽、玩梗并根据攻击性动态调整防御姿态。
 
 ---
 
@@ -19,34 +19,42 @@
 ```mermaid
 graph TD
     UserInput[用户输入] --> L1(L1: 感知核心)
-    L1 -->|感知结果| L2(L2: 决策核心)
+    L1 -->|心理侧写| Compass(Reaction Compass: 反应罗盘)
+    Compass -->|反应姿态| L2(L2: 决策核心)
     L2 -->|内在状态| L3(L3: 表达核心)
-    L3 -->|System Prompt| LLM[LLM 生成]
+    L3 -->|Tone Valve| LLM[LLM 生成]
     LLM --> Output[AI 回复]
 ```
 
 ### L1: 感知核心 (Perception Core)
 
-负责“听”和“感觉”，而非“回答”。
+负责“听”和“侧写”，输出高精度 JSON 结构。
 
-- **敌意检测 (Offensiveness)**: 0-10 评分，区分“打情骂俏”与“恶意攻击”。
-- **需求分析 (Underlying Needs)**: 识别用户的隐性需求（如求安慰、求道歉）。
-- **环境感知**: 结合物理时间与上下文判断语境。
+- **语义分类 (Semantic Category)**: 能够区分 `meme` (玩梗)、`preference` (偏好)、`boundary` (边界设立) 与 `fact` (事实陈述)。
+- **社交信号 (Social Signal)**:
+  - **Offensiveness**: 0-10 评分，区分“打情骂俏”与“恶意攻击”。
+  - **Meme Detected**: 识别用户是否在使用网络流行语。
 
-### L2: 决策核心 (Decision Core)
+### Reaction Compass: 反应罗盘
 
-负责“思考”的融合层。将感知结果与**当前情绪 (V-A-R)** 及 **五大人格 (Big Five)** 融合。
+基于感知结果与当前人格状态，计算 AI 的社交姿态。
 
-- **内心独白**: 生成一段私密的思维链 (CoT)。
-- **策略制定**: 决定回复节奏 (秒回/迟疑)、话题深度 (闲聊/深谈) 及情感倾向。
+- **Dominance (支配度)**: 决定是“硬刚”还是“顺从”。
+- **Heat (热度)**: 决定是“激烈”还是“冷漠”。
+- **Stance (反应姿态)**:
+  - `Explosive`: 情绪爆发，正面硬刚。
+  - `ColdDismissal`: 冷漠无视，极简回复。
+  - `Vulnerable`: 示弱求和，表达受伤。
+  - `Neutral`: 正常对话。
 
 ### L3: 表达核心 (Expression Core)
 
-负责“说话”的执行层。
+负责“说话”的执行层，内置 **Tone Valve (语气阀门)**。
 
-- **语气映射**: 将抽象的情绪坐标映射为具体的语气指令 (如 "慵懒"、"兴奋")。
+- **Tone Valve**: 根据怨恨值和认知惰性，通过 System Prompt 注入强制性行为约束。
+  - **Hostile Level**: 剥离服务性，禁止道歉，强制短句。
+  - **Cold Level**: 像路人一样冷淡，剥离形容词。
 - **代词转换**: 将思考中的第三人称 ("他") 转换为对话中的第二人称 ("你")。
-- **约束注入**: 动态注入字数限制与禁忌语。
 
 ## 🧠 心理学模型与公式 (Psychological Models & Formulas)
 
@@ -63,7 +71,7 @@ graph TD
     Intimacy -->|缓冲因子| Emotion(情绪 E)
     Emotion -->|增长乘数| Intimacy
     Hostility -->|累积怨恨| Resentment(怨恨 R)
-    Resentment -->|阈值阻断| Emotion
+    Resentment -->|Tone Valve| Output[语气阀门]
 ```
 
 #### A. V-A-R 三维情绪空间
@@ -74,10 +82,9 @@ $$
 E_{t} = E_{t-1} + \Delta E_{stimulus} \times (1 - |E_{t-1}|)^\alpha
 $$
 
-- **效价 (Valence)** $v \in [-1, 1]$: 愉悦程度。正值代表快乐，负值代表痛苦。
-- **唤醒度 (Arousal)** $a \in [0, 1]$: 能量水平。愤怒(High A, Low V) vs 抑郁(Low A, Low V)。
-- **怨恨值 (Resentment)** $r \in [0, 1]$: 长期负面累积。
-  - **Meltdown Condition**: 当 $r > 0.8 \land v < -0.7$ 时，触发心理崩溃，拒绝一切正向交互。
+- **效价 (Valence)** $v \in [-1, 1]$: 愉悦程度。
+- **唤醒度 (Arousal)** $a \in [0, 1]$: 能量水平。
+- **怨恨值 (Resentment)** $r \in [0, 1]$: 长期负面累积，直接决定 Tone Valve 的开启阙值。
 
 #### B. 亲密度增长函数 (Intimacy Growth)
 
@@ -86,13 +93,6 @@ $$
 $$
 \Delta I = Q_{interaction} \times E_{multiplier} \times T_{cooling} \times B(I)
 $$
-
-1. **交互质量** $Q = f(Confidence, Valence) - Hostility \times 0.1$
-2. **情绪乘数** $E = 1 + (v \times 0.3)$ *(心情好时更容易建立关系)*
-3. **时间因子** $T$: 防止刷屏，交互间隔过短会导致 $T \to 0$。
-4. **边际衰减** $B(I) = \sqrt{1 - I}$ *(等级越高升级越难)*
-
----
 
 ### 2. 认知懒惰与生理节律 (Cognitive Laziness & Bio-Rhythm)
 
@@ -106,40 +106,15 @@ $$
 Trait_{effective} = Trait_{base} \times (1 - Fatigue \times W_{trait})
 $$
 
-| 特质 (Trait) | 疲劳权重 $W$ | 表现影响 |
-| :--- | :--- | :--- |
-| **Openness** | 0.9 | 创造力大幅下降，回复变得平庸、套路化。 |
-| **Conscientiousness** | 0.8 | 不再认真通过 CoT 思考深层逻辑，倾向于直觉回复。 |
-| **Extraversion** | 0.5 | 主动开启话题的意愿降低，变为被动应答。 |
-
----
-
 ### 3. 社会雷达与微表情 (Social Radar & Micro-Expressions)
 
 L1 感知层内置了针对特定社交信号的检测器，能捕捉人类微妙的社交意图并触发**瞬时微情绪**。
 
-| 信号类型 (Signal) | 触发条件 | 响应微情绪 (Micro-Emotion) | 行为结果 |
-| :--- | :--- | :--- | :--- |
-| **Jealousy** | 提及其他 AI 或亲密对象 | `jealousy_mild` (吃醋) | 语气带刺，唤醒度轻微上升 |
-| **High Praise** | 极度赞扬/表白 | `pride_hidden` (得意) | 表面谦虚但增加亲密度 |
-| **Neglect** | 敷衍单字回复 ("哦", "呵") | `disappointed` (失落) | 降低回复长度，触发镜像防御 |
-
----
-
-### 4. 人格进化引擎 (Personality Evolution)
-
-> **v2.8.0 Feature**: 支持通过“人格塑形雷达”直观拖拽设定初始人格。
-
-使用强化学习即时微调 Big Five 参数。
-
-$$
-\Delta Trait_i = D_{ir} \times M_{ag} \times A_{ctivation} \times I_{ntimacy} \times P(t)
-$$
-
-- $D_{ir}$: 反馈方向 (+1/-1)。
-- $M_{ag}$: 幅度系数 (负反馈权重通常是正反馈的 1.2 倍)。
-- $A_{ctivation}$: 当前回复中该特质的激活程度 (归因权重)。
-- $P(t)$: **神经可塑性 (Neuroplasticity)**，随时间衰减 $P(t) \propto \frac{1}{t}$，模拟成年后人格趋于稳定。
+| 信号类型 (Signal) | 触发条件 | 行为结果 |
+| :--- | :--- | :--- |
+| **Meme** | 玩梗/流行语 | 跳过事实提取，轻松回应 |
+| **Boundary** | 用户设立边界 | 触发 `Respect` 意图，降低亲密度尝试 |
+| **Sarcasm** | 反讽夸奖 | 标记为负面反馈，触发自省 |
 
 ## 🛠️ 部署与使用
 

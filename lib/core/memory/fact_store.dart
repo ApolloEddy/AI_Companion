@@ -356,8 +356,26 @@ class FactStore {
   /// Phase 4: 完全配置化的提取器
   /// - 从 YAML 读取所有类型的正则模式
   /// - 动态构建提取逻辑，无需硬编码
-  Future<List<String>> extractAndStore(String text) async {
+  /// 
+  /// 【Reaction Compass】增加 perception 参数用于玩梗/闲聊过滤
+  Future<List<String>> extractAndStore(String text, {dynamic perception}) async {
     final extracted = <String>[];
+    
+    // 【Reaction Compass】玩梗/闲聊过滤器
+    if (perception != null) {
+      // 动态检查 semanticCategory (兼容 PerceptionResult 类型)
+      final semanticCategory = _getSemanticCategory(perception);
+      if (semanticCategory == 'meme' || semanticCategory == 'chat') {
+        print('[FactStore] 🛡️ Skipped extraction (meme/chat): $semanticCategory');
+        return extracted; // 不存储任何事实
+      }
+      
+      // 检查是否检测到玩梗
+      if (_isMemeDetected(perception)) {
+        print('[FactStore] 🛡️ Skipped extraction (meme detected)');
+        return extracted;
+      }
+    }
     
     // Phase 4: 使用配置驱动的动态模式
     final allPatterns = SettingsLoader.allFactPatterns;
@@ -535,6 +553,39 @@ $typeDescriptions
     }
     
     return extracted;
+  }
+  
+  /// 【Reaction Compass】动态获取语义类型 (兼容 PerceptionResult)
+  String _getSemanticCategory(dynamic perception) {
+    if (perception == null) return 'unknown';
+    
+    // 尝试访问 semanticCategory 属性
+    try {
+      final category = perception.semanticCategory;
+      if (category != null) {
+        // 如果是枚举，返回其 name
+        return category.toString().split('.').last;
+      }
+    } catch (_) {}
+    
+    return 'unknown';
+  }
+  
+  /// 【Reaction Compass】检查是否检测到玩梗
+  bool _isMemeDetected(dynamic perception) {
+    if (perception == null) return false;
+    
+    try {
+      // 尝试访问 isMeme 属性
+      return perception.isMeme == true;
+    } catch (_) {
+      // 尝试访问 socialSignal.memeDetected
+      try {
+        return perception.socialSignal?.memeDetected == true;
+      } catch (_) {}
+    }
+    
+    return false;
   }
 }
 

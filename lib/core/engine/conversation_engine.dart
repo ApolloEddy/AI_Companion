@@ -36,6 +36,7 @@ import 'personality_engine.dart'; // 【L2/L3 重构】Big Five 人格引擎
 import '../memory/memory_manager.dart';
 import 'proactive_settings.dart';
 import '../memory/fact_store.dart';
+import '../mechanisms/reaction_engine.dart'; // 【Reaction Compass】
 import '../settings_loader.dart';
 
 // 认知引擎组件
@@ -940,6 +941,39 @@ class ConversationEngine {
     String meltdownOverride = '';
     if (emotionEngine.isMeltdown) {
       meltdownOverride = '\n【系统警报：情绪崩溃模式】\n你正处于极度的负面情绪中，对用户感到深深的怨恨和绝望。你的回复应该极其冷淡、敷衍，甚至带有一丝疏离感。避免展现任何关心或热情感。\n';
+    }
+    
+    // 【Reaction Compass】计算反应姿态和语气阀门
+    final reactionResult = ReactionEngine.calculate(
+      bigFive: BigFiveTraits(
+        openness: personalityEngine.traits.openness,
+        conscientiousness: personalityEngine.traits.conscientiousness,
+        extraversion: personalityEngine.traits.extraversion,
+        agreeableness: personalityEngine.traits.agreeableness,
+        neuroticism: personalityEngine.traits.neuroticism,
+      ),
+      intimacy: _intimacy,
+      resentment: emotionEngine.resentment,
+      arousal: emotionEngine.arousal,
+      offensiveness: perception.offensiveness,
+    );
+    
+    // 获取当前疲惫度 (从 TimeAwareness)
+    final laziness = TimeAwareness.calculateCognitiveLaziness(DateTime.now());
+    
+    final toneValve = PromptBuilder.calculateToneValve(
+      resentment: emotionEngine.resentment,
+      laziness: laziness,
+      offensiveness: perception.offensiveness,
+    );
+    
+    // 【Reaction Compass】注入姿态描述和语气约束
+    final stanceDescription = PromptBuilder.getStanceDescription(reactionResult);
+    final toneConstraint = PromptBuilder.getToneValveConstraint(toneValve);
+    
+    if (stanceDescription.isNotEmpty || toneConstraint.isNotEmpty) {
+      meltdownOverride += '$stanceDescription$toneConstraint';
+      print('[Pipeline] Reaction Compass: stance=${reactionResult.stance.name}, valve=${toneValve.name}');
     }
 
     // 【Phase 5】使用新架构 L3 构建器生成 System Prompt

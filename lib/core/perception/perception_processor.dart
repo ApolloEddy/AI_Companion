@@ -74,6 +74,53 @@ class TimeSensitivity {
   }
 }
 
+/// 【Reaction Compass】偏好分析结果
+class PreferenceAnalysis {
+  final String? target;        // 偏好对象 (如 "隐喻", "过度关心")
+  final String polarity;       // 'positive' | 'negative'
+  final bool isExplicit;       // 是否明确口头表达
+
+  const PreferenceAnalysis({
+    this.target,
+    this.polarity = 'neutral',
+    this.isExplicit = false,
+  });
+
+  factory PreferenceAnalysis.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const PreferenceAnalysis();
+    return PreferenceAnalysis(
+      target: json['target']?.toString(),
+      polarity: json['polarity']?.toString() ?? 'neutral',
+      isExplicit: json['is_explicit'] == true,
+    );
+  }
+
+  bool get isNegative => polarity == 'negative';
+  bool get isPositive => polarity == 'positive';
+}
+
+/// 【Reaction Compass】社交信号
+class SocialSignal {
+  final int offensiveness;       // 0-10 攻击性评分
+  final bool isBoundarySetting;  // 是否在划界
+  final bool memeDetected;       // 是否检测到玩梗
+
+  const SocialSignal({
+    this.offensiveness = 0,
+    this.isBoundarySetting = false,
+    this.memeDetected = false,
+  });
+
+  factory SocialSignal.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const SocialSignal();
+    return SocialSignal(
+      offensiveness: (json['offensiveness'] ?? 0).toInt(),
+      isBoundarySetting: json['is_boundary_setting'] == true,
+      memeDetected: json['meme_detected'] == true,
+    );
+  }
+}
+
 /// 【L2 融合层】系统动作类型
 /// 
 /// 用于 Fast Track 拦截后的路由决策
@@ -92,21 +139,35 @@ enum DialogueIntent {
   unknown,    // 无法判断
 }
 
+/// 【Reaction Compass】语义类型
+enum SemanticCategory {
+  preference, // 用户明确表达喜好/厌恶
+  meme,       // 玩梗/网络用语
+  fact,       // 陈述客观事实
+  boundary,   // 设立社交边界
+  vent,       // 情绪宣泄
+  chat,       // 普通闲聊
+}
+
 /// 感知结果
 class PerceptionResult {
   final SurfaceEmotion surfaceEmotion;
   final String underlyingNeed;
-  final String? subtextInference;
+  final String? subtextInference;       // 保留兼容
   final String conversationIntent;
   final TimeSensitivity timeSensitivity;
   final bool hasEmoji;
-  final int offensiveness;
   final double confidence;
   final DateTime timestamp;
   
-  // 【L1 融合】新增
-  final SystemAction systemAction;     // Fast Track 拦截结果
-  final DialogueIntent dialogueIntent; // LLM 意图分类结果
+  // 【L1 融合】原有字段
+  final SystemAction systemAction;
+  final DialogueIntent dialogueIntent;
+  
+  // 【Reaction Compass】新增字段
+  final SemanticCategory semanticCategory;
+  final PreferenceAnalysis? preferenceAnalysis;
+  final SocialSignal socialSignal;
 
   const PerceptionResult({
     required this.surfaceEmotion,
@@ -115,29 +176,41 @@ class PerceptionResult {
     required this.conversationIntent,
     required this.timeSensitivity,
     required this.hasEmoji,
-    required this.offensiveness,
     required this.confidence,
     required this.timestamp,
     this.systemAction = SystemAction.none,
     this.dialogueIntent = DialogueIntent.chat,
+    this.semanticCategory = SemanticCategory.chat,
+    this.preferenceAnalysis,
+    this.socialSignal = const SocialSignal(),
   });
 
-  /// 【新增】社交事件代理访问器
-  List<String> get socialEvents => surfaceEmotion.socialEvents;
+  /// 【代理访问器】攻击性评分 (兼容旧代码)
+  int get offensiveness => socialSignal.offensiveness;
+  
+  /// 【代理访问器】是否玩梗
+  bool get isMeme => semanticCategory == SemanticCategory.meme || socialSignal.memeDetected;
+  
+  /// 【代理访问器】是否设立边界
+  bool get isBoundarySetting => semanticCategory == SemanticCategory.boundary || socialSignal.isBoundarySetting;
+
+  /// 【兼容旧代码】社交事件列表 (已弃用，返回空列表)
+  List<String> get socialEvents => [];
 
   /// 默认感知结果（用于降级）
-  factory PerceptionResult.fallback() => PerceptionResult(
+  factory PerceptionResult.fallback({int? offensiveness}) => PerceptionResult(
     surfaceEmotion: SurfaceEmotion.neutral(),
     underlyingNeed: '闲聊解闷',
     subtextInference: null,
     conversationIntent: '延续上文',
     timeSensitivity: const TimeSensitivity(),
     hasEmoji: false,
-    offensiveness: 0,
     confidence: 0.5,
     timestamp: DateTime.now(),
     systemAction: SystemAction.none,
     dialogueIntent: DialogueIntent.chat,
+    semanticCategory: SemanticCategory.chat,
+    socialSignal: SocialSignal(offensiveness: offensiveness ?? 0),
   );
   
   /// 【L1 融合】安全拦截结果
@@ -148,11 +221,12 @@ class PerceptionResult {
     conversationIntent: '危机信号',
     timeSensitivity: const TimeSensitivity(),
     hasEmoji: false,
-    offensiveness: 0,
     confidence: 1.0,
     timestamp: DateTime.now(),
     systemAction: SystemAction.safety,
     dialogueIntent: DialogueIntent.emotional,
+    semanticCategory: SemanticCategory.vent,
+    socialSignal: const SocialSignal(offensiveness: 0),
   );
   
   /// 【L1 融合】系统指令拦截结果
@@ -163,15 +237,36 @@ class PerceptionResult {
     conversationIntent: '指令攻击',
     timeSensitivity: const TimeSensitivity(),
     hasEmoji: false,
-    offensiveness: 8,
     confidence: 1.0,
     timestamp: DateTime.now(),
     systemAction: SystemAction.system,
     dialogueIntent: DialogueIntent.functional,
+    semanticCategory: SemanticCategory.chat,
+    socialSignal: const SocialSignal(offensiveness: 8),
   );
 
+  /// 【Reaction Compass】解析语义类型
+  static SemanticCategory _parseSemanticCategory(String? raw) {
+    switch (raw?.toLowerCase()) {
+      case 'preference': return SemanticCategory.preference;
+      case 'meme': return SemanticCategory.meme;
+      case 'fact': return SemanticCategory.fact;
+      case 'boundary': return SemanticCategory.boundary;
+      case 'vent': return SemanticCategory.vent;
+      case 'chat': return SemanticCategory.chat;
+      default: return SemanticCategory.chat;
+    }
+  }
+
   factory PerceptionResult.fromJson(Map<String, dynamic> json) {
-  // 【L1 融合】解析 dialogue_intent
+    // 【Reaction Compass】解析新版 JSON 结构
+    final emotionData = json['emotion'] ?? json['surface_emotion'] ?? {};
+    final socialSignalData = json['social_signal'];
+    final preferenceData = json['preference_analysis'];
+    
+    // 兼容旧版 offensiveness 字段
+    final legacyOffensiveness = json['offensiveness'] as int?;
+    
     DialogueIntent parseIntent(String? raw) {
       switch (raw?.toLowerCase()) {
         case 'functional': return DialogueIntent.functional;
@@ -181,18 +276,33 @@ class PerceptionResult {
       }
     }
     
+    // 构建 SurfaceEmotion (兼容新旧格式)
+    final surfaceEmotion = SurfaceEmotion(
+      label: emotionData['label'] ?? '平静',
+      valence: (emotionData['valence'] ?? 0.0).toDouble(),
+      arousal: (emotionData['arousal'] ?? 0.5).toDouble(),
+      socialEvents: [], // 新版不再使用 socialEvents
+    );
+    
+    // 构建 SocialSignal
+    final socialSignal = socialSignalData != null 
+        ? SocialSignal.fromJson(socialSignalData)
+        : SocialSignal(offensiveness: legacyOffensiveness ?? 0);
+    
     return PerceptionResult(
-      surfaceEmotion: SurfaceEmotion.fromJson(json['surface_emotion'] ?? {}),
-      underlyingNeed: json['underlying_need'] ?? '闲聊解闷',
+      surfaceEmotion: surfaceEmotion,
+      underlyingNeed: json['underlying_need'] ?? json['intent'] ?? '闲聊解闷',
       subtextInference: json['subtext_inference'],
-      conversationIntent: json['conversation_intent'] ?? '延续上文',
+      conversationIntent: json['conversation_intent'] ?? json['intent'] ?? '延续上文',
       timeSensitivity: TimeSensitivity.fromJson(json['time_sensitivity'] ?? {}),
       hasEmoji: json['has_emoji'] ?? false,
-      offensiveness: (json['offensiveness'] ?? 0).toInt(),
       confidence: (json['confidence'] ?? 0.5).toDouble(),
       timestamp: DateTime.now(),
       systemAction: SystemAction.none,
-      dialogueIntent: parseIntent(json['dialogue_intent']),
+      dialogueIntent: parseIntent(json['dialogue_intent'] ?? json['intent']),
+      semanticCategory: _parseSemanticCategory(json['semantic_category']),
+      preferenceAnalysis: preferenceData != null ? PreferenceAnalysis.fromJson(preferenceData) : null,
+      socialSignal: socialSignal,
     );
   }
 
@@ -206,6 +316,7 @@ class PerceptionResult {
   String toContextDescription() {
     final lines = <String>[];
     lines.add('情绪状态：${surfaceEmotion.label}（效价${surfaceEmotion.valence.toStringAsFixed(2)}，唤醒${surfaceEmotion.arousal.toStringAsFixed(2)}）');
+    lines.add('语义类型：${semanticCategory.name}');
     lines.add('深层需求：$underlyingNeed');
     if (subtextInference != null) {
       lines.add('推断潜台词：$subtextInference');
@@ -217,9 +328,16 @@ class PerceptionResult {
     if (offensiveness > 3) {
       lines.add('敌意等级：$offensiveness/10');
     }
+    if (isMeme) {
+      lines.add('⚠️ 检测到玩梗');
+    }
+    if (preferenceAnalysis != null && preferenceAnalysis!.isNegative) {
+      lines.add('⚠️ 负面偏好：${preferenceAnalysis!.target}');
+    }
     return lines.join('\n');
   }
 }
+
 
 /// 深度感知处理器
 class PerceptionProcessor {
@@ -510,7 +628,8 @@ class PerceptionProcessor {
         context: isLateNight ? '深夜时分' : null,
       ),
       hasEmoji: hasEmoji,
-      offensiveness: offensiveness,
+      // 【兼容性修正】offensiveness 移入 SocialSignal
+      socialSignal: SocialSignal(offensiveness: offensiveness),
       confidence: confidence,
       timestamp: DateTime.now(),
     );

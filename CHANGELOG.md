@@ -13,12 +13,42 @@ All notable changes to this project will be documented in this file.
 - **Configuration Mapping**: 全面引入强类型配置映射层 (Dart Config)，`SettingsLoader` 现代理所有 Config 实例，实现了 YAML 到 Dart 对象的一对一映射，增强了类型安全与默认值兜底能力。
 - **UI Strings Externalization**: 创建 `assets/settings/ui_strings.yaml`，开始将硬编码的中文 UI 文本剥离至独立配置文件。
 
+## [2.9.0] - 2026-01-02 (Reaction Compass Update)
+
+### Added
+
+- **Reaction Compass (反应罗盘)**: 实现了基于 Dominance/Heat 双维度的社交姿态计算引擎。
+  - **Dominance (支配度)**: 综合 Personality Agreeableness, Extraversion, Intimacy 及 Resentment 计算。
+  - **Heat (热度)**: 综合 Personality Neuroticism 及 Emotional Arousal 计算。
+  - **Stance Output**: 支持 `Explosive` (爆发), `ColdDismissal` (冷漠), `Vulnerable` (示弱), `Withdrawal` (撤退) 四种动态姿态。
+- **Tone Valve (语气阀门)**:
+  - **Hostile Level**: 当攻击性极高或怨恨值过载时触发，强制剥离服务性语言，禁止道歉。
+  - **Cold Level**: 当认知惰性过高或处于中度怨恨时触发，强制冷淡路人语气。
+- **High-Precision Perception (高精度感知)**:
+  - **L1 Upgrade**: `PerceptionResult` 升级为包含 `preference_analysis`, `social_signal`, `semantic_category` 的高精度模型。
+  - **Meme Filter**: `FactStore` 新增玩梗/闲聊过滤器，防止将 "掉小珍珠" 误存为生理特征。
+  - **Cognitive Laziness**: `TimeAwareness` 新增基于时间（深夜3-4点）的认知惰性计算曲线。
+
 ### Changed
 
-- **由四变三**: 认知架构重构为 **L1 感知 (Perception) -> L2 决策 (Decision) -> L3 表达 (Expression)** 三层模型。
-  - 移除了独立的 L2 情绪层 (Emoji/Valence)，将其融合进 L1 与 L2 决策流。
-  - 将原 L3 意图层升级为 L2 决策核心 (Decision Core)。
-  - 将原 L4 表达层重命名为 L3 表达核心 (Expression Core)。
+- **L1 Prompt**: 全面覆盖为新的 JSON 结构化侧写模板，引入严格的 **Negative Bias Protocol** (负面反馈优先) 和 **Attribution Check** (归因校验)。
+- **Conversation Pipeline**: `CombinationEngine` 现已集成 `ReactionEngine`，在生成 L3 Prompt 前会动态注入 Stance 描述和 Valve 约束。
+
+### Documentation
+
+- **README Refactor**: 重构 README 文档，新增 Reaction Compass 架构图及 Tone Valve 机制说明。
+
+### Fixed
+
+- **Compilation Fixes**: 修复了 `socialEvents` 字段移除导致的编译兼容性问题，以及 `fallback` 方法缺失参数的问题。
+
+## [2.8.0] - 2026-01-02 (Cognitive Architecture Refactoring)
+
+### Added
+
+- 移除了独立的 L2 情绪层 (Emoji/Valence)，将其融合进 L1 与 L2 决策流。
+- 将原 L3 意图层升级为 L2 决策核心 (Decision Core)。
+- 将原 L4 表达层重命名为 L3 表达核心 (Expression Core)。
 - **Prompt 标准化**: `prompt_templates.yaml` 中的所有 Prompt (包括 L1) 统一对齐为 L2/L3 的 Markdown 格式 (Headers, Lists, Alerts)。
 - **去硬编码**: 移除了 `PromptBuilder` 中残留的硬编码 `buildSynthesisPrompt` 及字符串拼接逻辑，完全实现 YAML 配置驱动。
 

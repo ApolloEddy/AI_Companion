@@ -46,7 +46,7 @@ class UserProfile {
   /// 空白配置 - 用户背景将从对话中学习
   factory UserProfile.empty() {
     return const UserProfile(
-      nickname: 'User',  // 默认昵称，会从对话中学习
+      nickname: '用户',  // 默认昵称（中文本地化），会从对话中学习
       occupation: '',     // 空白，从对话中提取
       major: null,
       age: null,
@@ -170,7 +170,7 @@ class UserProfile {
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
-      nickname: json['nickname'] ?? 'User',
+      nickname: json['nickname'] ?? '用户',
       callSign: json['callSign'],
       occupation: json['occupation'] ?? '',
       major: json['major'],

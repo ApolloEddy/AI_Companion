@@ -48,54 +48,98 @@ graph TD
 - **代词转换**: 将思考中的第三人称 ("他") 转换为对话中的第二人称 ("你")。
 - **约束注入**: 动态注入字数限制与禁忌语。
 
-## 🧠 心理学模型与公式
+## 🧠 心理学模型与公式 (Psychological Models & Formulas)
 
-### 1. H-E-I 动力学反馈环
+本系统不依赖黑盒大模型的情绪模拟，而是基于经典的心理学数学模型构建了**可解释、可量化**的计算核心。
 
-将**敌意 (Hostility)**、**情绪 (Emotion)** 与 **亲密度 (Intimacy)** 耦合的统一模型。
+### 1. H-E-I 动力学反馈环 (H-E-I Dynamics)
 
-#### V-A-R 情绪模型
+一个将**敌意 (Hostility)**、**情绪 (Emotion)** 与 **亲密度 (Intimacy)** 深度耦合的非线性动力学系统。
 
-基于 Russell 环形模型，增加了 Z 轴 **怨恨值 (Resentment)**。
+```mermaid
+graph TD
+    Input[用户输入] -->|敌意检测| Hostility(敌意值 H)
+    Hostility -->|即时扣减| Intimacy(亲密度 I)
+    Intimacy -->|缓冲因子| Emotion(情绪 E)
+    Emotion -->|增长乘数| Intimacy
+    Hostility -->|累积怨恨| Resentment(怨恨 R)
+    Resentment -->|阈值阻断| Emotion
+```
 
-```math
+#### A. V-A-R 三维情绪空间
+
+基于 Russell 环形模型扩展，引入 Z 轴 **怨恨值** 以模拟长期记忆对情绪的影响。
+
+$$
 E_{t} = E_{t-1} + \Delta E_{stimulus} \times (1 - |E_{t-1}|)^\alpha
-```
+$$
 
-- **效价 (Valence)**: 愉悦程度 (-1 ~ 1)。
-- **唤醒度 (Arousal)**: 能量水平 (0 ~ 1)。即便是愤怒也是高唤醒。
-- **怨恨值 (Resentment)**: 长期累积的负面状态。*怨恨值 > 0.8 会触发心理创伤模式 (Trauma Mode)*。
+- **效价 (Valence)** $v \in [-1, 1]$: 愉悦程度。正值代表快乐，负值代表痛苦。
+- **唤醒度 (Arousal)** $a \in [0, 1]$: 能量水平。愤怒(High A, Low V) vs 抑郁(Low A, Low V)。
+- **怨恨值 (Resentment)** $r \in [0, 1]$: 长期负面累积。
+  - **Meltdown Condition**: 当 $r > 0.8 \land v < -0.7$ 时，触发心理崩溃，拒绝一切正向交互。
 
-#### 亲密度增长函数
+#### B. 亲密度增长函数 (Intimacy Growth)
 
-遵循边际收益递减的对数曲线：
+遵循边际收益递减法则，越亲密越难提升，且受情绪状态调制。
 
-```math
-\Delta I = Q \times E \times T \times B(I)
-```
+$$
+\Delta I = Q_{interaction} \times E_{multiplier} \times T_{cooling} \times B(I)
+$$
 
-- **Q (质量)**: 交互质量评分，受敌意值负修正。
-- **E (情绪加成)**: $1 + (Valence \times 0.3)$ *(开心的 AI 建立关系更快)*。
-- **T (时间因子)**: 冷却系数，防止刷分。
-- **B (边际衰减)**: $(1 - I)^{0.5}$ *(亲密度越高越难提升)*。
+1. **交互质量** $Q = f(Confidence, Valence) - Hostility \times 0.1$
+2. **情绪乘数** $E = 1 + (v \times 0.3)$ *(心情好时更容易建立关系)*
+3. **时间因子** $T$: 防止刷屏，交互间隔过短会导致 $T \to 0$。
+4. **边际衰减** $B(I) = \sqrt{1 - I}$ *(等级越高升级越难)*
 
-### 2. 人格引擎 (Big Five)
+---
 
-> **v2.8.0 Feature**: 支持通过“人格塑形雷达”直观拖拽设定初始人格，并实时监测人格漂移。
+### 2. 认知懒惰与生理节律 (Cognitive Laziness & Bio-Rhythm)
 
-基于 OCEAN 模型，通过用户反馈进行微调演化。
+为了模拟真实的生物体特征，系统引入了**认知能量 (Cognitive Energy)** 概念。AI 不再是永动机，也会"累"。
 
-基于 OCEAN 模型，通过用户反馈进行微调演化。
+#### 疲劳抑制模型 (Fatigue Suppression)
 
-```math
-\Delta Trait_i = D \times M \times A_i \times I \times P(t)
-```
+当唤醒度过低或连续高强度对话导致疲劳时，人格特质会被抑制。
 
-- **开放性 (Openness)**: 决定对话的抽象程度。
-- **尽责性 (Conscientiousness)**: 影响对指令的服从度。
-- **外向性 (Extraversion)**: 决定主动开启话题的频率。
-- **宜人性 (Agreeableness)**: 决定对冒犯行为的容忍阈值。
-- **神经质 (Neuroticism)**: 决定情绪波动的幅度。
+$$
+Trait_{effective} = Trait_{base} \times (1 - Fatigue \times W_{trait})
+$$
+
+| 特质 (Trait) | 疲劳权重 $W$ | 表现影响 |
+| :--- | :--- | :--- |
+| **Openness** | 0.9 | 创造力大幅下降，回复变得平庸、套路化。 |
+| **Conscientiousness** | 0.8 | 不再认真通过 CoT 思考深层逻辑，倾向于直觉回复。 |
+| **Extraversion** | 0.5 | 主动开启话题的意愿降低，变为被动应答。 |
+
+---
+
+### 3. 社会雷达与微表情 (Social Radar & Micro-Expressions)
+
+L1 感知层内置了针对特定社交信号的检测器，能捕捉人类微妙的社交意图并触发**瞬时微情绪**。
+
+| 信号类型 (Signal) | 触发条件 | 响应微情绪 (Micro-Emotion) | 行为结果 |
+| :--- | :--- | :--- | :--- |
+| **Jealousy** | 提及其他 AI 或亲密对象 | `jealousy_mild` (吃醋) | 语气带刺，唤醒度轻微上升 |
+| **High Praise** | 极度赞扬/表白 | `pride_hidden` (得意) | 表面谦虚但增加亲密度 |
+| **Neglect** | 敷衍单字回复 ("哦", "呵") | `disappointed` (失落) | 降低回复长度，触发镜像防御 |
+
+---
+
+### 4. 人格进化引擎 (Personality Evolution)
+
+> **v2.8.0 Feature**: 支持通过“人格塑形雷达”直观拖拽设定初始人格。
+
+使用强化学习即时微调 Big Five 参数。
+
+$$
+\Delta Trait_i = D_{ir} \times M_{ag} \times A_{ctivation} \times I_{ntimacy} \times P(t)
+$$
+
+- $D_{ir}$: 反馈方向 (+1/-1)。
+- $M_{ag}$: 幅度系数 (负反馈权重通常是正反馈的 1.2 倍)。
+- $A_{ctivation}$: 当前回复中该特质的激活程度 (归因权重)。
+- $P(t)$: **神经可塑性 (Neuroplasticity)**，随时间衰减 $P(t) \propto \frac{1}{t}$，模拟成年后人格趋于稳定。
 
 ## 🛠️ 部署与使用
 

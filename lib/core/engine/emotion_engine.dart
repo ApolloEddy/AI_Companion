@@ -403,11 +403,11 @@ class EmotionEngine {
     await save();
   }
 
-  /// 重置为默认状态
+  /// 重置为默认状态 (从 YAML 配置读取初始值)
   Future<void> reset() async {
-    _valence = 0.1;
-    _arousal = 0.5;
-    _resentment = 0.0; // 【Phase 3】重置怨恨值
+    _valence = SettingsLoader.initialValence;
+    _arousal = SettingsLoader.initialArousal;
+    _resentment = SettingsLoader.initialResentment;
     _lastUpdated = DateTime.now();
     _recordHistory();
     await save();

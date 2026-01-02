@@ -8,7 +8,7 @@
 
 ---
 
-# English Documentation
+## English Documentation
 
 **AI Companion** is a "digital life" framework driven by a **Closed-Loop Cognitive Architecture**, distinct from typical stateless LLM wrappers. It integrates psychological modeling to give the AI internal state, emotional persistence, and dynamic personality evolution.
 
@@ -55,53 +55,96 @@ Translates abstract decisions into natural language instructions for the LLM.
 
 ## 🧠 Psychological Models & Formulas
 
-### 1. H-E-I Feedback Loop (Emotion Dynamics)
+The system relies on interpretable, quantifiable mathematical models rooted in classic psychology, rather than black-box LLM simulations.
 
-A unified model coupling **Hostility**, **Emotion**, and **Intimacy**.
+### 1. H-E-I Dynamics Feedback Loop
 
-#### V-A-R Emotion Model
+A non-linear dynamic system deeply coupling **Hostility**, **Emotion**, and **Intimacy**.
+
+```mermaid
+graph TD
+    Input[User Input] -->|Hostility Detection| Hostility(Hostility H)
+    Hostility -->|Immediate Deduction| Intimacy(Intimacy I)
+    Intimacy -->|Buffer Factor| Emotion(Emotion E)
+    Emotion -->|Growth Multiplier| Intimacy
+    Hostility -->|Accumulated Resentment| Resentment(Resentment R)
+    Resentment -->|Threshold Block| Emotion
+```
+
+#### A. V-A-R 3D Emotion Space
 
 Based on the Russell Circumplex Model, extended with a Z-axis: **Resentment**.
-We use a non-linear update function with soft boundaries:
 
-```math
+$$
 E_{t} = E_{t-1} + \Delta E_{stimulus} \times (1 - |E_{t-1}|)^\alpha
-```
+$$
 
-- **Valence (V)**: Pleasure vs. Displeasure (-1 to 1).
-- **Arousal (A)**: Energy vs. Lethargy (0 to 1).
-- **Resentment (R)**: Accumulated grudges (0 to 1). *High R blocks positive emotion.*
+- **Valence** $v \in [-1, 1]$: Pleasure vs. Displeasure.
+- **Arousal** $a \in [0, 1]$: Energy level. Anger (High A) vs. Depression (Low A).
+- **Resentment** $r \in [0, 1]$: Long-term accumulated grudge.
+  - **Meltdown Condition**: Triggers when $r > 0.8 \land v < -0.7$, rejecting all positive interactions.
 
-#### Intimacy Growth Function
+#### B. Intimacy Growth Function
 
-Intimacy is not a linear counter. It follows a logarithmic growth curve governed by:
+Follows the law of diminishing returns, modulated by emotional state.
 
-```math
-\Delta I = Q \times E \times T \times B(I)
-```
+$$
+\Delta I = Q_{interaction} \times E_{multiplier} \times T_{cooling} \times B(I)
+$$
 
-- **Q (Quality)**: $f(Confidence, Valence) - (Offense \times 0.1)$
-- **E (Emotion Multiplier)**: $1 + (Valence \times 0.3)$ *(Happy AI bonds 1.3x faster)*
-- **T (Time Factor)**: Penalizes spamming; rewards spaced interactions.
-- **B (Marginal Utility)**: $(1 - I)^{0.5}$ *(Harder to level up at high tiers)*
+1. **Interaction Quality** $Q = f(Confidence, Valence) - Hostility \times 0.1$
+2. **Emotion Multiplier** $E = 1 + (v \times 0.3)$ *(Happy AI bonds faster)*
+3. **Time Factor** $T$: Penalizes spamming; interval approaching zero leads to $T \to 0$.
+4. **Marginal Decay** $B(I) = \sqrt{1 - I}$ *(Harder to level up at higher tiers)*
 
-### 2. Personality Engine (Big Five)
+---
 
-> **v2.8.0 Feature**: Supports intuitive "Personality Genesis Radar" for drag-and-drop persona sculpting and real-time drift monitoring.
+### 2. Cognitive Laziness & Bio-Rhythm
 
-Based on the OCEAN model, evolving through user feedback.
+To simulate biological realism, the system introduces **Cognitive Energy**. The AI gets "tired".
 
-Personality evolves based on user feedback (reinforcement learning).
+#### Fatigue Suppression Model
 
-```math
-\Delta Trait_i = D \times M \times A_i \times I \times P(t)
-```
+When arousal is too low or after continuous high-intensity dialogue, personality traits are suppressed.
 
-- **O**penness: Affects topic depth preference.
-- **C**onscientiousness: Affects instruction adherence.
-- **E**xtraversion: Affects burst mode probability.
-- **A**greeableness: Affects tolerance threshold for hostility.
-- **N**euroticism: Multiplier for negative emotional reactions.
+$$
+Trait_{effective} = Trait_{base} \times (1 - Fatigue \times W_{trait})
+$$
+
+| Trait | Fatigue Weight $W$ | Impact |
+| :--- | :--- | :--- |
+| **Openness** | 0.9 | Creativity drops significantly; responses become clichéd. |
+| **Conscientiousness** | 0.8 | Stops "thinking deep" (CoT), favoring intuitive/lazy responses. |
+| **Extraversion** | 0.5 | Willingness to initiate topics decreases; becomes passive. |
+
+---
+
+### 3. Social Radar & Micro-Expressions
+
+L1 Perception Core has built-in detectors for specific social signals, triggering **Instant Micro-Emotions**.
+
+| Signal Type | Trigger Condition | Micro-Emotion | Behavioral Result |
+| :--- | :--- | :--- | :--- |
+| **Jealousy** | Mentioning other AIs or partners | `jealousy_mild` | Tone becomes prickly; slight arousal increase. |
+| **High Praise** | Extreme praise/confession | `pride_hidden` | Feigns modesty but boosts intimacy. |
+| **Neglect** | Perfunctory 1-word reply ("Oh") | `disappointed` | Reduces response length; triggers mirror defense. |
+
+---
+
+### 4. Personality Evolution Engine
+
+> **v2.8.0 Feature**: Supports drag-and-drop initial persona sculpting via "Genesis Radar".
+
+Uses reinforcement learning to fine-tune Big Five parameters in real-time.
+
+$$
+\Delta Trait_i = D_{ir} \times M_{ag} \times A_{ctivation} \times I_{ntimacy} \times P(t)
+$$
+
+- $D_{ir}$: Feedback Direction (+1/-1).
+- $M_{ag}$: Magnitude (Negative feedback weight is typically 1.2x positive).
+- $A_{ctivation}$: Activation level of the trait in current response (Attribution).
+- $P(t)$: **Neuroplasticity**, decays over time $P(t) \propto \frac{1}{t}$, simulating personality stabilization in adulthood.
 
 ## 🚀 Deployment
 

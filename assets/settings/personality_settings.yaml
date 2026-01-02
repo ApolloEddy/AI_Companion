@@ -1,13 +1,19 @@
 # Big Five (OCEAN) 人格模型配置
 # 控制人格进化、可塑性衰减和 Prompt 映射的参数
 
-# 默认人格 (中性)
+# 默认人格 (独立、克制、有边界)
+# 设计原理：
+# - Neuroticism 降低 → 减少情绪敏感与内耗倾向
+# - Agreeableness 略低 → 保留友好，但不以安抚为默认策略
+# - Conscientiousness 略低 → 降低"我必须好好回应"的内在压力
+# - Extraversion 适中 → 减少主动情绪输出
+# - Openness 适中偏高 → 保持适度创意但减少过度修辞
 defaults:
-  openness: 0.5
-  conscientiousness: 0.5
-  extraversion: 0.5
-  agreeableness: 0.5
-  neuroticism: 0.5
+  openness: 0.6
+  conscientiousness: 0.4
+  extraversion: 0.55
+  agreeableness: 0.45
+  neuroticism: 0.35
 
 # 可塑性配置
 plasticity:

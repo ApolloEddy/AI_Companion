@@ -170,8 +170,24 @@ class SettingsLoader {
   static double get meltdownArousalThreshold => 
       _getDouble(_emotionSettings, ['thresholds', 'meltdown_arousal'], 0.85);
 
-  static double get meltdownValenceThreshold => 
+  static double get meltdownValenceThreshold =>
       _getDouble(_emotionSettings, ['thresholds', 'meltdown_valence_negative'], -0.75);
+
+  // 【新增】初始状态配置 (用于 Factory Reset)
+  static double get initialValence =>
+      _getDouble(_emotionSettings, ['initial', 'valence'], 0.1);
+
+  static double get initialArousal =>
+      _getDouble(_emotionSettings, ['initial', 'arousal'], 0.5);
+
+  static double get initialResentment =>
+      _getDouble(_emotionSettings, ['initial', 'resentment'], 0.0);
+
+  static double get initialIntimacy =>
+      _getDouble(_intimacySettings, ['initial', 'intimacy'], 0.1);
+
+  static double get initialGrowthCoefficient =>
+      _getDouble(_intimacySettings, ['initial', 'growth_coefficient'], 1.0);
   
   // ========== Time Settings ==========
   

@@ -1536,7 +1536,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (context.mounted) {
       Navigator.of(context).pop(); // Close loading
       SuccessDialog.show(context, '系统已重置，Genesis 协议已重启');
-      setState(() {}); // Refresh UI state
+      setState(() {
+        // 【Fix】重置后必须手动同步 TextController，否则 UI 仍显示旧值
+        final profile = engine.userProfile;
+        _nicknameController.text = profile.nickname;
+        _callSignController.text = profile.callSign ?? '';
+        _occupationController.text = profile.occupation;
+        _majorController.text = profile.major ?? '';
+        _selectedUserGender = profile.gender ?? '男性';
+        _birthday = profile.birthday;
+        _relationshipGoal = profile.preferences.relationshipGoal;
+      }); 
     }
   }
 }

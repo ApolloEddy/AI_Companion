@@ -99,7 +99,7 @@ class _MainScreenState extends State<MainScreen> {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final ui = UIAdapter(context);
-    final aiName = engine.personaConfig['name'] ?? '小悠';
+    final aiName = engine.personaConfig['name'] ?? 'April';
     
     // 获取情绪状态用于背景
     final emotionMap = engine.isInitialized ? engine.emotion : {};

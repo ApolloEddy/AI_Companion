@@ -33,7 +33,7 @@ class StartupGreetingService {
   /// 问候消息回调
   void Function(ChatMessage message)? onGreetingMessage;
   
-  StartupGreetingService(this._prefs, {String personaName = '小悠'}) 
+  StartupGreetingService(this._prefs, {String personaName = 'April'}) 
       : _personaName = personaName;
   
   /// 问候回调：生成虚拟时间戳消息时调用

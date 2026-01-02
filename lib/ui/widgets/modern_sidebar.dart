@@ -183,7 +183,7 @@ class _ModernSideBarState extends State<ModernSideBar> {
   }
 
   Widget _buildHeader(BuildContext context, AppEngine engine, bool isDark) {
-    final personaName = engine.personaConfig['name'] ?? 'AI';
+    final personaName = engine.personaConfig['name'] ?? 'April';
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Row(
@@ -1134,7 +1134,7 @@ class _ModernSideBarState extends State<ModernSideBar> {
   /// 内心独白面板 - 自适应高度，无内部滚动条
   Widget _buildMonologuePanel(AppEngine engine, bool isDark) {
     final rawText = engine.streamingMonologue;
-    final personaName = engine.personaConfig['name'] ?? '小悠';
+    final personaName = engine.personaConfig['name'] ?? 'April';
     
     // 清理 XML 标签
     final cleanedText = _cleanXmlTags(rawText);

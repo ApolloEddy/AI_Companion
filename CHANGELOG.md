@@ -20,6 +20,10 @@ All notable changes to this project will be documented in this file.
 - **Prompt 标准化**: `prompt_templates.yaml` 中的所有 Prompt (包括 L1) 统一对齐为 L2/L3 的 Markdown 格式 (Headers, Lists, Alerts)。
 - **去硬编码**: 移除了 `PromptBuilder` 中残留的硬编码 `buildSynthesisPrompt` 及字符串拼接逻辑，完全实现 YAML 配置驱动。
 
+### Documentation
+
+- **Psychological Models Overhaul**: `README` 全面重写，新增了详细的 H-E-I 动力学反馈环、V-A-R 情绪空间、亲密度增长函数、认知懒惰 (Cognitive Laziness) 模型公式以及社会雷达 (Social Radar) 机制说明，并辅以 Mermaid 流程图。
+
 ### Fixed
 
 - **Meltdown 失效修复**: 将 `{meltdownOverride}` 从 Prompt 头部移动到 `{pacingInstruction}` 之后 (Prompt 尾部)，利用 LLM Recency Bias 确保 Meltdown 状态不会被后续 L2 指令覆盖。

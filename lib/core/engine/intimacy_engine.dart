@@ -321,9 +321,10 @@ class IntimacyEngine {
 
   // ========== 重置 ==========
 
+  /// 重置为默认状态 (从 YAML 配置读取初始值)
   Future<void> reset() async {
-    _intimacy = 0.1;
-    _growthCoefficient = 1.0;
+    _intimacy = SettingsLoader.initialIntimacy;
+    _growthCoefficient = SettingsLoader.initialGrowthCoefficient;
     _coolingUntil = null;
     _lastInteraction = DateTime.now();
     _totalInteractions = 0;

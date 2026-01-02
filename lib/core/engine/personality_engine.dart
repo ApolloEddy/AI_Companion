@@ -16,6 +16,7 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import '../model/big_five_personality.dart';
+import 'bio_rhythm_engine.dart';
 
 /// 反馈类型枚举
 enum FeedbackType {
@@ -25,10 +26,16 @@ enum FeedbackType {
 }
 
 /// 人格引擎
+/// 
+/// 【人格真实性修正扩展】
+/// 整合 BioRhythmEngine，支持 laziness-based trait suppression
 class PersonalityEngine extends ChangeNotifier {
   BigFiveTraits _traits;
-  BigFiveTraits? _initialTraits; // 【新增】出厂设置 (基准人格)
+  BigFiveTraits? _initialTraits; // 出厂设置 (基准人格)
   DateTime? _lastFeedbackTime;
+  
+  // 【新增】生理节律引擎实例
+  final BioRhythmEngine _bioRhythmEngine = BioRhythmEngine();
   
   // 配置常量 (从 YAML 读取的回退值)
   static const double _defaultPositiveMultiplier = 1.0;
@@ -37,6 +44,16 @@ class PersonalityEngine extends ChangeNotifier {
   static const int _defaultCooldownSeconds = 60;
   static const double _defaultPlasticityDecay = 0.1;
   static const double _defaultMinPlasticity = 0.001;
+  
+  // 【新增】Laziness 抑制权重
+  // 疲惫时不同人格特质被抑制的程度
+  static const Map<String, double> _lazinessSuppressionWeights = {
+    'openness': 0.9,           // 疲惫时大幅降低创意表达
+    'conscientiousness': 0.8,  // 疲惫时降低"认真回应"的压力
+    'extraversion': 0.5,       // 疲惫时减少主动性
+    'agreeableness': 0.0,      // 不直接抑制 (通过 tolerance 间接影响)
+    'neuroticism': 0.0,        // 不直接抑制
+  };
 
   PersonalityEngine({BigFiveTraits? initialTraits}) 
       : _traits = initialTraits ?? BigFiveTraits.neutral();
@@ -162,6 +179,87 @@ class PersonalityEngine extends ChangeNotifier {
     );
   }
 
+  // ==================== 人格真实性修正扩展 ====================
+  
+  /// 获取当前疲惫值
+  /// 
+  /// 委托给 BioRhythmEngine 计算
+  double getLaziness(DateTime time) {
+    return _bioRhythmEngine.calculateLaziness(time);
+  }
+  
+  /// 获取当前时段描述
+  String getTimePhaseDescription(DateTime time) {
+    return _bioRhythmEngine.getTimePhaseDescription(time);
+  }
+  
+  /// 计算容忍度
+  /// 
+  /// Tolerance 不是人格 trait，而是状态变量，
+  /// 用于判断 AI 是否还愿意继续安抚。
+  /// 
+  /// 返回范围: 0.0 ~ 1.0
+  /// - tolerance >= 0.4: 仍可有限共情
+  /// - tolerance < 0.4: 不想继续安抚
+  /// - tolerance < 0.2: 轻度不耐烦区间
+  double calculateTolerance({
+    required double laziness,
+    String? needType,
+    bool sameTopicRepeated = false,
+  }) {
+    return _bioRhythmEngine.calculateTolerance(
+      laziness: laziness,
+      needType: needType,
+      sameTopicRepeated: sameTopicRepeated,
+    );
+  }
+  
+  /// 【核心新增】获取融合 Laziness 抑制后的"有效人格"
+  /// 
+  /// 设计原理:
+  /// - EffectiveTrait = BaseTrait * (1 - Laziness * SuppressionWeight)
+  /// - 疲惫时抑制开放性、尽责性和外向性
+  /// - 宜人性和神经质不直接抑制 (通过 tolerance 间接影响)
+  /// 
+  /// [intimacy] 亲密度 (用于现有亲密度融合)
+  /// [laziness] 疲惫值 (0.0 ~ 0.9)
+  BigFiveTraits getEffectiveTraitsWithLaziness({
+    required double intimacy,
+    required double laziness,
+  }) {
+    // 先应用亲密度融合
+    final baseEffective = getEffectiveTraits(intimacy: intimacy);
+    
+    // 再应用 laziness 抑制
+    final clampedLaziness = laziness.clamp(0.0, 0.9);
+    
+    return baseEffective.copyWith(
+      openness: baseEffective.openness * 
+          (1 - clampedLaziness * _lazinessSuppressionWeights['openness']!),
+      conscientiousness: baseEffective.conscientiousness * 
+          (1 - clampedLaziness * _lazinessSuppressionWeights['conscientiousness']!),
+      extraversion: baseEffective.extraversion * 
+          (1 - clampedLaziness * _lazinessSuppressionWeights['extraversion']!),
+      // agreeableness 和 neuroticism 不直接抑制
+    );
+  }
+  
+  /// 判断是否应该强制清除 laziness (危机中断)
+  /// 
+  /// 安全机制：当检测到危机信号时，强制进入支持模式
+  /// 
+  /// [valence] 当前情绪效价
+  /// [intent] 当前意图 (如 'sos' 表示危机)
+  bool shouldForceClearLaziness({
+    required double valence,
+    String? intent,
+  }) {
+    // 危机条件：极度负面情绪或明确的求助意图
+    if (valence < -0.6) return true;
+    if (intent == 'sos' || intent == 'safety') return true;
+    return false;
+  }
+
   /// 生成 Prompt 描述
   /// 
   /// 将五维数值线性映射为自然语言描述
@@ -234,9 +332,13 @@ class PersonalityEngine extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 重置为中性人格
-  void reset() {
-    _traits = BigFiveTraits.neutral();
+  /// 重置为中性人格或指定的初始人格
+  void reset({BigFiveTraits? withTraits}) {
+    if (withTraits != null) {
+      _traits = withTraits;
+    } else {
+      _traits = BigFiveTraits.neutral();
+    }
     _initialTraits = null; // 【新增】解锁 Genesis
     _lastFeedbackTime = null;
     notifyListeners();

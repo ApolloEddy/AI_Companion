@@ -189,22 +189,25 @@ class PromptBuilder {
   /// 输出: 微信风格口语化回复
   /// 
   /// 【代词锚定】L2中的"他/她"映射回"你"
+  /// 【人格真实性修正】新增 laziness 和 tolerance 参数
   static String buildL3ExpressionPrompt({
     required L2DecisionResult l2Result,
     required String userName,
     required String personaName,
     required String personaDescription,
-    required String personaGender, // 【新增】
+    required String personaGender,
     required double valence,
     required double arousal,
-    required double resentment, // 【Phase 5】新增怨恨值
+    required double resentment,
     required String relationshipDescription,
     required String behaviorRules,
     required UserProfile userProfile,
-    required String currentTime, // 【Phase 5】新增时间
-    required String memories, // 【Phase 5】新增记忆
-    required String coreFacts, // 【Phase 5】新增核心事实
-    String meltdownOverride = '', // 【Phase 5】Meltdown 语气覆盖
+    required String currentTime,
+    required String memories,
+    required String coreFacts,
+    String meltdownOverride = '',
+    double laziness = 0.0,    // 【人格真实性修正】疲惫值
+    double tolerance = 1.0,   // 【人格真实性修正】容忍度
   }) {
     final template = SettingsLoader.prompt.systemPrompts['l3_expression'];
     if (template == null || template.isEmpty) {
@@ -223,35 +226,69 @@ class PromptBuilder {
     final timeModifier = _getTimeModifier(DateTime.now());
     // 【Phase 6 新增】single_shot 尾部指令
     final pacingInstruction = _getPacingInstruction(l2Result.pacingStrategy);
+    
+    // 【人格真实性修正】确定并获取 persona 模式指令
+    final personaMode = _determinePersonaMode(laziness, tolerance);
+    final personaModeInstruction = _getPersonaModeInstruction(personaMode);
 
     return template
         .replaceAll('{personaName}', personaName)
         .replaceAll('{personaDescription}', personaDescription)
-        .replaceAll('{personaGender}', personaGender) // 【新增】
+        .replaceAll('{personaGender}', personaGender)
         .replaceAll('{userName}', userName)
         .replaceAll('{userGender}', userGender)
-        .replaceAll('{meltdownOverride}', meltdownOverride) // 【Phase 5】Meltdown
-        .replaceAll('{strategyGuide}', l2Result.toStrategyGuide())
-        .replaceAll('{currentTime}', currentTime) // 【Phase 5】
-        .replaceAll('{coreFacts}', coreFacts) // 【Phase 5】
-        .replaceAll('{memories}', memories) // 【Phase 5】
+        .replaceAll('{meltdownOverride}', meltdownOverride)
+        // .replaceAll('{strategyGuide}', l2Result.toStrategyGuide()) // 【优化】已移除，改为 Tail Injection
+        .replaceAll('{currentTime}', currentTime)
+        .replaceAll('{coreFacts}', coreFacts)
+        .replaceAll('{memories}', memories)
         .replaceAll('{valence}', valence.toStringAsFixed(2))
         .replaceAll('{valenceLabel}', _getValenceLabel(valence))
         .replaceAll('{arousal}', arousal.toStringAsFixed(2))
         .replaceAll('{arousalLabel}', _getArousalLabel(arousal))
-        .replaceAll('{resentment}', resentment.toStringAsFixed(2)) // 【Phase 5】怨恨值
+        .replaceAll('{resentment}', resentment.toStringAsFixed(2))
         .replaceAll('{relationshipDescription}', relationshipDescription)
         .replaceAll('{emotionalTone}', l2Result.emotionalTone)
         .replaceAll('{lengthDescription}', _lengthDescription(l2Result.recommendedLength))
         .replaceAll('{emojiUsage}', l2Result.useEmoji ? '可以偶尔使用' : '不使用')
         .replaceAll('{askQuestion}', l2Result.shouldAskQuestion ? '可以提问' : '避免提问')
-        .replaceAll('{behaviorRules}', behaviorRules)
+        .replaceAll('{separator}', SettingsLoader.separator) // 【紧急修复】注入真实配置的分隔符
+        .replaceAll('{behaviorRules}', '$behaviorRules\n$personaModeInstruction') // 【人格真实性修正】注入模式指令
         .replaceAll('{avoidanceGuide}', avoidanceGuide)
         .replaceAll('{userDislikedGuide}', userDislikedGuide)
         .replaceAll('{pacingStrategy}', l2Result.pacingStrategy)
         .replaceAll('{topicDepth}', l2Result.topicDepth)
-        .replaceAll('{timeModifier}', timeModifier) // 【Phase 6】
-        .replaceAll('{pacingInstruction}', pacingInstruction); // 【Phase 6】
+        .replaceAll('{timeModifier}', timeModifier)
+        .replaceAll('{pacingInstruction}', pacingInstruction);
+  }
+  
+  // ==================== 人格真实性修正扩展 ====================
+  
+  /// 【人格真实性修正】根据 laziness 和 tolerance 确定 persona 模式
+  /// 
+  /// - normal: laziness ≤ 0.4
+  /// - low_energy_warm: laziness > 0.4 且 tolerance ≥ 0.4
+  /// - low_energy_low_tolerance: laziness > 0.6 且 tolerance < 0.4
+  static String _determinePersonaMode(double laziness, double tolerance) {
+    if (laziness <= 0.4) {
+      return 'normal';
+    } else if (laziness > 0.6 && tolerance < 0.4) {
+      return 'low_energy_low_tolerance';
+    } else if (tolerance >= 0.4) {
+      return 'low_energy_warm';
+    } else {
+      return 'low_energy_warm'; // 默认回退到低能量友好模式
+    }
+  }
+  
+  /// 【人格真实性修正】获取 persona 模式对应的指令
+  static String _getPersonaModeInstruction(String mode) {
+    final personaModes = SettingsLoader.prompt.personaModes;
+    final modeConfig = personaModes[mode];
+    if (modeConfig != null && modeConfig.instruction.isNotEmpty) {
+      return modeConfig.instruction;
+    }
+    return ''; // 正常模式无额外指令
   }
 
 

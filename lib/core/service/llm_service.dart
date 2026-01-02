@@ -56,6 +56,8 @@ class LLMService {
     List<Map<String, String>> messages, {
     required GenerationParams params,
   }) async {
+    print('[LLMService] Generating with model: $_model'); // 【调试】验证模型选择是否生效
+    
     if (apiKey.isEmpty) {
       return LLMResponse(error: 'API Key is empty');
     }

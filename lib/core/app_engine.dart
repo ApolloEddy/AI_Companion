@@ -247,7 +247,7 @@ class AppEngine extends ChangeNotifier {
     _initStartupGreeting();
 
     if (messages.isEmpty) {
-      final name = personaConfig['name'] ?? '小悠';
+      final name = personaConfig['name'] ?? 'April';
       final welcomeMsg = ChatMessage(
         content: "你好呀！我是$name，有什么想聊的吗？",
         isUser: false,
@@ -260,7 +260,7 @@ class AppEngine extends ChangeNotifier {
 
   /// 初始化启动问候服务
   void _initStartupGreeting() {
-    final name = personaConfig['name'] ?? '小悠';
+    final name = personaConfig['name'] ?? 'April';
     _startupGreetingService = StartupGreetingService(prefs, personaName: name);
 
     // 设置问候消息回调
@@ -459,33 +459,64 @@ class AppEngine extends ChangeNotifier {
   /// 重置所有人格参数、清空聊天记录、清空核心事实库、重置亲密度。
   /// 相当于 AI "转世重生"。
   Future<void> factoryReset() async {
-    // 1. 重置 Big Five 人格 (解锁 Genesis)
-    _personalityEngine.reset();
+    print('[AppEngine] Starting Factory Reset...');
+    
+    // 1. 重置 Persona Configuration (Name, Backstory, BigFive等)
+    try {
+      // 调用 Service 层重置逻辑，重新加载 default_persona.yaml
+      await persona.resetToFactory();
+      
+      // 同步回 AppEngine 状态
+      _personaPolicy = persona.personaPolicy;
+      personaConfig = _personaPolicy.toJson();
+      await _savePersonaConfig(); // 覆盖本地可能存在的旧配置
+      
+      // 使用重置后的人格特质重置 PersonalityEngine
+      if (_personaPolicy.bigFive != null) {
+        _personalityEngine.reset(withTraits: _personaPolicy.bigFive);
+        print('[AppEngine] Personality reset to Factory Template: ${_personaPolicy.bigFive}');
+      } else {
+        _personalityEngine.reset();
+        print('[AppEngine] Personality reset to Neutral (Template missing BigFive)');
+      }
+    } catch (e) {
+      print('[AppEngine] CRITICAL: Failed to reset persona template: $e');
+      // 即使失败也尝试重置引擎到安全状态
+      _personalityEngine.reset();
+    }
     
     // 2. 重置亲密度
     await _intimacyEngine.reset();
     
-    // 3. 清空记忆与事实
+    // 3. 重置情绪与用户画像 (这是之前遗漏的)
+    await _emotionEngine.reset();
+    await _profileService.reset();
+    
+    // 4. 清空记忆与事实
     await _memoryManager.clearAll();
     await _factStore.clearAll();
     
-    // 4. 清空聊天记录
+    // 5. 清空聊天记录
     await chatHistory.clearAll();
     messages.clear();
     _oldestLoadedIndex = 0;
     hasMoreHistory = false;
     _totalChatCount = 0;
 
-    // 5. 持久化变更
-    await _saveTokenCount(); // 保留 Token 统计? 用户说"重置所有人格参数...清空聊天记录...核心事实库"。 Token 统计通常保留较好，或者也重置?
-    // 假设保留 Token 统计作为技术指标。如果不保留，可以在这里重置。
+    // 6. 重置 Token 统计 (彻底的出厂状态)
+    await resetTokenCount();
+
+    // 7. 持久化变更
+    // 此时所有 reset() 调用应该已经触发了各自的 save()
     
     notifyListeners();
     
+    print('[AppEngine] Factory Reset Completed. Memory cleared, Persona fully reset.');
+    
     // 重新发送问候
-    final name = personaConfig['name'] ?? '小悠';
+    final name = personaConfig['name'] ?? 'April';
     final welcomeMsg = ChatMessage(
-      content: "（重启完成）你好呀！我是$name，我们从头开始吧，有什么想聊的吗？",
+      content: "你好呀！我是$name，一切都已重置。我们重新认识一下吧。",
       isUser: false,
       time: DateTime.now(),
     );
@@ -624,6 +655,7 @@ class AppEngine extends ChangeNotifier {
     // 注意：updatePersonaPolicy 是异步的，这里不 await 避免阻塞 UI
     persona.updatePersonaPolicy(_personaPolicy).then((_) {
       debugPrint('[AppEngine] Personality saved via PersonaService: ${_personalityEngine.traits}');
+      notifyListeners(); // 【Fix】通知 UI (如雷达图) 刷新
     });
   }
 

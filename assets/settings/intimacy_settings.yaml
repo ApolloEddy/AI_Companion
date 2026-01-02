@@ -1,6 +1,13 @@
 # 亲密度系统配置
 # 这些参数控制亲密度的增长、冷却和回归行为
 
+# 【新增】初始状态 (用于 Factory Reset)
+initial:
+  # 初始亲密度 (0 ~ 1)
+  intimacy: 0.1
+  # 初始增长系数
+  growth_coefficient: 1.0
+
 # 增长配置
 growth:
   # 基础增长系数

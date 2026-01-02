@@ -9,7 +9,8 @@ class PromptConfig {
   final Map<String, String> lengthGuides;
   final String globalCaveats;
   final ResponseFormatConfig responseFormat;
-  final Map<String, String> systemPrompts; // 【新增】System Prompts
+  final Map<String, String> systemPrompts;
+  final Map<String, PersonaModeConfig> personaModes; // 【人格真实性修正新增】
 
   PromptConfig({
     required this.expressionModes,
@@ -18,6 +19,7 @@ class PromptConfig {
     required this.globalCaveats,
     required this.responseFormat,
     required this.systemPrompts,
+    required this.personaModes, // 【人格真实性修正新增】
   });
 
   /// 加载配置
@@ -28,7 +30,8 @@ class PromptConfig {
       
       final expGuides = doc['expression_guides'];
       final respFormats = doc['response_formats'];
-      final sysPrompts = doc['system_prompts']; // 【新增】
+      final sysPrompts = doc['system_prompts'];
+      final personaModesDef = doc['persona_modes']; // 【人格真实性修正新增】
 
       // 解析 Expression Modes
       final modes = <String, ExpressionModeConfig>{};
@@ -57,6 +60,14 @@ class PromptConfig {
         });
       }
 
+      // 解析 Persona Modes 【人格真实性修正新增】
+      final pModes = <String, PersonaModeConfig>{};
+      if (personaModesDef != null && personaModesDef is Map) {
+        personaModesDef.forEach((k, v) {
+          pModes[k.toString()] = PersonaModeConfig.fromMap(v);
+        });
+      }
+
       return PromptConfig(
         expressionModes: modes,
         timeModifiers: timeMods,
@@ -64,6 +75,7 @@ class PromptConfig {
         globalCaveats: expGuides['global_caveats']?.toString() ?? '',
         responseFormat: ResponseFormatConfig.fromMap(respFormats['chat']),
         systemPrompts: prompts,
+        personaModes: pModes, // 【人格真实性修正新增】
       );
     } catch (e) {
       print('Failed to load prompt templates: $e');
@@ -75,6 +87,7 @@ class PromptConfig {
         globalCaveats: '',
         responseFormat: ResponseFormatConfig(instruction: '', example: ''),
         systemPrompts: {},
+        personaModes: {}, // 【人格真实性修正新增】
       );
     }
   }
@@ -109,3 +122,22 @@ class ResponseFormatConfig {
     );
   }
 }
+
+/// 【人格真实性修正新增】Persona 模式配置
+/// 
+/// 根据 laziness 和 tolerance 动态选择不同的人格表达模式
+class PersonaModeConfig {
+  final String instruction;
+  final String description;
+
+  PersonaModeConfig({required this.instruction, required this.description});
+
+  factory PersonaModeConfig.fromMap(dynamic map) {
+    if (map is! Map) return PersonaModeConfig(instruction: '', description: '');
+    return PersonaModeConfig(
+      instruction: map['instruction']?.toString() ?? '',
+      description: map['description']?.toString() ?? '',
+    );
+  }
+}
+

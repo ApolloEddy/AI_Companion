@@ -14,6 +14,7 @@
 
 import '../settings_loader.dart';
 import '../model/big_five_personality.dart';
+import '../model/relation_state.dart';
 
 // ========== 嵌套数据类 ==========
 
@@ -226,12 +227,15 @@ class PersonaPolicy {
 
   /// 获取性别描述
   String getGenderDescription() {
-    if (gender.contains('女')) return '女孩子';
-    if (gender.contains('男')) return '男孩子';
-    return '朋友';
+    if (gender.contains('女')) return '女性';
+    if (gender.contains('男')) return '男性';
+    return '中性';
   }
 
   /// 获取关系描述 (基于亲密度)
+  /// 
+  /// [已弃用] 仅供向后兼容，L3 应使用 getRelationState()
+  @Deprecated('Use getRelationState() for L3 injection')
   String getRelationshipDescription(double intimacy) {
     if (intimacy < SettingsLoader.intimacyLowThreshold) {
       return '刚认识，还不太熟悉';
@@ -242,6 +246,13 @@ class PersonaPolicy {
     } else {
       return '非常亲密的朋友，彼此了解';
     }
+  }
+
+  /// 获取关系状态枚举 (L3 专用)
+  /// 
+  /// 返回枚举而非自然语言，防止 L3 自行推断关系深度
+  RelationState getRelationState(double intimacy, {bool isTerminating = false}) {
+    return computeRelationState(intimacy, isTerminating: isTerminating);
   }
 
   /// 获取灵魂锚点 (核心身份) - 动态版本

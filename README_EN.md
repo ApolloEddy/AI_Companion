@@ -1,137 +1,336 @@
-# AI Companion - Cognitive Architecture Framework
+# AI Companion - Cognitive Architecture-Driven Digital Life Framework
 
-![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Flutter](https://img.shields.io/badge/Flutter-3.0%2B-02569B) ![Dart](https://img.shields.io/badge/Dart-3.0%2B-0175C2)
+![License](https://img.shields.io/badge/license-MIT-blue.svg) ![Flutter](https://img.shields.io/badge/Flutter-3.10%2B-02569B) ![Dart](https://img.shields.io/badge/Dart-3.0%2B-0175C2) ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Android-green)
 
-**[English](README_EN.md) | [中文](README.md)**
+**English | [中文](README.md)**
 
-> **v2.9.0 Update**: Introducing **Reaction Compass** and **Tone Valve**. The AI now possesses a psychodynamics-based "temper," capable of detecting sarcasm, memes, and dynamically adjusting its defensive stance based on offensiveness.
+> **v3.0.0**: L3 Expression Layer Pure Executor Refactor — AI no longer "acts on its own", achieving clear separation of responsibilities in the architecture.
 
 ---
 
-## English Documentation
+## 📖 Overview
 
-**AI Companion** is a "digital life" framework driven by a **Closed-Loop Cognitive Architecture**, distinct from typical stateless LLM wrappers. It integrates psychological modeling to give the AI internal state, emotional persistence, and dynamic personality evolution.
+**AI Companion** is not just another LLM chat interface. It's a "digital life" framework driven by a **closed-loop cognitive architecture**.
 
-## 🏗️ 3-Layer Cognitive Architecture (L1-L3)
+Unlike traditional "wrapper" applications, AI Companion features:
 
-The system operates on a unidirectional cognitive pipeline inspired by human cognition:
+- **Persistent Internal State**: Emotions don't vanish when conversations end
+- **Psychology-Modeled Affective System**: Based on Russell's Circumplex Model extended to V-A-R 3D space
+- **Dynamically Evolving Personality**: Big Five traits slowly adjust based on interaction feedback
+- **Quantifiable Social Relationships**: Intimacy follows a mathematically diminishing returns model
+- **Bio-Rhythm Simulation**: AI gets "tired" too — late-night responses become lazier
+
+---
+
+## ✨ Key Features
+
+### 🧠 Three-Layer Cognitive Architecture (L1-L3)
+
+The system adopts a bio-inspired unidirectional data pipeline with strict separation of perception, decision, and execution:
 
 ```mermaid
-graph TD
-    User[User Input] --> L1(L1: Perception Core)
-    L1 -->|Psych Profiling| Compass(Reaction Compass)
-    Compass -->|Social Stance| L2(L2: Decision Core)
-    L2 -->|Internal State| L3(L3: Expression Core)
-    L3 -->|Tone Valve| LLM[LLM Generation]
+graph LR
+    Input[User Input] --> L1(L1 Perception Core)
+    L1 --> Compass(Reaction Compass)
+    Compass --> L2(L2 Decision Core)
+    L2 --> L3(L3 Expression Executor)
+    L3 --> Valve(Tone Valve)
+    Valve --> LLM[LLM Generation]
     LLM --> Output[AI Response]
 ```
 
-### L1: Perception Core
+### 💔 Realistic Emotional Feedback
 
-Acts as the sensory cortex. It "listens" and "profiles," outputting high-precision JSON structures.
+AI develops **resentment** from offensive remarks. When accumulated beyond threshold, it triggers **psychological trauma mode**, entering a cold defensive state. Recovery requires time or genuine apology.
 
-- **Semantic Category**: Distinguishes between `meme` (playful), `preference` (likes/dislikes), `boundary` (setting limits), and `fact` (statements).
-- **Social Signal**:
-  - **Offensiveness (0-10)**: Distinguishes playful teasing from malicious attacks.
-  - **Meme Detected**: Identifies if the user is using internet slang/memes.
+### 🎭 Four Social Stances
 
-### Reaction Compass
+Based on Dominance and Heat dimensions, AI exhibits different reaction stances:
 
-Calculates the AI's social stance based on perception results and current personality state.
+| Stance | Condition | Behavior |
+|--------|-----------|----------|
+| **Explosive** | D > 0.5 and H > 0.5 | Emotionally charged, direct confrontation |
+| **ColdDismissal** | D > 0.5 and H ≤ 0.5 | Minimal response, no topic continuation |
+| **Vulnerable** | D ≤ 0.5 and H > 0.5 | Expresses hurt, grievance-toned |
+| **Withdrawal** | D ≤ 0.5 and H ≤ 0.5 | Perfunctory response, quick exit |
 
-- **Dominance**: Decides whether to be "Assertive" or "Submissive".
-- **Heat**: Decides whether to be "Intense" or "Cold".
-- **Stance**:
-  - `Explosive`: Emotional outburst, confrontation.
-  - `ColdDismissal`: Indifferent, minimal response.
-  - `Vulnerable`: Showing weakness, seeking peace.
-  - `Neutral`: Normal conversation.
+### 🎨 Personality Sculpting Radar
 
-### L3: Expression Core
+During initial AI creation, drag the 5 vertices of a radar chart to intuitively shape Big Five personality traits. Once locked, personality drifts slowly with interaction feedback — more interactions mean more stability.
 
-The execution layer responsible for "speaking," featuring the built-in **Tone Valve**.
+### 🔒 L3 Pure Executor Design (v3.0 Architecture)
 
-- **Tone Valve**: Injects mandatory behavioral constraints via System Prompt based on Resentment and Cognitive Laziness.
-  - **Hostile Level**: Strips service-oriented language, forbids apologies, forces short sentences.
-  - **Cold Level**: Acts distant like a stranger, strips adjectives.
-- **Pronoun Transformation**: Converts "He/She" in thoughts to "You" in dialogue.
+L3 no longer receives any natural language descriptions, only:
 
-## 🧠 Psychological Models & Formulas
+- **Enum states**: `relation_state: close`
+- **Hard constraints**: `max_sentences: 2, forbid_metaphor: true`
 
-The system relies on interpretable, quantifiable mathematical models rooted in classic psychology, rather than black-box LLM simulations.
+This ensures L3 only "executes" without "thinking", eliminating issues of AI self-judging relationships, repairing awkwardness, or being inappropriately charming.
 
-### 1. H-E-I Dynamics Feedback Loop
+---
 
-A non-linear dynamic system deeply coupling **Hostility**, **Emotion**, and **Intimacy**.
+## 🔬 Technical Principles & Computational Models
 
-```mermaid
-graph TD
-    Input[User Input] -->|Hostility Detection| Hostility(Hostility H)
-    Hostility -->|Immediate Deduction| Intimacy(Intimacy I)
-    Intimacy -->|Buffer Factor| Emotion(Emotion E)
-    Emotion -->|Growth Multiplier| Intimacy
-    Hostility -->|Accumulated Resentment| Resentment(Resentment R)
-    Resentment -->|Tone Valve| Output[Tone Valve]
+### 1. Big Five (OCEAN) Personality Model
+
+Adopts the psychological standard five-factor model, all dimensions normalized to `[0, 1]`:
+
+| Dimension | Field | Low Value | High Value |
+|-----------|-------|-----------|------------|
+| **O**penness | `openness` | Conventional | Creative |
+| **C**onscientiousness | `conscientiousness` | Laid-back | Disciplined |
+| **E**xtraversion | `extraversion` | Introverted | Outgoing |
+| **A**greeableness | `agreeableness` | Independent | Compliant |
+| **N**euroticism | `neuroticism` | Emotionally Stable | Sensitive |
+
+#### Plasticity Decay Formula
+
+Personality stabilizes with interaction count — new changes become increasingly difficult:
+
+$$
+Plasticity_{effective} = Plasticity_{base} \times (1 - \eta)^{n/100}
+$$
+
+- $\eta = 0.1$: decay rate
+- $n$: total interaction count
+
+---
+
+### 2. V-A-R Three-Dimensional Emotion Space
+
+Extended from Russell's Circumplex Model with Z-axis **Resentment**:
+
+```
+        ↑ Arousal
+        |
+  Tense |  Excited
+  Anxious |  Alert
+---------+--------→ Valence
+   Sad  |  Happy
+  Depressed |  Calm
+        |
+        └── Resentment (depth axis)
 ```
 
-#### A. V-A-R 3D Emotion Space
+#### Variable Definitions
 
-Based on the Russell Circumplex Model, extended with a Z-axis: **Resentment**.
+| Variable | Symbol | Range | Description |
+|----------|--------|-------|-------------|
+| Valence | $V$ | $[-1, 1]$ | Pleasantness, negative = unhappy |
+| Arousal | $A$ | $[0, 1]$ | Energy level, high = active |
+| Resentment | $R$ | $[0, 1]$ | Long-term negative accumulation |
 
-$$
-E_{t} = E_{t-1} + \Delta E_{stimulus} \times (1 - |E_{t-1}|)^\alpha
-$$
+#### Emotion Decay Formula
 
-- **Valence** $v \in [-1, 1]$: Pleasure vs. Displeasure.
-- **Arousal** $a \in [0, 1]$: Energy level.
-- **Resentment** $r \in [0, 1]$: Long-term accumulated grudge; directly determines the Tone Valve threshold.
-
-#### B. Intimacy Growth Function
-
-Follows the law of diminishing returns, modulated by emotional state.
+Emotions regress toward baseline over time:
 
 $$
-\Delta I = Q_{interaction} \times E_{multiplier} \times T_{cooling} \times B(I)
+V_{t} = V_{t-1} + (V_{base} - V_{t-1}) \times \alpha_{v} \times \Delta t
 $$
 
-### 2. Cognitive Laziness & Bio-Rhythm
-
-To simulate biological realism, the system introduces **Cognitive Energy**. The AI gets "tired".
-
-#### Fatigue Suppression Model
-
-When arousal is too low or after continuous high-intensity dialogue, personality traits are suppressed.
-
 $$
-Trait_{effective} = Trait_{base} \times (1 - Fatigue \times W_{trait})
+A_{t} = A_{t-1} + (A_{base} - A_{t-1}) \times \alpha_{a} \times \Delta t
 $$
 
-### 3. Social Radar & Micro-Expressions
+- Defaults: $V_{base} = 0$, $A_{base} = 0.5$
+- Decay rates: $\alpha_v = 0.04$/hour, $\alpha_a = 0.05$/hour
 
-L1 Perception Core has built-in detectors for specific social signals, triggering **Instant Micro-Emotions**.
+#### Resentment Suppression Formula (Sigmoid)
 
-| Signal Type | Trigger Condition | Behavioral Result |
-| :--- | :--- | :--- |
-| **Meme** | Internet slang/memes | Skips fact extraction, responds playfully |
-| **Boundary** | User sets boundaries | Triggers `Respect` intent, lowers intimacy attempts |
-| **Sarcasm** | Sarcastic praise | Marked as negative feedback, triggers introspection |
+High resentment suppresses positive emotion growth:
 
-## 🚀 Deployment
+$$
+\Delta V_{effective} = \Delta V_{raw} \times \left(1 - \frac{1}{1 + e^{-10(R - 0.5)}}\right)
+$$
 
-### Prerequisites
+#### Meltdown Trigger Condition
 
-- Flutter SDK 3.10+
-- Dart 3.0+
-- Valid OpenAI (or compatible) API Key
+When $R > 0.8$ and $V < -0.7$, AI enters emotional breakdown state.
+
+---
+
+### 3. Intimacy Growth Model
+
+Follows **diminishing marginal returns** — higher intimacy means slower growth:
+
+$$
+\Delta I = Q \times E \times T \times B(I)
+$$
+
+| Factor | Symbol | Formula/Description |
+|--------|--------|---------------------|
+| Interaction Quality | $Q$ | $[0.5, 1.5]$ determined by perception |
+| Emotion Multiplier | $E$ | $1 + V \times 0.3$ |
+| Time Factor | $T$ | $\max(0.2, 1 - \Delta h \times 0.05)$ |
+| Diminishing Function | $B(I)$ | $(1-I)^{0.5} \times \beta \times G$ |
+
+- $\beta = 0.02$: base growth coefficient
+- $G$: growth coefficient (affected by negative feedback, default 1.0)
+- $\Delta h$: hours since last interaction
+
+#### Negative Feedback Mechanism
+
+Offensive behavior causes:
+
+1. **Immediate deduction**: $I_{new} = I - severity \times 0.05$
+2. **Growth coefficient reduction**: $G_{new} = G - 0.1 \times severity$
+3. **Cooling period**: $2 + severity \times 6$ hours
+
+---
+
+### 4. Reaction Compass
+
+When offensiveness $\geq 3$, calculate reaction stance:
+
+#### Dominance
+
+$$
+D = (1 - A_{trait}) \times 0.4 + E_{trait} \times 0.2 + (1 - I) \times 0.3 + R \times 0.5
+$$
+
+- $A_{trait}$: Agreeableness
+- $E_{trait}$: Extraversion
+- $I$: Intimacy
+- $R$: Resentment
+
+#### Heat
+
+$$
+H = N_{trait} \times 0.6 + A_{emotion} \times 0.4
+$$
+
+- $N_{trait}$: Neuroticism
+- $A_{emotion}$: Current arousal
+
+#### Stance Decision Matrix
+
+| | Heat > 0.5 | Heat ≤ 0.5 |
+|---|---|---|
+| **D > 0.5** | Explosive | ColdDismissal |
+| **D ≤ 0.5** | Vulnerable | Withdrawal |
+
+---
+
+### 5. Bio-Rhythm Engine
+
+Simulates human circadian rhythm — vitality naturally decreases at night:
+
+```
+Laziness
+  0.9 ┤         ╭───────╮
+      │       ╱           ╲
+      │     ╱               ╲
+  0.0 ┼────┴─────────────────┴────→ Time
+      10:00 22:00 01:00 05:00 08:00
+       Daytime  Rising  Peak   Recovery
+       (Alert)  Fatigue (Maintain) 
+```
+
+#### Tolerance Formula
+
+$$
+Tolerance = (1 - Laziness) - 0.2 \times \mathbf{1}_{comfort} - 0.2 \times \mathbf{1}_{repeat}
+$$
+
+- $\mathbf{1}_{comfort}$: emotional care need indicator
+- $\mathbf{1}_{repeat}$: repeated topic indicator
+
+---
+
+### 6. L3 Expression Constraints Configuration (v3.0)
+
+Big Five personality traits are pre-computed in Dart layer, transformed into hard constraints injected into L3:
+
+| Constraint | Calculation |
+|------------|-------------|
+| `max_sentences` | $\lfloor E \times 3 + 1 \rfloor$, range $[1, 5]$ |
+| `metaphor_density` | $O \times 0.8$ (0 when hostile) |
+| `emotional_leakage` | $N \times 0.6$ |
+| `initiative_allowed` | $E > 0.5$ and not hostile |
+| `emoji_allowed` | $I > 0.4$ and not hostile |
+| `playful_allowed` | $O > 0.5$ and $I > 0.5$ and not hostile |
+
+---
+
+### 7. Memory Management System
+
+Uses **SQLite** storage with pagination:
+
+- **Working Memory**: 100 most recent entries in-memory
+- **Deep Memory**: SQLite with keyword search
+- **Importance Filtering**: Low-importance memories discarded
+- **Auto Pruning**: Oldest memories deleted when limit exceeded
+
+---
+
+## 🛠️ Development & Deployment
+
+### Requirements
+
+- **Flutter SDK**: 3.10+
+- **Dart SDK**: 3.0+
+- **Valid API Key**: Alibaba Cloud DashScope (Qwen)
 
 ### Quick Start
 
 ```bash
+# Clone repository
 git clone https://github.com/ApolloEddy/AI_Companion.git
+cd AI_Companion
+
+# Install dependencies
 flutter pub get
-flutter run -d windows # or android
+
+# Run (Windows)
+flutter run -d windows
+
+# Run (Android)
+flutter run -d android
+
+# Build Android Release APK
+flutter build apk --release
 ```
 
-### License
+### Configure API Key
 
-MIT License
+After first launch, go to **Settings → API Configuration** and enter your Alibaba Cloud DashScope API Key.
+
+---
+
+## 📁 Project Structure
+
+```
+lib/
+├── core/
+│   ├── engine/           # Core Engines
+│   │   ├── conversation_engine.dart   # Cognitive Scheduler
+│   │   ├── emotion_engine.dart        # Emotion Computation
+│   │   ├── intimacy_engine.dart       # Intimacy Model
+│   │   ├── personality_engine.dart    # Personality Evolution
+│   │   └── bio_rhythm_engine.dart     # Bio-Rhythm
+│   ├── model/            # Data Models
+│   │   ├── big_five_personality.dart  # Big Five
+│   │   ├── relation_state.dart        # L3 State Enums
+│   │   └── expression_profile.dart    # Expression Config
+│   ├── perception/       # L1 Perception Layer
+│   ├── decision/         # L2 Decision Layer
+│   ├── prompt/           # Prompt Building
+│   ├── policy/           # Policy Definitions
+│   ├── mechanisms/       # Reaction Compass
+│   └── memory/           # Memory Management
+├── ui/                   # UI Components
+└── main.dart
+```
+
+---
+
+## 📜 License
+
+This project is open-sourced under the [MIT License](LICENSE).
+
+---
+
+## 🔗 Links
+
+- **GitHub**: [ApolloEddy/AI_Companion](https://github.com/ApolloEddy/AI_Companion)
+- **Alibaba Cloud DashScope**: [dashscope.aliyuncs.com](https://dashscope.aliyuncs.com)

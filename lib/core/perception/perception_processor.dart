@@ -178,12 +178,15 @@ class PerceptionResult {
     required this.hasEmoji,
     required this.confidence,
     required this.timestamp,
+    this.l1Prompt, // 【Prompt Viewer】L1 Prompt 捕获
     this.systemAction = SystemAction.none,
     this.dialogueIntent = DialogueIntent.chat,
     this.semanticCategory = SemanticCategory.chat,
     this.preferenceAnalysis,
     this.socialSignal = const SocialSignal(),
   });
+
+  final String? l1Prompt; // 【Prompt Viewer】L1 Prompt 记录
 
   /// 【代理访问器】攻击性评分 (兼容旧代码)
   int get offensiveness => socialSignal.offensiveness;
@@ -336,6 +339,28 @@ class PerceptionResult {
     }
     return lines.join('\n');
   }
+
+  // 【Prompt Viewer】复制并更新
+  PerceptionResult copyWith({
+    String? l1Prompt,
+  }) {
+    return PerceptionResult(
+      surfaceEmotion: surfaceEmotion,
+      underlyingNeed: underlyingNeed,
+      subtextInference: subtextInference,
+      conversationIntent: conversationIntent,
+      timeSensitivity: timeSensitivity,
+      hasEmoji: hasEmoji,
+      confidence: confidence,
+      timestamp: timestamp,
+      systemAction: systemAction,
+      dialogueIntent: dialogueIntent,
+      semanticCategory: semanticCategory,
+      preferenceAnalysis: preferenceAnalysis,
+      socialSignal: socialSignal,
+      l1Prompt: l1Prompt ?? this.l1Prompt,
+    );
+  }
 }
 
 
@@ -374,7 +399,7 @@ class PerceptionProcessor {
 
       // 解析 JSON 响应
       final json = _parseJsonResponse(response);
-      return PerceptionResult.fromJson(json);
+      return PerceptionResult.fromJson(json).copyWith(l1Prompt: prompt);
     } catch (e) {
       print('[PerceptionProcessor] Analysis failed: $e');
       return PerceptionResult.fallback();
@@ -428,7 +453,8 @@ class PerceptionProcessor {
         .replaceAll('{userOccupation}', userProfile.occupation)
         .replaceAll('{lifeContextsLine}', lifeContextsLine)
         .replaceAll('{recentEmotionTrend}', recentEmotionTrend)
-        .replaceAll('{userMessage}', userMessage)
+        // 【安全修复】转义双引号，防止 Prompt 截断
+        .replaceAll('{userMessage}', userMessage.replaceAll('"', '\\"'))
         .replaceAll('{lastAiResponseSection}', lastAiResponseSection)
         .replaceAll('{recentMessagesSection}', recentMessagesSection)
         .replaceAll('{emotionLabels}', emotionLabels)

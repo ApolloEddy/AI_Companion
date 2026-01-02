@@ -8,6 +8,7 @@ import '../core/app_engine.dart';
 import '../core/model/chat_message.dart';
 import '../core/provider/bubble_color_provider.dart';
 import 'widgets/success_dialog.dart';
+import 'widgets/prompt_viewer_dialog.dart'; // 【Prompt Viewer】
 import 'utils/ui_adapter.dart';
 
 class ChatBubble extends StatefulWidget {
@@ -99,14 +100,20 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
                 _copyToClipboard();
               },
             ),
-            if (!widget.message.isUser && widget.message.fullPrompt != null)
+            if (!widget.message.isUser)
               ListTile(
                 leading: const Icon(Icons.info_outline_rounded),
                 title: const Text('查看交互详情'),
                 subtitle: Text('Token 消耗: ${widget.message.tokensUsed ?? "未知"}'),
                 onTap: () {
                   Navigator.pop(context);
-                  _showDetailsDialog();
+                  // 【Prompt Viewer】使用新的 Prompt 查看器
+                  showDialog(
+                    context: context,
+                    builder: (context) => PromptViewerDialog(
+                      messageId: widget.message.id,
+                    ),
+                  );
                 },
               ),
             const SizedBox(height: 16),
@@ -116,68 +123,7 @@ class _ChatBubbleState extends State<ChatBubble> with SingleTickerProviderStateM
     );
   }
 
-  void _showDetailsDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('交互详情'),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildInfoRow('消息 ID', widget.message.id),
-                _buildInfoRow('Token 消耗', '${widget.message.tokensUsed ?? "未知"}'),
-                const SizedBox(height: 16),
-                const Text('生成使用的完整 Prompt:', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: SelectableText(
-                    widget.message.fullPrompt ?? '无 Prompt 记录',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                      color: isDark ? Colors.white70 : Colors.black87,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('好的'),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
-        ],
-      ),
-    );
-  }
 
   void _copyToClipboard() {
     Clipboard.setData(ClipboardData(text: widget.message.content));

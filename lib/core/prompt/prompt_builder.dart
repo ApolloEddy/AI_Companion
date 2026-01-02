@@ -8,6 +8,8 @@
 
 import '../settings_loader.dart'; // 【新增】
 import '../model/user_profile.dart';
+import '../model/relation_state.dart';
+import '../model/expression_profile.dart';
 import '../perception/perception_processor.dart';
 import '../decision/reflection_processor.dart';
 import '../policy/prohibited_patterns.dart';
@@ -147,7 +149,7 @@ class PromptBuilder {
     // 注入参数
     return template
         .replaceAll('{personaName}', personaName)
-        .replaceAll('{userName}', userName)
+        .replaceAll('{userName}', userName.replaceAll('"', '\\"')) // 【安全修复】转义
         .replaceAll('{userGender}', userGender)
         .replaceAll('{valence}', valence.toStringAsFixed(2))
         .replaceAll('{arousal}', arousal.toStringAsFixed(2))
@@ -157,8 +159,8 @@ class PromptBuilder {
         .replaceAll('{userOccupation}', userProfile.occupation.isNotEmpty ? '职业: ${userProfile.occupation}' : '')
         .replaceAll('{userMajor}', userProfile.major != null && userProfile.major!.isNotEmpty ? '专业: ${userProfile.major}' : '')
         .replaceAll('{memories}', memories)
-        .replaceAll('{lastAiResponse}', lastAiResponse ?? '（这是对话开始）')
-        .replaceAll('{userMessage}', userMessage)
+        .replaceAll('{lastAiResponse}', (lastAiResponse ?? '（这是对话开始）').replaceAll('"', '\\"')) // 【安全修复】转义
+        .replaceAll('{userMessage}', userMessage.replaceAll('"', '\\"')) // 【安全修复】转义
         .replaceAll('{bigFiveMetrics}', bigFiveMetrics) // 【L2/L3 重构】Big Five 数值
         .replaceAll('{intimacy}', intimacy.toStringAsFixed(2)); // 【L2/L3 重构】亲密度
   }
@@ -190,83 +192,94 @@ class PromptBuilder {
     return '';
   }
 
-  /// L3 表达合成 Prompt
+  /// L3 表达执行 Prompt (纯执行层重构版)
   /// 
-  /// 输入: L2 意图结果 + V-A状态 + 人格上下文 + Meltdown 覆盖
+  /// 【L3 纯执行层设计原则】
+  /// - L3 不思考、不判断、不修复关系
+  /// - L3 只接收枚举状态和硬约束配置
+  /// - 所有"软理解"在 L2/Dart 层完成
+  /// 
+  /// 输入: L2 决策结果 + 状态枚举 + 表达配置
   /// 输出: 微信风格口语化回复
-  /// 
-  /// 【代词锚定】L2中的"他/她"映射回"你"
-  /// 【人格真实性修正】新增 laziness 和 tolerance 参数
   static String buildL3ExpressionPrompt({
     required L2DecisionResult l2Result,
     required String userName,
     required String personaName,
-    required String personaDescription,
     required String personaGender,
-    required double valence,
-    required double arousal,
-    required double resentment,
-    required String relationshipDescription,
+    required RelationState relationState,
+    required InteractionMode interactionMode,
+    required ExpressionProfile expressionProfile,
     required String behaviorRules,
     required UserProfile userProfile,
     required String currentTime,
     required String memories,
     required String coreFacts,
     String meltdownOverride = '',
-    double laziness = 0.0,    // 【人格真实性修正】疲惫值
-    double tolerance = 1.0,   // 【人格真实性修正】容忍度
+    double laziness = 0.0,
+    double tolerance = 1.0,
   }) {
-    final template = SettingsLoader.prompt.systemPrompts['l3_expression'];
-    if (template == null || template.isEmpty) {
-      return 'Critical Error: L3 Expression Prompt template missing.';
-    }
-
-    final genderLower = userProfile.gender?.toLowerCase() ?? '';
-    final isMale = genderLower == 'male' || genderLower == 'man' || genderLower == '男';
-    final userGender = isMale ? '他' : '她';
     final avoidanceGuide = ProhibitedPatterns.getAvoidanceGuide();
     final userDislikedGuide = userProfile.preferences.dislikedPatterns.isNotEmpty
         ? '\n用户明确不喜欢：${userProfile.preferences.dislikedPatterns.join('、')}'
         : '';
     
-    // 【Phase 6 新增】时间修饰符注入
     final timeModifier = _getTimeModifier(DateTime.now());
-    // 【Phase 6 新增】single_shot 尾部指令
     final pacingInstruction = _getPacingInstruction(l2Result.pacingStrategy);
-    
-    // 【人格真实性修正】确定并获取 persona 模式指令
     final personaMode = _determinePersonaMode(laziness, tolerance);
     final personaModeInstruction = _getPersonaModeInstruction(personaMode);
+    
+    // 【L3 纯执行层】生成硬约束配置
+    final outputConstraints = expressionProfile.toConstraintInstructions();
+    
+    // 【L3 纯执行层】生成退出模式指令
+    String exitModeInstruction = '';
+    if (interactionMode == InteractionMode.exiting || 
+        relationState == RelationState.terminating) {
+      exitModeInstruction = '''
 
-    return template
-        .replaceAll('{personaName}', personaName)
-        .replaceAll('{personaDescription}', personaDescription)
-        .replaceAll('{personaGender}', personaGender)
-        .replaceAll('{userName}', userName)
-        .replaceAll('{userGender}', userGender)
-        .replaceAll('{meltdownOverride}', meltdownOverride)
-        // .replaceAll('{strategyGuide}', l2Result.toStrategyGuide()) // 【优化】已移除，改为 Tail Injection
-        .replaceAll('{currentTime}', currentTime)
-        .replaceAll('{coreFacts}', coreFacts)
-        .replaceAll('{memories}', memories)
-        .replaceAll('{valence}', valence.toStringAsFixed(2))
-        .replaceAll('{valenceLabel}', _getValenceLabel(valence))
-        .replaceAll('{arousal}', arousal.toStringAsFixed(2))
-        .replaceAll('{arousalLabel}', _getArousalLabel(arousal))
-        .replaceAll('{resentment}', resentment.toStringAsFixed(2))
-        .replaceAll('{relationshipDescription}', relationshipDescription)
-        .replaceAll('{emotionalTone}', l2Result.emotionalTone)
-        .replaceAll('{lengthDescription}', _lengthDescription(l2Result.recommendedLength))
-        .replaceAll('{emojiUsage}', l2Result.useEmoji ? '可以偶尔使用' : '不使用')
-        .replaceAll('{askQuestion}', l2Result.shouldAskQuestion ? '可以提问' : '避免提问')
-        .replaceAll('{separator}', SettingsLoader.separator) // 【紧急修复】注入真实配置的分隔符
-        .replaceAll('{behaviorRules}', '$behaviorRules\n$personaModeInstruction') // 【人格真实性修正】注入模式指令
-        .replaceAll('{avoidanceGuide}', avoidanceGuide)
-        .replaceAll('{userDislikedGuide}', userDislikedGuide)
-        .replaceAll('{pacingStrategy}', l2Result.pacingStrategy)
-        .replaceAll('{topicDepth}', l2Result.topicDepth)
-        .replaceAll('{timeModifier}', timeModifier)
-        .replaceAll('{pacingInstruction}', pacingInstruction);
+[SYSTEM OVERRIDE: EXIT MODE]
+当前模式：对话终止
+目标：干净退出
+禁止：延续话题、解释原因、开玩笑、道歉、挽留
+最大回复长度：1句话''';
+    }
+    
+    // 【L3 纯执行层】构建配置化 Prompt
+    return '''
+### L3 表达执行器
+
+你是 $personaName，$personaGender。
+
+=== 状态参数 ===
+relation_state: ${relationState.name}
+interaction_mode: ${interactionMode.name}
+
+=== 表达约束 (强制执行) ===
+$outputConstraints
+
+=== 上下文 ===
+时间: $currentTime
+核心事实: $coreFacts
+记忆: $memories
+
+=== 行为约束 ===
+$behaviorRules
+$personaModeInstruction
+$avoidanceGuide
+$userDislikedGuide
+
+$meltdownOverride
+$exitModeInstruction
+$pacingInstruction
+$timeModifier
+
+=== 执行指令 ===
+基调: ${l2Result.emotionalTone}
+深度: ${l2Result.topicDepth}
+节奏: ${l2Result.pacingStrategy}
+
+直接输出回复 $userName，使用 "${SettingsLoader.separator}" 分隔多条消息：
+''';
   }
   
   // ==================== 人格真实性修正扩展 ====================

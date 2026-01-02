@@ -7,6 +7,7 @@ import '../../core/app_engine.dart';
 import '../../core/provider/intimacy_color_provider.dart';
 import 'persona_editor_dialog.dart';
 import 'personality_radar_chart.dart'; // 【新增】
+import 'prompt_viewer_dialog.dart'; // 【Prompt Viewer】
 import '../utils/ui_adapter.dart';
 
 /// Research HUD 侧边栏 - 科幻风格实时状态监控面板
@@ -277,6 +278,7 @@ class _ModernSideBarState extends State<ModernSideBar> {
                         );
                       },
                     ),
+
                   ],
                 ),
                 const SizedBox(height: 4),

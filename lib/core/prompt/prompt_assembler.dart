@@ -92,7 +92,9 @@ class PromptAssembler {
     String? perception,
   }) {
     final buffer = StringBuffer();
-    buffer.writeln('\n[系统指令]');
+    
+    // 使用明确的分隔符，防止 LLM 将其误认为是从属于上一条用户消息
+    buffer.writeln('\n\n--- [SYSTEM INJECTION] ---');
     
     if (perception != null && perception.isNotEmpty) {
       buffer.writeln('【用户感知】$perception');
@@ -106,7 +108,7 @@ class PromptAssembler {
       buffer.writeln('【执行策略】$strategy');
     }
     
-    buffer.writeln('请基于以上思考和策略回复用户：');
+    buffer.writeln('>>> 请基于以上内省思考，生成最终回复：');
     return buffer.toString();
   }
 

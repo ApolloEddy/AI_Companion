@@ -2,6 +2,53 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.0] - 2026-01-03 (L3 Pure Executor Refactor)
+
+### Added
+
+- **L3 纯执行层重构 (L3 Pure Executor Refactor)**: 彻底分离 L3 表达层的职责，使其成为纯粹的"执行器"而非"思考器"。
+  - **RelationState 枚举**: 新增 `relation_state.dart`，定义 `close`/`normal`/`distant`/`terminating` 四种关系状态，替代原有的自然语言描述（如"很好的朋友，相互信任"）。
+  - **InteractionMode 枚举**: 定义 `engaged`/`neutral`/`exiting` 三种交互模式，根据情绪和敌意值自动计算。
+  - **ExpressionProfile 配置类**: 新增 `expression_profile.dart`，实现 Big Five → 硬约束配置的映射，包括 `max_sentences`、`metaphor_density`、`emotional_leakage`、`initiative_allowed`、`emoji_allowed`、`playful_allowed`、`roleplay_allowed` 等参数。
+- **紧急退出模式 (Emergency Exit Mode)**: 当 `relation_state == terminating` 或 `interaction_mode == exiting` 时，L3 强制执行单句、中立、无解释的退出响应。
+
+### Changed
+
+- **PromptBuilder.buildL3ExpressionPrompt**: 完全重构，不再使用 YAML 模板替换，改为直接生成配置化 Prompt。移除 `personaDescription`、`relationshipDescription`、`valence`、`arousal`、`resentment` 等原有参数，替换为 `relationState`、`interactionMode`、`expressionProfile`。
+- **ConversationEngine**: L3 调用点更新，在调用 `buildL3ExpressionPrompt` 前预先计算 `RelationState`、`InteractionMode` 和 `ExpressionProfile`。
+- **PersonaPolicy**: 新增 `getRelationState()` 方法，标记 `getRelationshipDescription()` 为 `@Deprecated`。
+
+### Architecture
+
+L3 Prompt 从散文式描述转变为配置式参数：
+
+**Before (自然语言描述):**
+
+```
+【人格画像 (Big Five)】
+开放性: 充满想象力和创造力，喜欢隐喻和诗意表达 (0.78)
+外向性: 热情洋溢，主动健谈，语气活泼 (0.65)
+...
+* **关系**: 很好的朋友，相互信任 (愉悦)
+```
+
+**After (配置化参数):**
+
+```yaml
+relation_state: close
+interaction_mode: engaged
+output_constraints:
+  max_sentences: 3
+  forbid_metaphor: false
+  forbid_emotional_language: false
+  forbid_initiative: false
+```
+
+### Documentation
+
+- **README.md 全面重写**: 新增详细的软件特色介绍、7 个技术模型（Big Five、V-A-R 情绪空间、亲密度增长、反应罗盘、生物节律、L3 表达约束、记忆系统）的完整公式说明。
+- **README_EN.md 同步更新**: 英文版文档与中文版保持一致。
+
 ## [2.8.0] - 2026-01-02 (Cognitive Architecture Refactoring)
 
 ### Added

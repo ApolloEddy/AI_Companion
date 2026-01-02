@@ -6,7 +6,6 @@ class ChatMessage {
   final bool isUser;
   final DateTime time;
   final String id; // 唯一标识符
-  final String? fullPrompt; // 此次生成使用的完整 Prompt
   final int? tokensUsed;    // 此次生成消耗的 Token 数
   
   ChatMessage({
@@ -14,7 +13,6 @@ class ChatMessage {
     required this.isUser, 
     required this.time,
     String? id,
-    this.fullPrompt,
     this.tokensUsed,
   }) : id = id ?? const Uuid().v4();
 
@@ -31,7 +29,6 @@ class ChatMessage {
       isUser: isUserBool,
       time: DateTime.tryParse(json['time'] ?? '') ?? DateTime.now(),
       id: json['id'],
-      fullPrompt: json['fullPrompt'] ?? json['full_prompt'],
       tokensUsed: json['tokensUsed'] ?? json['tokens_used'],
     );
   }
@@ -43,7 +40,6 @@ class ChatMessage {
       'content': content,
       'is_user': isUser ? 1 : 0, // SQLite 需要 int
       'time': time.toIso8601String(),
-      'full_prompt': fullPrompt,
       'tokens_used': tokensUsed,
     };
   }

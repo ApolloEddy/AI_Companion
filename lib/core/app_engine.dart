@@ -26,6 +26,7 @@ import 'engine/personality_engine.dart'; // 【新增】Big Five 人格引擎
 import 'memory/memory_manager.dart'; // Moved to memory
 import 'engine/conversation_engine.dart';
 import 'memory/fact_store.dart'; // Moved to memory
+import 'service/prompt_logger.dart'; // 【Prompt Viewer】
 
 // 保留向后兼容
 import 'service/persona_service.dart';
@@ -66,6 +67,10 @@ class AppEngine extends ChangeNotifier {
   // Phase 2: FactStore 引用（用于 MemoryManagerScreen）
   late FactStore _factStore;
   FactStore get factStore => _factStore;
+  
+  // 【Prompt Viewer】PromptLogger 引用（用于 UI 展示）
+  PromptLogger? _promptLogger;
+  PromptLogger? get promptLogger => _promptLogger;
   
   // 【新增】暴露 IntimacyEngine 给 UI 层（用于稳定性监视器）
   IntimacyEngine get intimacyEngine => _intimacyEngine;
@@ -174,6 +179,9 @@ class AppEngine extends ChangeNotifier {
 
     // 初始化数据库
     final dbHelper = DatabaseHelper();
+    
+    // 【Prompt Viewer】初始化 PromptLogger
+    _promptLogger = PromptLogger(dbHelper);
 
     // 初始化服务
     persona = PersonaService(prefs);
@@ -225,6 +233,11 @@ class AppEngine extends ChangeNotifier {
 
     // 注入 FactStore
     _conversationEngine.setFactStore(_factStore);
+    
+    // 【Prompt Viewer】注入 PromptLogger
+    if (_promptLogger != null) {
+      _conversationEngine.setPromptLogger(_promptLogger!);
+    }
     
     // 注入内心独白模型获取回调
     _conversationEngine.monologueModelGetter = () => monologueModel;

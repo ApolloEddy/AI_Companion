@@ -149,6 +149,23 @@ class ReflectionResult {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+    'should_ask_question': shouldAskQuestion,
+    'question_reason': questionReason,
+    'response_strategy': responseStrategy,
+    'avoid_patterns': avoidPatterns,
+    'emotional_tone': emotionalTone,
+    'content_hints': contentHints,
+    'recommended_length': recommendedLength,
+    'use_emoji': useEmoji,
+    'timestamp': timestamp.toIso8601String(),
+    'inner_monologue': innerMonologue,
+    'emotion_shift': emotionShift,
+    'micro_emotion': microEmotion,
+    'pacing_strategy': pacingStrategy,
+    'topic_depth': topicDepth,
+  };
+
   /// 格式化为策略指导
   String toStrategyGuide() {
     final lines = <String>[];

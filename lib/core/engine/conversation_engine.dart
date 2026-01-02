@@ -37,6 +37,8 @@ import '../memory/memory_manager.dart';
 import 'proactive_settings.dart';
 import '../memory/fact_store.dart';
 import '../mechanisms/reaction_engine.dart'; // 【Reaction Compass】
+import '../model/relation_state.dart';       // 【L3 纯执行层】
+import '../model/expression_profile.dart';   // 【L3 纯执行层】
 import '../settings_loader.dart';
 
 // 认知引擎组件
@@ -51,6 +53,7 @@ import '../prompt/prompt_assembler.dart';
 import '../prompt/prompt_snapshot.dart';
 import '../prompt/prompt_builder.dart'; // 【新增】L2/L3 分层 Prompt
 import '../util/input_sanitizer.dart';
+import '../service/prompt_logger.dart'; // 【Prompt Viewer】
 
 /// 主动消息回调
 typedef ProactiveMessageCallback = void Function(ChatMessage message);
@@ -158,6 +161,18 @@ class ConversationEngine {
 
   // 多阶段 Agentic 工作流组件
   FactStore? _factStore;
+  
+  // 【Prompt Viewer】Prompt 日志记录器
+  PromptLogger? _promptLogger;
+  
+  // 【Prompt Viewer】临时存储 L1/L2 Prompts
+  String? _tempL1Prompt;
+  String? _tempL2Prompt;
+  
+  void setPromptLogger(PromptLogger logger) {
+    _promptLogger = logger;
+    print('[ConversationEngine] PromptLogger injected');
+  }
 
   // ========== 生命周期管理 ==========
 
@@ -486,10 +501,19 @@ class ConversationEngine {
     // 【Phase 3】安全清洗用户输入，防止 Prompt 注入
     final sanitizedText = InputSanitizer.sanitize(text);
 
+    // 【Prompt Viewer】重置临时 Prompt 记录
+    _tempL1Prompt = null;
+    _tempL2Prompt = null;
+
     // ======== Step 1: 感知阶段 (Perception) ========
     // 分析用户意图、情绪、潜台词
     print('[Pipeline] Step 1: Perception phase');
     final perception = await _runPerceptionPhase(sanitizedText, currentMessages);
+    
+    // 【Prompt Viewer】捕获 L1 Prompt
+    if (perception.l1Prompt != null) {
+      _tempL1Prompt = perception.l1Prompt;
+    }
     
     // ======== 【Safety Fast Track】紧急安全模式 ========
     // 检测到自杀/自残关键词时，跳过所有 L2/L3 处理，直接返回安全响应
@@ -691,6 +715,9 @@ class ConversationEngine {
         bigFiveMetrics: bigFiveMetrics, // 【L2/L3 重构】Raw Big Five
         intimacy: _intimacy,             // 【L2/L3 重构】亲密度数值
       );
+      
+      // 【Prompt Viewer】临时存储 L2 Prompt
+      _tempL2Prompt = l2Prompt;
       
       // 【L2】获取内心独白模型
       final monologueModel = monologueModelGetter?.call() ?? 'qwen-max';
@@ -976,7 +1003,31 @@ class ConversationEngine {
       print('[Pipeline] Reaction Compass: stance=${reactionResult.stance.name}, valve=${toneValve.name}');
     }
 
-    // 【Phase 5】使用新架构 L3 构建器生成 System Prompt
+    // 【L3 纯执行层】计算状态枚举
+    final relationState = personaPolicy.getRelationState(
+      _intimacy,
+      isTerminating: emotionEngine.isMeltdown,
+    );
+    final interactionMode = computeInteractionMode(
+      arousal: emotionEngine.arousal,
+      resentment: emotionEngine.resentment,
+      valence: emotionEngine.valence,
+      isMeltdown: emotionEngine.isMeltdown,
+    );
+
+    // 【L3 纯执行层】构建表达配置 (Big Five -> 硬约束)
+    final expressionProfile = ExpressionProfile.fromBigFive(
+      openness: personalityEngine.traits.openness,
+      extraversion: personalityEngine.traits.extraversion,
+      agreeableness: personalityEngine.traits.agreeableness,
+      neuroticism: personalityEngine.traits.neuroticism,
+      intimacy: _intimacy,
+      resentment: emotionEngine.resentment,
+    );
+    
+    print('[Pipeline] L3 State: relation=${relationState.name}, mode=${interactionMode.name}');
+
+    // 【L3 纯执行层】使用新架构构建器
     final systemPrompt = PromptBuilder.buildL3ExpressionPrompt(
       l2Result: L2DecisionResult(
         innerMonologue: reflection.innerMonologue ?? '',
@@ -992,21 +1043,16 @@ class ConversationEngine {
       userName: userName,
       personaName: personaService.personaPolicy.name,
       personaGender: personaService.personaPolicy.gender,
-      // 【L2/L3 重构】使用 PersonalityEngine 预计算的人格描述
-      // 设计原理：亲密度融合在 Dart 层完成，LLM 不需要条件判断
-      personaDescription: personalityEngine.generatePromptDescription(
-        intimacy: _intimacy,
-      ),
-      valence: emotionEngine.valence,
-      arousal: emotionEngine.arousal,
-      resentment: emotionEngine.resentment,
-      relationshipDescription: personaPolicy.getRelationshipDescription(_intimacy),
+      relationState: relationState,
+      interactionMode: interactionMode,
+      expressionProfile: expressionProfile,
       behaviorRules: behaviorRules,
       userProfile: profileService!.profile,
       currentTime: _formatCurrentTime(),
       memories: memories,
       coreFacts: coreFacts,
       meltdownOverride: meltdownOverride,
+      laziness: laziness,
     );
     
     // 构建 API 消息列表 (【时间注入】启用时间前缀)
@@ -1119,30 +1165,64 @@ class ConversationEngine {
         arousal: emotionEngine.arousal,
       );
 
-      // 【架构优化】Single Source of Truth: 直接根据发送给 LLM 的 apiMessages 生成记录
-      // 确保 UI 看到的 Prompt 与 实际发送的完全一致
-      final fullPromptLog = apiMessages.map((m) {
-        final role = m['role']?.toUpperCase() ?? 'UNKNOWN';
-        final content = m['content'] ?? '';
-        return '=== [$role] ===\n$content';
-      }).join('\n\n');
-
       // 转换为 ChatMessage，并附带延迟信息
       final aiMessages = <DelayedMessage>[];
+      String? firstMessageId; // 【Prompt Viewer】记录第一条消息 ID 用于关联
+      
       for (final msg in formattedMessages) {
+        final chatMessage = ChatMessage(
+          content: msg['content'] as String,
+          isUser: false,
+          time: DateTime.now(),
+          tokensUsed: response.tokensUsed,
+        );
+        
+        firstMessageId ??= chatMessage.id; // 记录第一条消息 ID
+        
         aiMessages.add(
           DelayedMessage(
-            message: ChatMessage(
-              content: msg['content'] as String,
-              isUser: false,
-              time: DateTime.now(),
-              fullPrompt: fullPromptLog, // 【Fix】使用统一生成的 Log
-              tokensUsed: response.tokensUsed,
-            ),
+            message: chatMessage,
             delay: Duration(
               milliseconds: ((msg['delay'] as double) * 1000).round(),
             ),
           ),
+        );
+      }
+      
+      // 【Prompt Viewer】记录 L1/L2/L3 Prompt 到数据库
+      if (_promptLogger != null && firstMessageId != null) {
+        // L1 感知层
+        if (_tempL1Prompt != null) {
+          await _promptLogger!.logPrompt(
+            messageId: firstMessageId,
+            layer: 'L1',
+            promptContent: _tempL1Prompt!,
+          );
+        }
+        
+        // L2 决策层
+        if (_tempL2Prompt != null) {
+          await _promptLogger!.logPrompt(
+            messageId: firstMessageId,
+            layer: 'L2',
+            promptContent: _tempL2Prompt!,
+            responseContent: jsonEncode(reflection.toJson()), // 记录反思结果作为 L2 响应
+          );
+        }
+        
+        // L3 表达层
+        // 【关键修复】重建完整上下文 (System + History + User) 以便 UI 真实展示发送内容
+        final l3FullContext = apiMessages.map((m) {
+          final role = m['role']?.toUpperCase() ?? 'UNKNOWN';
+          final content = m['content'] ?? '';
+          return '=== [$role] ===\n$content';
+        }).join('\n\n');
+
+        await _promptLogger!.logPrompt(
+          messageId: firstMessageId,
+          layer: 'L3',
+          promptContent: l3FullContext, // 使用完整上下文
+          responseContent: responseText,
         );
       }
 

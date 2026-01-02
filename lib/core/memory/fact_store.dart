@@ -292,10 +292,11 @@ class FactStore {
     String identity = '用户';
     // 修复：只有当 name 是有意义的值时才添加（排除问词等）
     if (name != null && name.length > 1 && !['谁', '什么', '哪里', '怎么'].contains(name)) {
-      identity = '用户：$name';  // 修复：改为"用户："而不是"用户身份："
+      // 【安全修复】给名字加引号，防止名字像句子导致 LLM 误判
+      identity = '姓名："$name"'; 
     }
-    if (occupation != null) identity += '，$occupation'; 
-    if (origin != null) identity += '，来自$origin';
+    if (occupation != null) identity += '，职业：$occupation'; 
+    if (origin != null) identity += '，来自：$origin';
     
     if (identity != '用户') {
       parts.add(identity);

@@ -1,6 +1,10 @@
 import 'package:flutter/services.dart';
 import 'package:yaml/yaml.dart';
 import 'config/prompt_config.dart'; // 【新增】
+import 'config/emotion_config.dart';
+import 'config/intimacy_config.dart';
+import 'config/response_config.dart';
+import 'config/ui_strings_config.dart';
 
 /// 动态设置加载器 - 从 YAML 文件读取配置
 class SettingsLoader {
@@ -11,6 +15,13 @@ class SettingsLoader {
   static Map<String, dynamic>? _responseSettings;
   static Map<String, dynamic>? _memorySettings;
   static Map<String, dynamic>? _factSchemaSettings;
+  static Map<String, dynamic>? _uiStringsSettings; // 【Phase 2 新增】
+  
+  // 强类型 Config 实例
+  static EmotionConfig? _emotionConfig;
+  static IntimacyConfig? _intimacyConfig;
+  static ResponseConfig? _responseConfig;
+  static UiStringsConfig? _uiStringsConfig;
   
   static bool _isLoaded = false;
   
@@ -24,12 +35,25 @@ class SettingsLoader {
     _responseSettings = await _loadYaml('assets/settings/response_settings.yaml');
     _memorySettings = await _loadYaml('assets/settings/memory_settings.yaml');
     _factSchemaSettings = await _loadYaml('assets/settings/fact_schema.yaml');
+    _uiStringsSettings = await _loadYaml('assets/settings/ui_strings.yaml'); // 【Phase 2 新增】
     
     // 【新增】加载 Prompt 模板配置
     _promptConfig = await _loadPromptConfig();
     
+    // 【Phase 3 新增】初始化强类型 Config
+    _emotionConfig = EmotionConfig.fromYaml(_emotionSettings ?? {});
+    _intimacyConfig = IntimacyConfig.fromYaml(_intimacySettings ?? {});
+    _responseConfig = ResponseConfig.fromYaml(_responseSettings ?? {});
+    _uiStringsConfig = UiStringsConfig.fromYaml(_uiStringsSettings ?? {});
+    
     _isLoaded = true;
   }
+  
+  // 强类型 Config 获取器
+  static EmotionConfig get emotionConfig => _emotionConfig ?? const EmotionConfig();
+  static IntimacyConfig get intimacyConfig => _intimacyConfig ?? const IntimacyConfig();
+  static ResponseConfig get responseConfig => _responseConfig ?? const ResponseConfig();
+  static UiStringsConfig get uiStrings => _uiStringsConfig ?? const UiStringsConfig();
   
   /// 加载人格工厂模板 (用于首次启动)
   /// 
@@ -121,73 +145,49 @@ class SettingsLoader {
   
   // ========== Emotion Settings ==========
   
-  static double get valenceDecayRate => 
-      _getDouble(_emotionSettings, ['decay', 'valence_rate'], 0.05);
+  static double get valenceDecayRate => emotionConfig.valenceDecayRate;
   
-  static double get arousalDecayRate => 
-      _getDouble(_emotionSettings, ['decay', 'arousal_rate'], 0.08);
+  static double get arousalDecayRate => emotionConfig.arousalDecayRate;
   
-  static double get baseValenceChange => 
-      _getDouble(_emotionSettings, ['update', 'base_valence_change'], 0.05);
+  static double get baseValenceChange => emotionConfig.baseValenceChange;
   
-  static double get baseArousalChange => 
-      _getDouble(_emotionSettings, ['update', 'base_arousal_change'], 0.08);
+  static double get baseArousalChange => emotionConfig.baseArousalChange;
   
-  static double get intimacyBufferFactor => 
-      _getDouble(_emotionSettings, ['update', 'intimacy_buffer_factor'], 0.5);
+  static double get intimacyBufferFactor => emotionConfig.intimacyBufferFactor;
   
-  static double get boundarySoftness => 
-      _getDouble(_emotionSettings, ['update', 'boundary_softness'], 0.1);
+  static double get boundarySoftness => emotionConfig.boundarySoftness;
   
-  static double get llmHintWeight => 
-      _getDouble(_emotionSettings, ['update', 'llm_hint_weight'], 0.2);
+  static double get llmHintWeight => emotionConfig.llmHintWeight;
   
-  static double get highEmotionalIntensity => 
-      _getDouble(_emotionSettings, ['thresholds', 'high_emotional_intensity'], 0.6);
+  static double get highEmotionalIntensity => emotionConfig.highEmotionalIntensity;
 
   // 【Phase 3 & 4 新增】
-  static double get resentmentDecayFactor => 
-      _getDouble(_emotionSettings, ['decay', 'resentment_decay_factor'], 0.95);
+  static double get resentmentDecayFactor => emotionConfig.resentmentDecayFactor;
 
-  static double get resentmentIncrease => 
-      _getDouble(_emotionSettings, ['update', 'resentment_increase'], 0.1);
+  static double get resentmentIncrease => emotionConfig.resentmentIncrease;
 
-  static double get resentmentSuppressionFactor => 
-      _getDouble(_emotionSettings, ['update', 'resentment_suppression_factor'], 0.8);
+  static double get resentmentSuppressionFactor => emotionConfig.resentmentSuppressionFactor;
 
-  static double get fatigueArousalThreshold => 
-      _getDouble(_emotionSettings, ['update', 'fatigue_arousal_threshold'], 0.8);
+  static double get fatigueArousalThreshold => emotionConfig.fatigueArousalThreshold;
 
-  static double get fatigueDampeningFactor => 
-      _getDouble(_emotionSettings, ['update', 'fatigue_dampening_factor'], 0.5);
+  static double get fatigueDampeningFactor => emotionConfig.fatigueDampeningFactor;
 
-  static List<String> get negativeKeywords {
-    final list = _emotionSettings?['update']?['negative_keywords'];
-    if (list is List) return list.map((e) => e.toString()).toList();
-    return ['不', '别', '讨厌', '烦', '滚', '闭嘴'];
-  }
+  static List<String> get negativeKeywords => emotionConfig.negativeKeywords;
 
-  static double get meltdownArousalThreshold => 
-      _getDouble(_emotionSettings, ['thresholds', 'meltdown_arousal'], 0.85);
+  static double get meltdownArousalThreshold => emotionConfig.meltdownArousalThreshold;
 
-  static double get meltdownValenceThreshold =>
-      _getDouble(_emotionSettings, ['thresholds', 'meltdown_valence_negative'], -0.75);
+  static double get meltdownValenceThreshold => emotionConfig.meltdownValenceThreshold;
 
   // 【新增】初始状态配置 (用于 Factory Reset)
-  static double get initialValence =>
-      _getDouble(_emotionSettings, ['initial', 'valence'], 0.1);
+  static double get initialValence => emotionConfig.initialValence;
 
-  static double get initialArousal =>
-      _getDouble(_emotionSettings, ['initial', 'arousal'], 0.5);
+  static double get initialArousal => emotionConfig.initialArousal;
 
-  static double get initialResentment =>
-      _getDouble(_emotionSettings, ['initial', 'resentment'], 0.0);
+  static double get initialResentment => emotionConfig.initialResentment;
 
-  static double get initialIntimacy =>
-      _getDouble(_intimacySettings, ['initial', 'intimacy'], 0.1);
+  static double get initialIntimacy => intimacyConfig.initialIntimacy;
 
-  static double get initialGrowthCoefficient =>
-      _getDouble(_intimacySettings, ['initial', 'growth_coefficient'], 1.0);
+  static double get initialGrowthCoefficient => intimacyConfig.initialGrowthCoefficient;
   
   // ========== Time Settings ==========
   
@@ -238,53 +238,39 @@ class SettingsLoader {
   
   // ========== Response Settings ==========
   
-  static String get separator => 
-      _getString(_responseSettings, ['splitting', 'separator'], '|||');
+  static String get separator => responseConfig.separator;
   
-  static int get maxParts => 
-      _getInt(_responseSettings, ['splitting', 'max_parts'], 5);
+  static int get maxParts => responseConfig.maxParts;
   
-  static int get maxSingleLength => 
-      _getInt(_responseSettings, ['splitting', 'max_single_length'], 100);
+  static int get maxSingleLength => responseConfig.maxSingleLength;
   
-  static double get firstDelayBase => 
-      _getDouble(_responseSettings, ['timing', 'first_delay', 'base'], 0.5);
+  static double get firstDelayBase => responseConfig.firstDelayBase;
   
-  static double get typingSpeed => 
-      _getDouble(_responseSettings, ['timing', 'first_delay', 'typing_speed'], 80);
+  static double get typingSpeed => responseConfig.typingSpeed;
   
-  static double get arousalFactor => 
-      _getDouble(_responseSettings, ['timing', 'first_delay', 'arousal_factor'], 0.3);
+  static double get arousalFactor => responseConfig.arousalFactor;
   
-  static double get firstDelayMin => 
-      _getDouble(_responseSettings, ['timing', 'first_delay', 'min'], 0.3);
+  static double get firstDelayMin => responseConfig.firstDelayMin;
   
-  static double get firstDelayMax => 
-      _getDouble(_responseSettings, ['timing', 'first_delay', 'max'], 3.0);
+  static double get firstDelayMax => responseConfig.firstDelayMax;
   
-  static double get intervalBase => 
-      _getDouble(_responseSettings, ['timing', 'interval', 'base'], 0.8);
+  static double get intervalBase => responseConfig.intervalBase;
   
-  static double get intervalRandomMin => 
-      _getDouble(_responseSettings, ['timing', 'interval', 'random_min'], 0.2);
+  static double get intervalRandomMin => responseConfig.intervalRandomMin;
   
-  static double get intervalRandomMax => 
-      _getDouble(_responseSettings, ['timing', 'interval', 'random_max'], 0.8);
+  static double get intervalRandomMax => responseConfig.intervalRandomMax;
   
-  static double get perCharDelay => 
-      _getDouble(_responseSettings, ['timing', 'interval', 'per_char'], 0.02);
+  static double get perCharDelay => responseConfig.perCharDelay;
   
-  static double get highArousalThreshold => 
-      _getDouble(_responseSettings, ['emotion_effects', 'high_arousal_threshold'], 0.6);
+  static double get highArousalThreshold => responseConfig.highArousalThreshold;
   
-  static double get splitProbabilityBonus => 
-      _getDouble(_responseSettings, ['emotion_effects', 'split_probability_bonus'], 0.3);
+  static double get splitProbabilityBonus => responseConfig.splitProbabilityBonus;
 
-  static List<String> get meltdownResponses {
-    final list = _responseSettings?['emotion_effects']?['meltdown_responses'];
-    if (list is List) return list.map((e) => e.toString()).toList();
-    return ['......', '我不想说话了'];
-  }
+  static List<String> get meltdownResponses => responseConfig.meltdownResponses;
+
+  static String get meltdownStrategy => responseConfig.meltdownStrategy;
+
+  static String get meltdownMonologue => responseConfig.meltdownMonologue;
   
   // ========== Memory Settings ==========
   

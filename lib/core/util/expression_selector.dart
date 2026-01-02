@@ -114,22 +114,21 @@ class ExpressionSelector {
       humorGuide = '可以多开玩笑，活跃气氛';
     }
     
-    // 6. 表情指引 (保留原逻辑，暂未迁移至 Config)
+    // 6. 表情指引 (利用 YAML 中的 emoji_level 配置)
+    final modeData = SettingsLoader.getExpressionMode(modeKey);
+    final emojiLevel = (modeData['emoji_level'] as num?)?.toDouble() ?? SettingsLoader.emojiUsage;
+    
     String emojiGuide;
-    // ... (Emoji logic kept same for now or moved to config later)
-    // 简化:
     if (valence.abs() > 0.7) {
       emojiGuide = '情绪强烈，可用一个表情表达此刻心境';
     } else if (userUsedEmoji) {
       emojiGuide = '可以顺着用户的语气用一个表情';
+    } else if (emojiLevel < 0.3) {
+      emojiGuide = '不使用表情';
+    } else if (emojiLevel < 0.6) {
+      emojiGuide = '偶尔可用一个表情，保持自然';
     } else {
-       // 读取配置中的默认设置
-       final emojiLevel = SettingsLoader.emojiUsage;
-       if (emojiLevel < 0.3) {
-         emojiGuide = '不使用表情';
-       } else {
-         emojiGuide = '平时不用表情，保持自然得体';
-       }
+      emojiGuide = '可以多用表情表达心情';
     }
 
     return '''

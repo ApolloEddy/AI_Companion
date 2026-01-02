@@ -806,8 +806,8 @@ class ConversationEngine {
       final collapseCognitiveState = CognitiveState(
         perception: {'meltdown': true},
         decision: {
-          'response_strategy': 'collapse',
-          'inner_monologue': '（情绪崩溃中，无法正常思考）',
+          'response_strategy': SettingsLoader.meltdownStrategy,
+          'inner_monologue': SettingsLoader.meltdownMonologue,
         },
         emotion: {
           'valence': emotionEngine.valence,

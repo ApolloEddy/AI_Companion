@@ -10,6 +10,8 @@ All notable changes to this project will be documented in this file.
 - **Dual-Mode Visualization**: 雷达图支持“塑形模式”(Sculpting) 和“监测模式”(Monitoring)，分别用于初始设定和日常对话中的人格漂移观测。
 - **Factory Reset**: 新增"重置人格与记忆"功能（危险区），支持一键清空所有记忆、聊天记录并重置 Big Five 参数（解锁 Genesis 二次编辑）。
 - **Persona Unification**: 统一了人格配置源，移除了代码中的硬编码默认值，现在 `default_persona.yaml` 是唯一的出厂设定源。默认 AI 名称变更为 **April**。
+- **Configuration Mapping**: 全面引入强类型配置映射层 (Dart Config)，`SettingsLoader` 现代理所有 Config 实例，实现了 YAML 到 Dart 对象的一对一映射，增强了类型安全与默认值兜底能力。
+- **UI Strings Externalization**: 创建 `assets/settings/ui_strings.yaml`，开始将硬编码的中文 UI 文本剥离至独立配置文件。
 
 ### Changed
 

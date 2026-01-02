@@ -41,6 +41,8 @@ emotion_effects:
   split_probability_bonus: 0.3
   
   # 【Phase 4】崩溃状态回复 (随机选一条)
+  meltdown_strategy: "collapse"
+  meltdown_monologue: "（情绪崩溃中，无法正常思考，拒绝交流）"
   meltdown_responses:
     - "......"
     - "我不想说话了"

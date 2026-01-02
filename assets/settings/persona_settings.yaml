@@ -54,10 +54,3 @@ expression:
       description: "温柔细腻"
       tone: "轻声、细语"
       emoji_level: 0.4
-
-# 亲密度对表达的影响
-intimacy_effects:
-  # 低亲密度阈值（低于此值更正式）
-  low_threshold: 0.3
-  # 高亲密度阈值（高于此值更活泼）
-  high_threshold: 0.7

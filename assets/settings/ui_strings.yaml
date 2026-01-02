@@ -1,0 +1,39 @@
+# UI 界面文本配置
+# 所有用户可见的固定文本统一管理
+
+settings_screen:
+  # 卡片标题
+  appearance_title: "外观 (APPEARANCE)"
+  core_model_title: "核心模型 (CORE MODEL)"
+  user_profile_title: "用户画像 (USER PROFILE)"
+  ai_identity_title: "AI 身份 (AI IDENTITY)"
+  data_management_title: "数据管理 (DATA MANAGEMENT)"
+  danger_zone_title: "危险区域 (DANGER ZONE)"
+  
+  # 性别选项
+  gender_male: "男性"
+  gender_female: "女性"
+  gender_other: "其他"
+  
+  # 按钮文本
+  save_profile: "保存画像"
+  export_chat: "导出聊天记录"
+  factory_reset: "恢复出厂设置"
+  
+  # 提示文本
+  api_key_hint: "请输入 API Key"
+  nickname_hint: "您的昵称"
+
+success_dialog:
+  profile_saved: "用户画像已保存"
+  config_saved: "配置已保存"
+  reset_complete: "已恢复出厂设置"
+  export_complete: "导出成功"
+
+main_screen:
+  input_placeholder: "说点什么..."
+  
+common:
+  confirm: "确认"
+  cancel: "取消"
+  loading: "加载中..."
